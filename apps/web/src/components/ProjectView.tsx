@@ -256,6 +256,7 @@ export function ProjectView({
   const [activeConversationId, setActiveConversationId] = useState<string | null>(
     null,
   );
+  const [messagesConversationId, setMessagesConversationId] = useState<string | null>(null);
   const [conversationLoadError, setConversationLoadError] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [previewComments, setPreviewComments] = useState<PreviewComment[]>([]);
@@ -341,6 +342,18 @@ export function ProjectView({
   // Track which conversation the current messages belong to, so we can
   // correctly gate new-conversation creation even during async loads.
   const messagesConversationIdRef = useRef<string | null>(null);
+  const currentConversationHasActiveRun = useMemo(
+    () => messages.some((m) => m.role === 'assistant' && isActiveRunStatus(m.runStatus)),
+    [messages],
+  );
+  const currentConversationLoading = Boolean(
+    activeConversationId && messagesConversationId !== activeConversationId,
+  );
+  const currentConversationBusy = currentConversationLoading || streaming || currentConversationHasActiveRun;
+
+  useEffect(() => {
+    setStreaming(false);
+  }, [project.id, activeConversationId]);
 
   // Load conversations on project switch. If none exist (older projects
   // pre-conversations, or a freshly created one whose default seed got
@@ -349,6 +362,7 @@ export function ProjectView({
     let cancelled = false;
     setConversations([]);
     setActiveConversationId(null);
+    setMessagesConversationId(null);
     setConversationLoadError(null);
     setMessages([]);
     setPreviewComments([]);
@@ -401,10 +415,21 @@ export function ProjectView({
       setMessages([]);
       setPreviewComments([]);
       setAttachedComments([]);
+      setMessagesConversationId(null);
       messagesConversationIdRef.current = null;
       return;
     }
     let cancelled = false;
+    setMessages([]);
+    setPreviewComments([]);
+    setAttachedComments([]);
+    setArtifact(null);
+    setMessagesConversationId(null);
+    savedArtifactRef.current = null;
+    pendingWritesRef.current.clear();
+    if (messagesConversationIdRef.current !== activeConversationId) {
+      messagesConversationIdRef.current = null;
+    }
     (async () => {
       const [list, comments] = await Promise.all([
         listMessages(project.id, activeConversationId),
@@ -419,6 +444,7 @@ export function ProjectView({
       savedArtifactRef.current = null;
       pendingWritesRef.current.clear();
       messagesConversationIdRef.current = activeConversationId;
+      setMessagesConversationId(activeConversationId);
     })();
     return () => {
       cancelled = true;
@@ -1078,7 +1104,8 @@ export function ProjectView({
       meta?: { research?: ResearchOptions },
     ) => {
       if (!activeConversationId) return;
-      if (streaming) return;
+      if (messagesConversationIdRef.current !== activeConversationId) return;
+      if (currentConversationBusy) return;
       if (!prompt.trim() && attachments.length === 0 && commentAttachments.length === 0) return;
       setError(null);
       const startedAt = Date.now();
@@ -1509,7 +1536,7 @@ export function ProjectView({
     [
       attachedComments,
       activeConversationId,
-      streaming,
+      currentConversationBusy,
       messages,
       config,
       agentsById,
@@ -1530,10 +1557,10 @@ export function ProjectView({
 
   const handleSendBoardCommentAttachments = useCallback(
     async (commentAttachments: ChatCommentAttachment[]) => {
-      if (streaming || commentAttachments.length === 0) return;
+      if (currentConversationBusy || commentAttachments.length === 0) return;
       await handleSend('', [], commentAttachments);
     },
-    [handleSend, streaming],
+    [handleSend, currentConversationBusy],
   );
 
   const persistArtifact = useCallback(
@@ -1608,7 +1635,7 @@ export function ProjectView({
 
   const handleContinueRemainingTasks = useCallback(
     (_assistantMessage: ChatMessage, todos: TodoItem[]) => {
-      if (streaming || todos.length === 0) return;
+      if (currentConversationBusy || todos.length === 0) return;
       const remainingList = todos
         .map((todo, i) => {
           const label =
@@ -1624,12 +1651,12 @@ export function ProjectView({
         'Update TodoWrite as you complete each remaining task.';
       void handleSend(prompt, [], []);
     },
-    [streaming, handleSend],
+    [currentConversationBusy, handleSend],
   );
 
   const handleExportAsPptx = useCallback(
     (fileName: string) => {
-      if (streaming) return;
+      if (currentConversationBusy) return;
       const baseTitle = fileName.replace(/\.html?$/i, '') || fileName;
       const prompt =
         `Export @${fileName} as an editable PPTX file titled "${baseTitle}".\n\n` +
@@ -1667,7 +1694,7 @@ export function ProjectView({
       };
       void handleSend(prompt, [attachment], []);
     },
-    [streaming, handleSend],
+    [currentConversationBusy, handleSend],
   );
 
   const handleStop = useCallback(() => {
@@ -1724,6 +1751,8 @@ export function ProjectView({
       // Eagerly clear messages and update ref so rapid clicks don't create
       // duplicate empty conversations before the effect resolves.
       setMessages([]);
+      setStreaming(false);
+      setMessagesConversationId(null);
       messagesConversationIdRef.current = fresh.id;
       setConversations((curr) => [fresh, ...curr]);
       setActiveConversationId(fresh.id);
@@ -1736,6 +1765,13 @@ export function ProjectView({
   }, [project.id, activeConversationId, messages.length]);
 
   const handleSelectConversation = useCallback((id: string) => {
+    setMessages([]);
+    setPreviewComments([]);
+    setAttachedComments([]);
+    setArtifact(null);
+    setStreaming(false);
+    setMessagesConversationId(null);
+    messagesConversationIdRef.current = null;
     setActiveConversationId(id);
   }, []);
 
@@ -2166,7 +2202,7 @@ export function ProjectView({
               // resets internal scroll/draft state inside ChatPane and ChatComposer.
               key={`${project.id}:${activeConversationId ?? 'conversation-unavailable'}`}
               messages={messages}
-              streaming={streaming}
+              streaming={currentConversationBusy}
               error={conversationLoadError ?? error}
               projectId={project.id}
               projectFiles={projectFiles}
@@ -2182,7 +2218,7 @@ export function ProjectView({
               onRequestOpenFile={requestOpenFile}
               initialDraft={chatInitialDraft}
               onSubmitForm={(text) => {
-                if (streaming) return;
+                if (currentConversationBusy) return;
                 void handleSend(text, [], []);
               }}
               onContinueRemainingTasks={handleContinueRemainingTasks}
@@ -2236,7 +2272,7 @@ export function ProjectView({
           }}
           isDeck={isDeck}
           onExportAsPptx={handleExportAsPptx}
-          streaming={streaming}
+          streaming={currentConversationBusy}
           openRequest={openRequest}
           liveArtifactEvents={liveArtifactEvents}
           tabsState={openTabsState}

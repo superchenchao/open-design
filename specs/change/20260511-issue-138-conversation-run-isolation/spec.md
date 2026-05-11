@@ -1,7 +1,7 @@
 ---
 id: 20260511-issue-138-conversation-run-isolation
 name: Issue 138 Conversation Run Isolation
-status: designed
+status: implemented
 created: '2026-05-11'
 ---
 
@@ -174,30 +174,18 @@ Flow:
 
 ## Plan
 
-<!-- Optional: Step breakdown for complex features that need multiple implementation steps.
-     Decided during Design. Checked off during Implement.
-     Keep this section compact and step-based.
-     Use markdown checkboxes for all step and substep items, for example:
-     - [ ] Step 1: Foo
-       - [ ] Substep 1.1 Implement: Foo foundation
-       - [ ] Substep 1.2 Implement: Foo integration
-       - [ ] Substep 1.3 Implement: Foo edge handling
-       - [ ] Substep 1.4 Verify: Foo automated coverage
-       - [ ] Substep 1.5 Verify: Foo manual workflow
-     - [ ] Step 2: Bar
-       - [ ] Substep 2.1 Implement: Bar
-       - [ ] Substep 2.2 Verify: Bar
-     - [ ] Step 3: Baz
-       - [ ] Substep 3.1 Implement: Baz
-       - [ ] Substep 3.2 Verify: Baz
-     Use a capability-based step breakdown with reviewable, meaningful increments.
-     Good boundaries align with one user-visible workflow, one subsystem/integration boundary, one migration/rollout step, or one stabilization milestone.
-     Each step must include small, independent substeps for implementation and immediate testing/verification.
-     Within each step, list implementation substeps before verification substeps.
-     The final step may focus on overall testing/verification, edge cases, regression coverage, and coverage improvements.
-     A step is complete only when relevant tests pass.
-     Size steps so one coding agent can implement + validate in a single session.
-     Write each substep as one small, independent task. -->
+- [x] Step 1: Add regression coverage
+  - [x] Substep 1.1 Verify: reproduce blocked send when another conversation has an active run.
+  - [x] Substep 1.2 Verify: cover conversation-filtered active run listing in daemon service.
+- [x] Step 2: Scope web run UI state to active conversation
+  - [x] Substep 2.1 Implement: derive busy state from active conversation load/run state.
+  - [x] Substep 2.2 Implement: clear stale message/render state on conversation switches.
+  - [x] Substep 2.3 Implement: block sends while target conversation messages are still loading.
+  - [x] Substep 2.4 Verify: prevent duplicate empty conversation creation while a fresh conversation is loading.
+- [x] Step 3: Validate implementation
+  - [x] Substep 3.1 Verify: run focused ProjectView regression tests.
+  - [x] Substep 3.2 Verify: run focused daemon run service test.
+  - [x] Substep 3.3 Verify: run guard and typecheck.
 
 ## Notes
 
@@ -205,8 +193,16 @@ Flow:
 
 ### Implementation
 
-<!-- Files created/modified, decisions made during coding, deviations from design -->
+- `apps/web/src/components/ProjectView.tsx` - added active-conversation message ownership state, loading-aware busy derivation, send gating, and synchronous conversation-switch cleanup.
+- `apps/web/tests/components/ProjectView.run-isolation.test.tsx` - added regression tests for sending in a different conversation, loading-window send blocking, and fresh-conversation duplicate prevention.
+- `apps/daemon/tests/runs.test.ts` - added service-level regression coverage for active run filtering by conversation within one project.
 
 ### Verification
 
-<!-- How the feature was verified: tests written, manual testing steps, results -->
+- Confirmed new web regression failed before the fix: `expected 'streaming' to be 'idle'` after switching to `conv-b`.
+- `pnpm --filter @open-design/web exec vitest run -c vitest.config.ts tests/components/ProjectView.run-isolation.test.tsx tests/components/ProjectView.run-cleanup.test.tsx tests/components/ProjectView.pendingPrompt.test.tsx` - passed.
+- `pnpm --filter @open-design/daemon exec vitest run -c vitest.config.ts tests/runs.test.ts` - passed.
+- `pnpm --filter @open-design/web typecheck` - passed.
+- `pnpm guard` - passed.
+- `pnpm typecheck` - passed.
+- Reviewer subagent final pass: no remaining blocking issues.
