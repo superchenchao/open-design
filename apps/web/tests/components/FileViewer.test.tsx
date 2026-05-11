@@ -20,6 +20,7 @@ vi.mock('../../src/state/projects', async () => {
 
 import {
   FileViewer,
+  LiveArtifactViewer,
   LiveArtifactRefreshHistoryPanel,
   SvgViewer,
   applyInspectOverridesToSource,
@@ -28,7 +29,7 @@ import {
   updateInspectOverride,
 } from '../../src/components/FileViewer';
 import type { InspectOverrideMap } from '../../src/components/FileViewer';
-import type { LiveArtifact, ProjectFile } from '../../src/types';
+import type { LiveArtifact, LiveArtifactWorkspaceEntry, ProjectFile } from '../../src/types';
 
 afterEach(() => {
   cleanup();
@@ -1321,6 +1322,99 @@ function baseLiveArtifact(overrides: Partial<LiveArtifact> = {}): LiveArtifact {
   };
   return { ...artifact, ...overrides, document: overrides.document ?? artifact.document };
 }
+
+function baseLiveArtifactWorkspaceEntry(
+  overrides: Partial<LiveArtifactWorkspaceEntry> = {},
+): LiveArtifactWorkspaceEntry {
+  const entry: LiveArtifactWorkspaceEntry = {
+    kind: 'live-artifact',
+    tabId: 'live:la_1',
+    artifactId: 'la_1',
+    projectId: 'proj_1',
+    title: 'Launch Metrics',
+    slug: 'launch-metrics',
+    status: 'active',
+    refreshStatus: 'idle',
+    pinned: false,
+    preview: { type: 'html', entry: 'index.html' },
+    hasDocument: true,
+    updatedAt: '2026-04-29T12:00:00.000Z',
+  };
+  return { ...entry, ...overrides };
+}
+
+describe('LiveArtifactViewer', () => {
+  it('opens the rendered preview in a new tab from the present menu', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+      if (url === '/api/live-artifacts/la_1?projectId=proj_1') {
+        return new Response(JSON.stringify({ artifact: baseLiveArtifact() }), { status: 200 });
+      }
+      if (url === '/api/live-artifacts/la_1/refreshes?projectId=proj_1') {
+        return new Response(JSON.stringify({ refreshes: [] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({}), { status: 404 });
+    });
+    const openMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('open', openMock);
+
+    render(
+      <LiveArtifactViewer
+        projectId="proj_1"
+        liveArtifact={baseLiveArtifactWorkspaceEntry()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /present/i })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /present/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /new tab/i }));
+
+    expect(openMock).toHaveBeenCalledWith(
+      '/api/live-artifacts/la_1/preview?projectId=proj_1',
+      '_blank',
+      'noopener,noreferrer',
+    );
+  });
+
+  it('closes the present menu on Escape without tearing down the viewer', async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+      if (url === '/api/live-artifacts/la_1?projectId=proj_1') {
+        return new Response(JSON.stringify({ artifact: baseLiveArtifact() }), { status: 200 });
+      }
+      if (url === '/api/live-artifacts/la_1/refreshes?projectId=proj_1') {
+        return new Response(JSON.stringify({ refreshes: [] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({}), { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(
+      <LiveArtifactViewer
+        projectId="proj_1"
+        liveArtifact={baseLiveArtifactWorkspaceEntry()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /present/i })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /present/i }));
+    expect(screen.getByRole('menuitem', { name: /new tab/i })).toBeTruthy();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    await waitFor(() => {
+      expect(screen.queryByRole('menuitem', { name: /new tab/i })).toBeNull();
+    });
+    expect(screen.getByRole('button', { name: /present/i })).toBeTruthy();
+  });
+});
 
 describe('LiveArtifactRefreshHistoryPanel', () => {
   it('renders a human-readable status instead of raw JSON when no history exists', () => {
