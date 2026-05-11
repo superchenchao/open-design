@@ -430,6 +430,7 @@ desktopMacDescribe('mac desktop settings smoke', () => {
       agentId: null,
       skillId: null,
       designSystemId: null,
+      composio: { apiKeyConfigured: true },
       onboardingCompleted: true,
       mediaProviders: {},
       agentModels: {},
@@ -446,6 +447,65 @@ desktopMacDescribe('mac desktop settings smoke', () => {
       expect(snapshot.sectionTitle).toBe('Connectors');
       expect(snapshot.apiKeyLabelVisible).toBe(true);
       expect(snapshot.gateVisible || snapshot.gridVisible).toBe(true);
+    });
+  }, 45_000);
+
+  test('opens and closes a connector detail drawer from the desktop shell', async () => {
+    await seedDesktopConfig(desktop, {
+      mode: 'api',
+      apiKey: 'sk-test',
+      baseUrl: 'https://api.openai.com/v1',
+      model: 'gpt-4o',
+      apiProtocol: 'openai',
+      apiProviderBaseUrl: 'https://api.openai.com/v1',
+      agentId: null,
+      skillId: null,
+      designSystemId: null,
+      composio: { apiKeyConfigured: true },
+      onboardingCompleted: true,
+      mediaProviders: {},
+      agentModels: {},
+      theme: 'system',
+    }, 'model');
+
+    await desktop.openSettings();
+    await openDesktopSettingsSection(desktop, 'Connectors');
+
+    await waitFor(async () => {
+      const snapshot = await readDesktopConnectorsSnapshot(desktop);
+      expect(snapshot.gridVisible).toBe(true);
+    });
+
+    const opened = await desktop.eval<boolean>(`
+      (() => {
+        const card = document.querySelector('.connector-card');
+        if (!(card instanceof HTMLElement)) return false;
+        card.click();
+        return true;
+      })()
+    `);
+    expect(opened).toBe(true);
+
+    await waitFor(async () => {
+      const snapshot = await readDesktopConnectorsSnapshot(desktop);
+      expect(snapshot.drawerVisible).toBe(true);
+      expect(snapshot.drawerTitle).toBeTruthy();
+    });
+
+    const closed = await desktop.eval<boolean>(`
+      (() => {
+        const closeButton = document.querySelector('[data-testid="connector-drawer-close"]');
+        if (!(closeButton instanceof HTMLElement)) return false;
+        closeButton.click();
+        return true;
+      })()
+    `);
+    expect(closed).toBe(true);
+
+    await waitFor(async () => {
+      const snapshot = await readDesktopConnectorsSnapshot(desktop);
+      expect(snapshot.drawerVisible).toBe(false);
+      expect(snapshot.gridVisible).toBe(true);
     });
   }, 45_000);
 
@@ -693,6 +753,8 @@ type DesktopAppearanceSnapshot = {
 type DesktopConnectorsSnapshot = {
   apiKeyLabelVisible: boolean;
   dialogOpen: boolean;
+  drawerTitle: string | null;
+  drawerVisible: boolean;
   gateVisible: boolean;
   gridVisible: boolean;
   heading: string | null;
@@ -896,9 +958,13 @@ async function readDesktopConnectorsSnapshot(
         .map((node) => node.textContent?.trim() ?? '');
       const sectionTitle = document.querySelector('.settings-section-connectors .section-head h3')
         ?.textContent?.trim() ?? null;
+      const drawerTitle = document.querySelector('[data-testid="connector-drawer"] h2')
+        ?.textContent?.trim() ?? null;
       return {
         apiKeyLabelVisible: fieldLabels.includes('Composio API Key'),
         dialogOpen: Boolean(document.querySelector('[role="dialog"]')),
+        drawerTitle,
+        drawerVisible: Boolean(document.querySelector('[data-testid="connector-drawer"]')),
         gateVisible: Boolean(document.querySelector('[data-testid="connector-gate"]')),
         gridVisible: Boolean(document.querySelector('[data-testid="connector-grid-wrap"]')),
         heading: document.querySelector('[role="dialog"] h2')?.textContent?.trim() ?? null,
