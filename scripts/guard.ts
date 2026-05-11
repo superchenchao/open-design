@@ -227,7 +227,12 @@ async function checkTestLayout(): Promise<boolean> {
 
 const e2ePackageJsonPath = path.join(repoRoot, "e2e", "package.json");
 const e2eSkippedDirectories = new Set([".od-data", "node_modules", "reports", "test-results"]);
-const e2eAllowedScripts = ["test", "typecheck"];
+const e2eAllowedScripts = [
+  "test",
+  "test:ui:critical",
+  "test:ui:extended",
+  "typecheck",
+];
 
 async function collectRepositoryFiles(directory: string, skippedDirectoryNames = new Set<string>()): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
