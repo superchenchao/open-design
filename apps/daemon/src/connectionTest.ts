@@ -30,6 +30,7 @@ import { createCommandInvocation } from '@open-design/platform';
 import { attachAcpSession } from './acp.js';
 import { attachPiRpcSession } from './pi-rpc.js';
 import { createClaudeStreamHandler } from './claude-stream.js';
+import { diagnoseClaudeCliFailure } from './claude-diagnostics.js';
 import { createCopilotStreamHandler } from './copilot-stream.js';
 import { createJsonEventStreamHandler } from './json-event-stream.js';
 import { agentCliEnvForAgent, validateAgentCliEnv } from './app-config.js';
@@ -1142,6 +1143,27 @@ async function testAgentConnectionInternal(
       }
       const stderrTail = sink.getStderrTail().trim();
       const acpFatal = Boolean(acpSession?.hasFatalError?.());
+      const claudeDiagnostic = diagnoseClaudeCliFailure({
+        agentId: input.agentId,
+        exitCode: winner.code,
+        signal: winner.signal,
+        stderrTail,
+        stdoutTail: buffered,
+        env,
+      });
+      if (claudeDiagnostic) {
+        console.warn(
+          `[test:agent] ${def.name} → claude_diagnostic: ${claudeDiagnostic.detail}`,
+        );
+        return {
+          ok: false,
+          kind: 'agent_spawn_failed',
+          latencyMs,
+          model,
+          agentName: def.name,
+          detail: claudeDiagnostic.detail,
+        };
+      }
       const detail = redactSecrets(
         [
           winner.code != null ? `exit ${winner.code}` : null,

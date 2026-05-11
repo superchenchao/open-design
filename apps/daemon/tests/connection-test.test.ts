@@ -82,6 +82,10 @@ async function withFakeCodex<T>(script: string, run: () => Promise<T>): Promise<
   return withFakeAgent('codex', script, run);
 }
 
+async function withFakeClaude<T>(script: string, run: () => Promise<T>): Promise<T> {
+  return withFakeAgent('claude', script, run);
+}
+
 async function withFakeOpenCode<T>(script: string, run: () => Promise<T>): Promise<T> {
   return withFakeAgent('opencode', script, run);
 }
@@ -1171,6 +1175,50 @@ console.log(JSON.stringify({ type: 'item.completed', item: { type: 'agent_messag
         expect(result.detail).toContain('requires a newer version');
       },
     );
+  });
+
+  it('returns Claude /login guidance when the spawned CLI cannot authenticate', async () => {
+    await withFakeClaude(
+      `console.error(JSON.stringify({ apiKeySource: 'none', error_status: 401 })); process.exit(1);`,
+      async () => {
+        const result = await testAgentConnection({ agentId: 'claude' });
+
+        expect(result).toMatchObject({
+          ok: false,
+          kind: 'agent_spawn_failed',
+          agentName: 'Claude Code',
+        });
+        expect(result.detail).toContain('/login');
+        expect(result.detail).toContain('CLAUDE_CONFIG_DIR');
+      },
+    );
+  });
+
+  it('returns custom endpoint guidance for Claude model access failures', async () => {
+    const previous = process.env.ANTHROPIC_BASE_URL;
+    process.env.ANTHROPIC_BASE_URL = 'https://proxy.example.com';
+    try {
+      await withFakeClaude(
+        `console.error('Error: The selected model is not available in your current plan or region.'); process.exit(1);`,
+        async () => {
+          const result = await testAgentConnection({ agentId: 'claude' });
+
+          expect(result).toMatchObject({
+            ok: false,
+            kind: 'agent_spawn_failed',
+            agentName: 'Claude Code',
+          });
+          expect(result.detail).toContain('ANTHROPIC_BASE_URL');
+          expect(result.detail).toContain('custom');
+        },
+      );
+    } finally {
+      if (previous == null) {
+        delete process.env.ANTHROPIC_BASE_URL;
+      } else {
+        process.env.ANTHROPIC_BASE_URL = previous;
+      }
+    }
   });
 
   it('classifies structured Codex model errors as not_found_model', async () => {
