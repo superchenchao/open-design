@@ -75,6 +75,26 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
       const reqBody = (req.body || {}) as Record<string, unknown>;
       const runInsertId = newInsertId();
       const runStartedAt = Date.now();
+      // Estimate user_query_tokens from the request prompt — we never
+      // transmit the prompt text itself, just the integer count. The
+      // canonical extraction (currentPrompt fallback to message) lives
+      // in telemetryPromptFromRunRequest; mirroring it inline keeps the
+      // analytics emit self-contained and out of the startChatRun
+      // critical path.
+      const promptText =
+        typeof reqBody.currentPrompt === 'string'
+          ? reqBody.currentPrompt
+          : typeof reqBody.message === 'string'
+            ? reqBody.message
+            : '';
+      // ~4 chars per token is the common rough heuristic for English /
+      // Latin text; CJK skews token-per-char higher but this is still the
+      // industry-standard estimate when no tokenizer is available. The
+      // accompanying token_count_source field marks this as 'estimated'
+      // so dashboards can tell estimate from real provider counts.
+      const userQueryTokens = promptText.length > 0
+        ? Math.ceil(promptText.length / 4)
+        : 0;
       const baseProps: Record<string, unknown> = {
         page: 'studio',
         area: 'chat_composer',
@@ -91,7 +111,7 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
         has_attachment: Array.isArray(reqBody.attachments)
           ? (reqBody.attachments as unknown[]).length > 0
           : false,
-        user_query_tokens: 0,
+        user_query_tokens: userQueryTokens,
         model_id: typeof reqBody.model === 'string' ? reqBody.model : null,
         agent_provider_id:
           typeof reqBody.agentId === 'string'
@@ -99,7 +119,7 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
             : null,
         skill_id: typeof reqBody.skillId === 'string' ? reqBody.skillId : null,
         mcp_id: null,
-        token_count_source: 'unknown',
+        token_count_source: userQueryTokens > 0 ? 'estimated' : 'unknown',
       };
       design.analytics.capture({
         eventName: 'run_created',
@@ -157,7 +177,10 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
             ...(inputTokens !== undefined ? { input_tokens: inputTokens } : {}),
             ...(outputTokens !== undefined ? { output_tokens: outputTokens } : {}),
             ...(totalTokens !== undefined ? { total_tokens: totalTokens } : {}),
-            token_count_source: haveUsage ? 'provider_usage' : 'unknown',
+            // Upgrade source to 'provider_usage' when the agent reported
+            // input/output totals; otherwise inherit baseProps' value
+            // ('estimated' when user_query_tokens > 0, else 'unknown').
+            ...(haveUsage ? { token_count_source: 'provider_usage' } : {}),
           },
           insertId: `${runInsertId}-finish`,
         });
