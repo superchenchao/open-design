@@ -44,6 +44,7 @@ import {
   importFolderProject,
   listProjects,
   listTemplates,
+  deleteTemplate,
   patchProject,
 } from './state/projects';
 import { useI18n } from './i18n';
@@ -104,6 +105,26 @@ export function buildPersistedConfig(next: AppConfig, current: AppConfig): AppCo
         }
       : next.composio,
   };
+}
+
+/**
+ * True when `next` and `last` produce an identical persisted shape —
+ * i.e. the only diffs between them are fields that buildPersistedConfig
+ * intentionally strips before disk/daemon writes (the Composio API key
+ * draft today; any future save-on-explicit-confirm secrets later).
+ *
+ * The autosave loop in Settings uses this to skip the "All changes
+ * saved" indicator transition when the user has only typed an unsaved
+ * secret. Without it, autosave completes a no-op write and flashes
+ * "Saved" — misleading users into trusting that a sensitive key has
+ * been persisted when in fact only the section-local "Save key"
+ * gesture commits it.
+ */
+export function isAutosaveDraftOnlyChange(next: AppConfig, last: AppConfig): boolean {
+  return (
+    JSON.stringify(buildPersistedConfig(next, next))
+    === JSON.stringify(buildPersistedConfig(last, last))
+  );
 }
 
 export function resolveSettingsCloseConfig(
@@ -445,6 +466,12 @@ export function App() {
     setTemplates(list);
   }, []);
 
+  const handleDeleteTemplate = useCallback(async (id: string) => {
+    const ok = await deleteTemplate(id);
+    if (ok) await refreshTemplates();
+    return ok;
+  }, [refreshTemplates]);
+
   const reloadMediaProvidersFromDaemon = useCallback(async () => {
     const result = await fetchMediaProvidersFromDaemon();
     if (result.status !== 'ok') {
@@ -668,6 +695,15 @@ export function App() {
       navigate({ kind: 'home' });
     }
   }, [route]);
+
+  const handleRenameProject = useCallback(async (id: string, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setProjects((curr) =>
+      curr.map((p) => (p.id === id ? { ...p, name: trimmed } : p)),
+    );
+    void patchProject(id, { name: trimmed });
+  }, []);
 
   const handleBack = useCallback(() => {
     navigate({ kind: 'home' });
@@ -894,6 +930,7 @@ export function App() {
           designSystems={enabledDS}
           projects={projects}
           templates={templates}
+          onDeleteTemplate={handleDeleteTemplate}
           promptTemplates={promptTemplates}
           defaultDesignSystemId={config.designSystemId}
           config={config}
@@ -909,6 +946,7 @@ export function App() {
           onOpenProject={handleOpenProject}
           onOpenLiveArtifact={handleOpenLiveArtifact}
           onDeleteProject={handleDeleteProject}
+          onRenameProject={handleRenameProject}
           onChangeDefaultDesignSystem={handleChangeDefaultDesignSystem}
           onOpenSettings={openSettings}
           onAdoptPet={openPetSettings}

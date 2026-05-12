@@ -26,7 +26,8 @@ import {
   detectAgents,
   getAgentDef,
   isKnownModel,
-  resolveAgentBin,
+  applyAgentLaunchEnv,
+  resolveAgentLaunch,
   sanitizeCustomModel,
   spawnEnvForAgent,
 } from './agents.js';
@@ -37,7 +38,7 @@ import { installFromTarget, uninstallById, sanitizeRepoName } from './library-in
 import { buildWindowsFolderDialogCommand, parseFolderDialogStdout } from './native-folder-dialog.js';
 import { listCodexPets, readCodexPetSpritesheet } from './codex-pets.js';
 import { syncCommunityPets } from './community-pets-sync.js';
-import { listDesignSystems, readDesignSystem } from './design-systems.js';
+import { listDesignSystems, readDesignSystem, readDesignSystemAssets } from './design-systems.js';
 import {
   composeMemoryBody,
   deleteMemoryEntry,
@@ -61,6 +62,7 @@ import {
 import { attachAcpSession } from './acp.js';
 import { attachPiRpcSession } from './pi-rpc.js';
 import { createClaudeStreamHandler } from './claude-stream.js';
+import { diagnoseClaudeCliFailure } from './claude-diagnostics.js';
 import { loadCritiqueConfigFromEnv } from './critique/config.js';
 import { reconcileStaleRuns } from './critique/persistence.js';
 import { runOrchestrator } from './critique/orchestrator.js';
@@ -183,6 +185,8 @@ import {
   insertRoutine,
   insertRoutineRun,
   insertTemplate,
+  findTemplateByNameAndProject,
+  updateTemplate,
   listProjectsAwaitingInput,
   listConversations,
   listDeployments,
@@ -2669,7 +2673,7 @@ export async function startServer({
     updatePreviewCommentStatus,
     deletePreviewComment,
   };
-  const templateDeps = { getTemplate, listTemplates, deleteTemplate, insertTemplate };
+  const templateDeps = { getTemplate, listTemplates, deleteTemplate, insertTemplate, findTemplateByNameAndProject, updateTemplate };
   const projectStatusDeps = {
     listLatestProjectRunStatuses,
     listProjectsAwaitingInput,
@@ -2881,6 +2885,8 @@ export async function startServer({
     paths: pathDeps,
     projectStore: projectStoreDeps,
     exports: projectExportDeps,
+    projectFiles: projectFileDeps,
+    validation: validationDeps,
   });
   registerProjectFileRoutes(app, {
     db,
@@ -2976,6 +2982,15 @@ export async function startServer({
 
     let designSystemBody;
     let designSystemTitle;
+    // Compiled (tokens.css + components.html) form of the active brand.
+    // Gated by `OD_DESIGN_TOKEN_CHANNEL` while the experiment is in the
+    // smoke-test phase: flag-off keeps the daemon byte-equivalent to the
+    // pre-PR-C path; flag-on appends the tokens contract + reference
+    // fixture to the system prompt for any brand that ships those files
+    // (today: `default` and `kami`; every other brand falls through
+    // silently because the files are absent).
+    let designSystemTokensCss;
+    let designSystemFixtureHtml;
     if (effectiveDesignSystemId) {
       const systems = await listAllDesignSystems();
       const summary = systems.find((s) => s.id === effectiveDesignSystemId);
@@ -2984,6 +2999,23 @@ export async function startServer({
         (await readDesignSystem(DESIGN_SYSTEMS_DIR, effectiveDesignSystemId)) ??
         (await readDesignSystem(USER_DESIGN_SYSTEMS_DIR, effectiveDesignSystemId)) ??
         undefined;
+      if (process.env.OD_DESIGN_TOKEN_CHANNEL === '1') {
+        // Try built-in dir first, then user-installed dir, mirroring the
+        // DESIGN.md fallback chain above. Any individual file may be
+        // missing (e.g. tokens.css present, components.html absent); the
+        // composer gates each block independently.
+        const builtIn = await readDesignSystemAssets(DESIGN_SYSTEMS_DIR, effectiveDesignSystemId);
+        const installed = builtIn.tokensCss && builtIn.fixtureHtml
+          ? builtIn
+          : {
+              tokensCss: builtIn.tokensCss
+                ?? (await readDesignSystemAssets(USER_DESIGN_SYSTEMS_DIR, effectiveDesignSystemId)).tokensCss,
+              fixtureHtml: builtIn.fixtureHtml
+                ?? (await readDesignSystemAssets(USER_DESIGN_SYSTEMS_DIR, effectiveDesignSystemId)).fixtureHtml,
+            };
+        designSystemTokensCss = installed.tokensCss;
+        designSystemFixtureHtml = installed.fixtureHtml;
+      }
     }
 
     const template =
@@ -3044,6 +3076,8 @@ export async function startServer({
       skillMode,
       designSystemBody,
       designSystemTitle,
+      designSystemTokensCss,
+      designSystemFixtureHtml,
       craftBody,
       craftSections,
       memoryBody,
@@ -3542,7 +3576,8 @@ export async function startServer({
       configuredAgentEnv = {};
     }
 
-    const resolvedBin = resolveAgentBin(agentId, configuredAgentEnv);
+    const agentLaunch = resolveAgentLaunch(def, configuredAgentEnv);
+    const resolvedBin = agentLaunch.selectedPath;
 
     const args = def.buildArgs(
       composed,
@@ -3564,7 +3599,7 @@ export async function startServer({
     // doesn't have to special-case it.
     const cmdShimBudgetError = checkWindowsCmdShimCommandLineBudget(
       def,
-      resolvedBin,
+      agentLaunch.launchPath ?? resolvedBin,
       args,
     );
     if (cmdShimBudgetError) {
@@ -3591,7 +3626,7 @@ export async function startServer({
     // users hit a generic `spawn ENAMETOOLONG`.
     const directExeBudgetError = checkWindowsDirectExeCommandLineBudget(
       def,
-      resolvedBin,
+      agentLaunch.launchPath ?? resolvedBin,
       args,
     );
     if (directExeBudgetError) {
@@ -3683,7 +3718,7 @@ export async function startServer({
     // pointing at /api/agents instead of silently falling back to
     // spawn(def.bin) — that fallback re-introduces the exact ENOENT symptom
     // from issue #10.
-    if (!resolvedBin) {
+    if (!resolvedBin || !agentLaunch.launchPath) {
       revokeToolToken('child_exit');
       unregisterChatAgentEventSink();
       send('error', createSseErrorPayload(
@@ -3729,6 +3764,9 @@ export async function startServer({
     let child;
     let acpSession = null;
     let writePromptToChildStdin = false;
+    let spawnedAgentEnv = null;
+    let agentStdoutTail = '';
+    let agentStderrTail = '';
     try {
       // Prompt delivery via stdin is now the universal default. This bypasses
       // both the cmd.exe 8KB limit and the CreateProcess 32KB limit.
@@ -3736,7 +3774,7 @@ export async function startServer({
         def.promptViaStdin || def.streamFormat === 'acp-json-rpc'
           ? 'pipe'
           : 'ignore';
-      const env = {
+      const env = applyAgentLaunchEnv({
         ...spawnEnvForAgent(
           def.id,
           {
@@ -3746,9 +3784,10 @@ export async function startServer({
           configuredAgentEnv,
         ),
         ...odMediaEnv,
-      };
+      }, agentLaunch);
+      spawnedAgentEnv = env;
       const invocation = createCommandInvocation({
-        command: resolvedBin,
+        command: agentLaunch.launchPath,
         args,
         env,
       });
@@ -3796,9 +3835,12 @@ export async function startServer({
     // structured adapters that buffer partial lines (Codex item.completed,
     // pi-rpc session/prompt, ACP agent messages) and models that spend a
     // long time in non-streamed reasoning still keep the run alive.
-    child.stdout.on('data', () => {
+    child.stdout.on('data', (chunk) => {
       childStdoutSeen = true;
       noteAgentActivity();
+      if (def.id === 'claude') {
+        agentStdoutTail = `${agentStdoutTail}${chunk}`.slice(-1000);
+      }
     });
 
     // ---- Memory: assistant-reply buffer for LLM extraction --------------
@@ -4096,6 +4138,9 @@ export async function startServer({
     run.acpSession = acpSession;
     child.stderr.on('data', (chunk) => {
       noteAgentActivity();
+      if (def.id === 'claude') {
+        agentStderrTail = `${agentStderrTail}${chunk}`.slice(-1000);
+      }
       send('stderr', { chunk });
     });
 
@@ -4138,11 +4183,46 @@ export async function startServer({
         ));
         return design.runs.finish(run, 'failed', code, signal);
       }
+      // ACP agents that don't shut down on stdin.end() (e.g. Devin for
+      // Terminal) are forced to exit via SIGTERM from attachAcpSession after
+      // a clean prompt completion. Without an override, the chat run would
+      // be marked `failed` because `code === 0` fails (code is null on a
+      // signal exit). `completedSuccessfully()` reports whether the ACP
+      // session resolved without a fatal error or abort.
+      //
+      // Scope the override narrowly to the exact forced-shutdown shape this
+      // PR introduces: code is null AND signal is SIGTERM AND the ACP
+      // session reported clean completion. Any other post-response failure
+      // (non-zero exit code, SIGKILL, SIGSEGV, etc.) still propagates as
+      // `failed`, preserving the existing close-status behavior for genuine
+      // post-response process problems.
+      const acpCleanCompletion =
+        typeof acpSession?.completedSuccessfully === 'function' &&
+        acpSession.completedSuccessfully();
+      const acpForcedShutdown =
+        code === null && signal === 'SIGTERM' && acpCleanCompletion;
       const status = run.cancelRequested
         ? 'canceled'
-        : code === 0
+        : code === 0 || acpForcedShutdown
           ? 'succeeded'
           : 'failed';
+      if (status === 'failed') {
+        const diagnostic = diagnoseClaudeCliFailure({
+          agentId: def.id,
+          exitCode: code,
+          signal,
+          stderrTail: agentStderrTail,
+          stdoutTail: agentStdoutTail,
+          env: spawnedAgentEnv,
+        });
+        if (diagnostic) {
+          send('error', createSseErrorPayload(
+            'AGENT_EXECUTION_FAILED',
+            diagnostic.message,
+            { retryable: diagnostic.retryable, details: { detail: diagnostic.detail } },
+          ));
+        }
+      }
       design.runs.finish(run, status, code, signal);
     });
     if (writePromptToChildStdin && child.stdin) {
