@@ -62,6 +62,42 @@ export async function readDesignSystem(root: string, id: string): Promise<string
   }
 }
 
+/**
+ * Structured (compiled) form of a brand's design system. Optional sibling
+ * files alongside DESIGN.md that, when present, give agents a
+ * machine-readable token contract and a worked fixture instead of having
+ * to re-derive both from prose. Both fields are individually optional —
+ * the daemon falls back to the DESIGN.md-only path when neither is
+ * available, which is the current state for the ~138 brands without
+ * hand-authored or derived tokens.
+ *
+ * - `tokensCss`     — verbatim content of `<brand>/tokens.css`.
+ * - `fixtureHtml`   — verbatim content of `<brand>/components.html`.
+ */
+export type DesignSystemAssets = {
+  tokensCss?: string | undefined;
+  fixtureHtml?: string | undefined;
+};
+
+export async function readDesignSystemAssets(
+  root: string,
+  id: string,
+): Promise<DesignSystemAssets> {
+  const [tokensCss, fixtureHtml] = await Promise.all([
+    readFileOptional(path.join(root, id, 'tokens.css')),
+    readFileOptional(path.join(root, id, 'components.html')),
+  ]);
+  return { tokensCss, fixtureHtml };
+}
+
+async function readFileOptional(file: string): Promise<string | undefined> {
+  try {
+    return await readFile(file, 'utf8');
+  } catch {
+    return undefined;
+  }
+}
+
 function summarize(raw: string): string {
   const lines = raw.split(/\r?\n/);
   const firstH1 = lines.findIndex((l) => /^#\s+/.test(l));
