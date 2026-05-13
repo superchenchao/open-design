@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   FileViewer,
@@ -91,6 +91,55 @@ describe('FileViewer manual edit regressions', () => {
         '/api/projects/project-1/files',
         expect.objectContaining({ method: 'POST' }),
       );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clears loaded source immediately on file switch without liveHtml before manual edit can save', async () => {
+    let secondResolve!: (value: Response) => void;
+    const secondFetch = new Promise<Response>((resolve) => {
+      secondResolve = resolve;
+    });
+    const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+      if (url.includes('/api/projects/project-1/files') && init?.method === 'POST') {
+        return new Response(JSON.stringify({ file: htmlPreviewFile() }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url.includes('/api/projects/project-1/raw/second.html')) return secondFetch;
+      return new Response('<!doctype html><html><body><main data-od-id="hero">First</main></body></html>', { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const first = htmlPreviewFile();
+      const second = { ...htmlPreviewFile(), name: 'second.html', path: 'second.html' };
+      const { rerender } = render(<FileViewer projectId="project-1" file={first} />);
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/projects/project-1/raw/preview.html', {}));
+      fireEvent.click(screen.getByTestId('manual-edit-mode-toggle'));
+      const baseSizeInput = await waitFor(() => {
+        const input = Array.from(document.querySelectorAll('.cc-row'))
+          .find((row) => row.textContent?.includes('Base size'))
+          ?.querySelector('input') as HTMLInputElement | null;
+        if (!input) throw new Error('Base size input not found');
+        return input;
+      });
+      fireEvent.change(baseSizeInput, { target: { value: '18' } });
+
+      rerender(<FileViewer projectId="project-1" file={second} />);
+      fireEvent.click(screen.getByTestId('manual-edit-mode-toggle'));
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 1100));
+      });
+
+      expect(fetchMock).not.toHaveBeenCalledWith(
+        '/api/projects/project-1/files',
+        expect.objectContaining({ method: 'POST' }),
+      );
+      secondResolve(new Response('<!doctype html><html><body><main data-od-id="second">Second</main></body></html>', { status: 200 }));
     } finally {
       vi.useRealTimers();
     }

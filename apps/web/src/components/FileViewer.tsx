@@ -3474,6 +3474,7 @@ function HtmlViewer({
   const manualEditStyleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const manualEditPreviewVersionRef = useRef(0);
   const sourceRef = useRef<string | null>(source);
+  const sourceFileKeyRef = useRef<string | null>(null);
   const templateNameId = useId();
   const templateDescriptionId = useId();
   // Opt back into the legacy inline-asset srcDoc path via `?forceInline=1`
@@ -3654,19 +3655,30 @@ function HtmlViewer({
   }, [liveCommentTargets]);
 
   useEffect(() => {
+    const sourceFileKey = `${projectId}\0${file.name}\0${liveHtml === undefined ? 'raw' : 'live'}`;
     if (liveHtml !== undefined) {
+      sourceFileKeyRef.current = sourceFileKey;
       setSource(liveHtml);
+      sourceRef.current = liveHtml;
       return;
     }
-    if (!manualEditMode || sourceRef.current === null) setSource(null);
+    const fileChanged = sourceFileKeyRef.current !== sourceFileKey;
+    sourceFileKeyRef.current = sourceFileKey;
+    if (fileChanged) {
+      setSource(null);
+      sourceRef.current = null;
+    }
     let cancelled = false;
     void fetchProjectFileText(projectId, file.name).then((text) => {
-      if (!cancelled) setSource(text);
+      if (!cancelled) {
+        setSource(text);
+        sourceRef.current = text;
+      }
     });
     return () => {
       cancelled = true;
     };
-  }, [projectId, file.name, file.mtime, liveHtml, reloadKey, manualEditMode]);
+  }, [projectId, file.name, file.mtime, liveHtml, reloadKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -4309,6 +4321,7 @@ function HtmlViewer({
         return;
       }
       setSource(latest.beforeSource);
+      sourceRef.current = latest.beforeSource;
       setInlinedSource(null);
       setManualEditHistory(rest);
       setManualEditUndone((current) => [latest, ...current]);
@@ -4339,6 +4352,7 @@ function HtmlViewer({
         return;
       }
       setSource(latest.afterSource);
+      sourceRef.current = latest.afterSource;
       setInlinedSource(null);
       setManualEditUndone(rest);
       setManualEditHistory((current) => [latest, ...current]);
