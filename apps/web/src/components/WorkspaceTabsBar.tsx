@@ -346,6 +346,17 @@ export function WorkspaceTabsBar({ route, projects }: Props) {
     navigate({ kind: 'home', view: 'home' });
   }
 
+  function openHomeTab() {
+    const existingHome = state.tabs.find(
+      (tab) => tab.kind === 'entry' && tab.view === 'home',
+    );
+    if (existingHome) {
+      openTab(existingHome);
+      return;
+    }
+    createNewTab();
+  }
+
   function closeTab(tabId: string) {
     let nextRoute: Route | null = null;
     setState((current) => {
@@ -370,6 +381,17 @@ export function WorkspaceTabsBar({ route, projects }: Props) {
   return (
     <header className="app-chrome-header workspace-tabs-chrome" aria-label="Workspace tabs">
       <div className="app-chrome-traffic-space workspace-tabs-traffic" aria-hidden />
+      <button
+        type="button"
+        className="workspace-tabs-identity"
+        onClick={openHomeTab}
+        title={t('entry.navHome')}
+        aria-label={t('entry.navHome')}
+      >
+        <span className="workspace-tabs-identity__mark" aria-hidden>
+          <img src="/app-icon.svg" alt="" draggable={false} />
+        </span>
+      </button>
       <div className="workspace-tabs-strip" role="tablist" aria-label="Open workspaces">
         {visibleTabs.map((tab) => {
           const display = displayTabById.get(tab.id) ?? displayTabFor(tab, projectById, t);
@@ -415,18 +437,18 @@ export function WorkspaceTabsBar({ route, projects }: Props) {
             {hiddenTabCount} more
           </button>
         ) : null}
-      </div>
-      <div className="workspace-tabs-spacer" aria-hidden />
-      <div className="workspace-tabs-actions" ref={menuRef}>
         <button
           type="button"
-          className="workspace-tabs-icon-btn"
+          className="workspace-tabs-new-btn"
           onClick={createNewTab}
           title="New tab"
           aria-label="New tab"
         >
-          <Icon name="plus" size={16} />
+          <Icon name="plus" size={14} />
         </button>
+      </div>
+      <div className="workspace-tabs-drag" aria-hidden />
+      <div className="workspace-tabs-actions" ref={menuRef}>
         <button
           type="button"
           className={`workspace-tabs-icon-btn${tabsMenuOpen ? ' is-active' : ''}`}

@@ -432,19 +432,19 @@ const MAC_WINDOW_CHROME =
   process.platform === "darwin"
     ? ({
         titleBarStyle: "hiddenInset" as const,
-        trafficLightPosition: { x: 14, y: 12 },
+        trafficLightPosition: { x: 12, y: 10 },
       })
     : {};
 
 const MAC_WINDOW_CHROME_CSS = `
   .app-chrome-header {
-    --app-chrome-traffic-space: 56px !important;
-    --app-chrome-traffic-margin: 8px !important;
+    --app-chrome-traffic-space: 64px !important;
+    --app-chrome-traffic-margin: 4px !important;
     -webkit-app-region: drag;
   }
   .app-chrome-traffic-space {
-    flex: 0 0 56px !important;
-    width: 56px !important;
+    flex: 0 0 64px !important;
+    width: 64px !important;
   }
   .app-chrome-header button,
   .app-chrome-header a,

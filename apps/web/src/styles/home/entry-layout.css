@@ -307,7 +307,7 @@
   justify-content: flex-end;
   align-items: center;
   gap: 8px;
-  padding: 8px 18px;
+  padding: 6px 16px;
   background: var(--bg);
 }
 /* Chip group — the GitHub star, inline model switcher, and Use
