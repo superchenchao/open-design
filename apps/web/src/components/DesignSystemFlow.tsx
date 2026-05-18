@@ -291,7 +291,7 @@ export function DesignSystemCreationFlow({
     setError(null);
     setJob(null);
     setHandedOffJobId(null);
-    const title = inferDesignSystemTitle(state.company);
+    const title = inferDesignSystemTitle(state);
     const created = await createDesignSystemDraft({
       title,
       summary: state.company,
@@ -2200,11 +2200,72 @@ function revisionAddedText(revision: DesignSystemRevision): string {
   return proposedLines.slice(index).join('\n').trim();
 }
 
-function inferDesignSystemTitle(company: string): string {
-  const clean = company.trim().replace(/\s+/g, ' ');
+function inferDesignSystemTitle(state: SetupState): string {
+  const clean = state.company.trim().replace(/\s+/g, ' ');
+  const contextTitle = titleCandidateFromCompanyContext(clean);
+  if (contextTitle) return designSystemTitle(contextTitle);
+
+  const githubTitle = githubRepoTitleFromText(clean)
+    ?? githubUrlsFromState(state).map(githubRepoTitleFromUrl).find((title): title is string => Boolean(title));
+  if (githubTitle) return designSystemTitle(githubTitle);
+
+  const urlTitle = genericUrlTitleFromText(clean);
+  if (urlTitle) return designSystemTitle(urlTitle);
+
+  return designSystemTitle(clean.split(/\s+/).slice(0, 4).join(' ') || 'Product');
+}
+
+function titleCandidateFromCompanyContext(clean: string): string | undefined {
+  if (!clean || /^https?:\/\//iu.test(clean) || githubRepoTitleFromText(clean)) return undefined;
   const beforeColon = clean.split(':')[0]?.trim();
-  if (beforeColon && beforeColon.length <= 48) return `${beforeColon} Design System`;
-  return `${clean.split(/\s+/).slice(0, 4).join(' ') || 'Product'} Design System`;
+  if (beforeColon && !/^https?$/iu.test(beforeColon) && beforeColon.length <= 48) return beforeColon;
+  return clean.split(/\s+/).slice(0, 4).join(' ') || undefined;
+}
+
+function designSystemTitle(title: string): string {
+  const clean = title.trim().replace(/\s+/g, ' ');
+  if (!clean) return 'Product Design System';
+  return /design system$/iu.test(clean) ? clean : `${clean} Design System`;
+}
+
+function githubRepoTitleFromText(text: string): string | undefined {
+  const match = /(?:https?:\/\/)?github\.com[:/]([^/\s]+)\/([^/\s#?]+)(?:\.git)?(?=$|[/?#\s])/iu.exec(text);
+  return match ? humanizeRepositoryName(match[2] ?? '') : undefined;
+}
+
+function githubRepoTitleFromUrl(url: string): string | undefined {
+  try {
+    const parsed = new URL(url);
+    const parts = parsed.pathname.split('/').filter(Boolean);
+    if (parts.length >= 2) return humanizeRepositoryName(parts[1] ?? '');
+  } catch {
+    const shorthand = /(?:^|\s)([^/\s]+)\/([^/\s#?]+)(?:\.git)?(?:\s|$)/iu.exec(url);
+    if (shorthand) return humanizeRepositoryName(shorthand[2] ?? '');
+  }
+  return undefined;
+}
+
+function genericUrlTitleFromText(text: string): string | undefined {
+  const match = /https?:\/\/[^\s]+/iu.exec(text);
+  if (!match) return undefined;
+  try {
+    const parsed = new URL(match[0]);
+    const host = parsed.hostname.replace(/^www\./iu, '').split('.')[0] ?? '';
+    return humanizeRepositoryName(host);
+  } catch {
+    return undefined;
+  }
+}
+
+function humanizeRepositoryName(repo: string): string | undefined {
+  const words = repo.replace(/\.git$/iu, '').replace(/[-_]+/gu, ' ').trim().split(/\s+/u).filter(Boolean);
+  if (words.length === 0) return undefined;
+  return words.map(titleCaseRepositoryWord).join(' ');
+}
+
+function titleCaseRepositoryWord(word: string): string {
+  if (/^(ai|api|cli|css|html|js|llm|mcp|sdk|ui|url|ux)$/iu.test(word)) return word.toUpperCase();
+  return `${word.slice(0, 1).toUpperCase()}${word.slice(1)}`;
 }
 
 function normalizeGithubUrl(value: string): string {
@@ -2559,6 +2620,7 @@ function buildCreationAgentPrompt(
   const localCode = localCodeReferences(state);
   const githubRunbook = buildGithubConnectorRunbook(githubUrls);
   const localFolderRunbook = buildLocalFolderRunbook(state.codeFolders);
+  const title = inferDesignSystemTitle(state);
   return [
     'Create this project as a complete Open Design design system workspace.',
     '',
@@ -2596,6 +2658,10 @@ function buildCreationAgentPrompt(
     '- If the bounded command cannot write snapshots at all, stop with the permission, GitHub CLI login, connection, rate-limit, or clone issue. Do not substitute ad-hoc public GitHub browsing, memory, or URL-only inference.',
     '- Finish only after the project contains reviewable design-system artifacts: `DESIGN.md`, `README.md`, `SKILL.md`, reusable token/style files, focused preview HTML cards, UI-kit examples, preserved assets/fonts when supported, and provenance/context notes.',
     '- Before your final response, run `"$OD_NODE_BIN" "$OD_BIN" tools connectors design-system-package-audit --path . --fail-on-warnings`. Fix every audit error and design-quality warning, including generic visual artifacts, thin source-backed modules, stale manifest paths, and missing representative assets/fonts. If an issue cannot be fixed because source evidence is missing, explain that blocker instead of claiming the design system is ready.',
+    '',
+    `Design system workspace title:\n${title}`,
+    '',
+    'Use this title for README.md, SKILL.md, DESIGN.md, preview labels, and ui_kits/app copy unless the inspected source evidence proves a better product name. Do not derive the title from URL protocol text such as `https`.',
     '',
     `Company / design system context:\n${state.company.trim()}`,
     sourceContextManifestPath
@@ -2652,12 +2718,15 @@ function buildSourceContextManifest(
   const skippedFigma = options.stagedFigma?.skippedCount ?? 0;
   const uploadedAssets = options.stagedAssets?.uploadedPaths ?? [];
   const skippedAssets = options.stagedAssets?.skippedCount ?? 0;
+  const title = inferDesignSystemTitle(state);
   const sections = [
     '# Design System Source Context',
     '',
     'This file is generated during setup and should be treated as source evidence for the design-system project. Use it before writing or revising DESIGN.md, previews, tokens, UI kit examples, or assets.',
     '',
     '## Company / Product',
+    '',
+    `Canonical design-system title: ${title}`,
     '',
     state.company.trim() || 'No company or product context provided yet.',
   ];
@@ -2726,6 +2795,7 @@ function buildSourceContextManifest(
     '## Review Contract',
     '',
     '- DESIGN.md is the canonical source of truth.',
+    '- Use the canonical design-system title above for headings, README/SKILL names, preview labels, and UI-kit copy unless inspected evidence proves a more accurate product name. Never title the system from URL protocol text such as `https`.',
     '- colors_and_type.css should hold concrete reusable tokens when the source evidence supports them.',
     '- README.md and SKILL.md should make the extracted system reusable as a real Open Design design-system package.',
     '- README.md, SKILL.md, DESIGN.md, and ui_kits/app/README.md must describe the final focused preview cards and `ui_kits/app/` paths, not old scaffold names such as `preview/typography-scale.html` or `ui_kits/generated_interface/`.',

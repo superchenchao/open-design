@@ -1525,6 +1525,17 @@ async function auditDesignSystemPackage(
       );
     }
   }
+  for (const filePath of protocolTitleAuditFiles(files)) {
+    const text = await readAuditText(projectPath, filePath);
+    const protocolTitle = text ? protocolDerivedDesignSystemTitle(text) : undefined;
+    if (!protocolTitle) continue;
+    addIssue(
+      options.referencePackage === true ? 'warning' : 'error',
+      'protocol_derived_title',
+      `${filePath} uses "${protocolTitle}" as a product/design-system title. Derive the package title from source evidence or repository slug instead of URL protocol text.`,
+      filePath,
+    );
+  }
 
   const previewFiles = files.filter((filePath) => /^preview\/.+\.html$/u.test(filePath));
   if (previewFiles.length < 6) {
@@ -1979,6 +1990,21 @@ function stalePackageReferences(text: string): string[] {
     references.push('ui_kits/generated_interface/');
   }
   return references;
+}
+
+function protocolTitleAuditFiles(files: string[]): string[] {
+  return files.filter((filePath) =>
+    /^(DESIGN|README|SKILL)\.md$/u.test(filePath)
+    || /^preview\/.+\.html$/u.test(filePath)
+    || /^ui_kits\/app\/(?:README\.md|index\.html|components\/.+\.(jsx|tsx|js|ts|html))$/u.test(filePath)
+    || /^index\.html$/u.test(filePath),
+  );
+}
+
+function protocolDerivedDesignSystemTitle(text: string): string | undefined {
+  const match = /\bhttps?[^\S\r\n]+Design[^\S\r\n]+System(?:[^\S\r\n]+[A-Za-z][A-Za-z ]*)?/iu.exec(text);
+  if (!match) return undefined;
+  return match[0].trim().replace(/\s+/gu, ' ');
 }
 
 function manifestHasLinkedGithub(manifest: string): boolean {

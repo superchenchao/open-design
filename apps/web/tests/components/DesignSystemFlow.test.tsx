@@ -141,10 +141,27 @@ describe('DesignSystemCreationFlow', () => {
       'context/source-context.md',
       expect.stringContaining('## Review Contract'),
     );
+    expect(mocks.writeProjectTextFile).toHaveBeenCalledWith(
+      project.id,
+      'context/source-context.md',
+      expect.stringContaining('Canonical design-system title: Acme Design System'),
+    );
     expect(mocks.patchProject).toHaveBeenCalledWith(
       project.id,
       expect.objectContaining({
         pendingPrompt: expect.stringContaining('Create this project as a complete Open Design design system workspace.'),
+      }),
+    );
+    expect(mocks.patchProject).toHaveBeenCalledWith(
+      project.id,
+      expect.objectContaining({
+        pendingPrompt: expect.stringContaining('Design system workspace title:\nAcme Design System'),
+      }),
+    );
+    expect(mocks.patchProject).toHaveBeenCalledWith(
+      project.id,
+      expect.objectContaining({
+        pendingPrompt: expect.stringContaining('Do not derive the title from URL protocol text such as `https`.'),
       }),
     );
     expect(mocks.patchProject).toHaveBeenCalledWith(
@@ -759,6 +776,77 @@ describe('DesignSystemCreationFlow', () => {
       project.id,
       expect.objectContaining({
         pendingPrompt: expect.stringContaining('Use uploaded brand assets in `assets/`'),
+      }),
+    );
+  });
+
+  it('infers a product title from a GitHub URL instead of the URL protocol', async () => {
+    const system: DesignSystemDetail = {
+      id: 'user:cherry-studio-design-system',
+      title: 'Cherry Studio Design System',
+      category: 'Custom',
+      summary: 'https://github.com/cherryhq/cherry-studio',
+      swatches: [],
+      surface: 'web',
+      body: '# Cherry Studio Design System\n',
+      source: 'user',
+      status: 'draft',
+      isEditable: true,
+      projectId: 'ds-cherry-studio-design-system',
+    };
+    const project: Project = {
+      id: 'ds-cherry-studio-design-system',
+      name: 'Cherry Studio Design System',
+      skillId: null,
+      designSystemId: system.id,
+      createdAt: 1,
+      updatedAt: 1,
+      metadata: {
+        kind: 'other',
+        importedFrom: 'design-system',
+        entryFile: 'DESIGN.md',
+        sourceFileName: system.id,
+      },
+    };
+    mocks.createDesignSystemDraft.mockResolvedValue(system);
+    mocks.ensureDesignSystemWorkspace.mockResolvedValue({ project, files: [] });
+    mocks.patchProject.mockResolvedValue({ ...project, pendingPrompt: 'Create this project as a design system.' });
+
+    render(
+      <DesignSystemCreationFlow
+        onBack={() => {}}
+        onCreated={() => {}}
+        onSystemsRefresh={() => {}}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText(/Mission Impastabowl/i), {
+      target: { value: 'https://github.com/cherryhq/cherry-studio' },
+    });
+    fireEvent.click(screen.getByText('Continue to generation'));
+    fireEvent.click(screen.getByText('Generate'));
+
+    await waitFor(() => expect(mocks.createDesignSystemDraft).toHaveBeenCalled());
+
+    expect(mocks.createDesignSystemDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Cherry Studio Design System',
+      }),
+    );
+    expect(mocks.createDesignSystemDraft).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'https Design System',
+      }),
+    );
+    expect(mocks.writeProjectTextFile).toHaveBeenCalledWith(
+      project.id,
+      'context/source-context.md',
+      expect.stringContaining('Canonical design-system title: Cherry Studio Design System'),
+    );
+    expect(mocks.patchProject).toHaveBeenCalledWith(
+      project.id,
+      expect.objectContaining({
+        pendingPrompt: expect.stringContaining('Design system workspace title:\nCherry Studio Design System'),
       }),
     );
   });
