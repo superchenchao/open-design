@@ -614,14 +614,20 @@ export function HomeView({
     );
     if (!extracted) return;
     const nextInputs = { ...active.inputs, ...extracted };
-    const inputsValid = pluginInputsAreValid(active.inputFields, nextInputs);
-    const inputsChanged = !inputsEqual(active.inputs, nextInputs);
+    const normalizedInputs = active.mediaSurface
+      ? normalizeHomeMediaInputs(active.mediaSurface, nextInputs, promptTemplates, elevenLabsVoices)
+      : nextInputs;
+    const inputsValid = pluginInputsAreValid(active.inputFields, normalizedInputs);
+    const inputsChanged = !inputsEqual(active.inputs, normalizedInputs);
     setActive({
       ...active,
-      inputs: nextInputs,
+      inputs: normalizedInputs,
       inputsValid,
+      projectMetadata: active.mediaSurface
+        ? metadataForHomeMediaComposer(active.mediaSurface, normalizedInputs, promptTemplates)
+        : active.projectMetadata,
       result:
-        inputsChanged && !inputsEqual(active.result?.appliedPlugin?.inputs, nextInputs)
+        inputsChanged && !inputsEqual(active.result?.appliedPlugin?.inputs, normalizedInputs)
           ? null
           : active.result,
       lastRenderedPrompt: nextPrompt,
@@ -642,7 +648,7 @@ export function HomeView({
   function updateActiveInputs(next: Record<string, unknown>) {
     if (!active) return;
     const normalized = active.mediaSurface
-      ? normalizeHomeMediaInputs(active.mediaSurface, next, elevenLabsVoices)
+      ? normalizeHomeMediaInputs(active.mediaSurface, next, promptTemplates, elevenLabsVoices)
       : next;
     const mediaComposer = active.mediaSurface
       ? buildHomeMediaComposer(active.mediaSurface, promptTemplates, normalized, elevenLabsVoices, {
@@ -837,6 +843,9 @@ export function HomeView({
         : {}),
     }));
     const defaultInputs = { prompt: trimmed };
+    const submittedProjectMetadata = submittedActive?.mediaSurface
+      ? metadataForHomeMediaComposer(submittedActive.mediaSurface, submittedActive.inputs, promptTemplates)
+      : submittedActive?.projectMetadata ?? null;
     onSubmit({
       prompt: trimmed,
       pluginId: submittedActive?.record.id ?? DEFAULT_UNSELECTED_SCENARIO_PLUGIN_ID,
@@ -846,7 +855,7 @@ export function HomeView({
       taskKind: submittedActive?.result?.appliedPlugin?.taskKind ?? null,
       pluginInputs: submittedActive ? submittedActive.inputs : defaultInputs,
       projectKind: submittedActive?.projectKind ?? fallbackProjectKind ?? projectKindForSkill(activeSkill) ?? 'other',
-      projectMetadata: submittedActive?.projectMetadata ?? null,
+      projectMetadata: submittedProjectMetadata,
       contextPlugins,
       attachments: stagedFiles,
     });

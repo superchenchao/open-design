@@ -596,7 +596,9 @@ export const HomeHero = forwardRef<HTMLTextAreaElement, Props>(function HomeHero
                   ...pluginInputValues,
                   [openInlineInputField.name]: value,
                 });
-                setOpenInlineInputName(null);
+                if (openInlineInputField.type !== 'string') {
+                  setOpenInlineInputName(null);
+                }
               }}
             />
           ) : null}

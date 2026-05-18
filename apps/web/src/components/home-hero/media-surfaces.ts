@@ -26,6 +26,8 @@ export interface HomeMediaComposerState {
 }
 
 export const HOME_MEDIA_CHIP_IDS = ['image', 'video', 'hyperframes', 'audio'] as const;
+const NO_TEMPLATE_PLACEHOLDER = 'No template';
+const SFX_AUDIO_DURATIONS_SEC = AUDIO_DURATIONS_SEC.filter((sec) => sec <= 30);
 
 export function homeMediaSurfaceForChipId(chipId: string): HomeComposerMediaSurface | null {
   if (chipId === 'image') return 'image';
@@ -48,6 +50,7 @@ export function buildHomeMediaComposer(
       ...defaultInputsForSurface(surface, promptTemplates),
       ...seedInputs,
     },
+    promptTemplates,
     voiceOptions,
   );
   const fields = fieldsForSurface(surface, promptTemplates, inputs, voiceOptions, options);
@@ -66,6 +69,7 @@ export function buildHomeMediaComposer(
 export function normalizeHomeMediaInputs(
   surface: HomeComposerMediaSurface,
   raw: Record<string, unknown>,
+  promptTemplates: PromptTemplateSummary[] = [],
   voiceOptions: Array<{ voiceId: string; name: string }> = [],
 ): Record<string, unknown> {
   if (surface === 'image') {
@@ -75,7 +79,7 @@ export function normalizeHomeMediaInputs(
       subject: stringValue(raw.subject) || 'a polished product concept',
       style: stringValue(raw.style) || 'cinematic, high-quality, on-brand',
       aspect: ratio,
-      template: stringValue(raw.template) || firstTemplateId(surface, []),
+      template: validTemplateId(surface, stringValue(raw.template), promptTemplates),
       model: validOption(stringValue(raw.model), IMAGE_MODELS.map((m) => m.id), DEFAULT_IMAGE_MODEL),
       ratio,
     };
@@ -87,7 +91,7 @@ export function normalizeHomeMediaInputs(
       subject: stringValue(raw.subject) || 'a short product reveal',
       style: stringValue(raw.style) || 'cinematic, high-quality, on-brand',
       aspect: ratio,
-      template: stringValue(raw.template) || firstTemplateId(surface, []),
+      template: validTemplateId(surface, stringValue(raw.template), promptTemplates),
       model: validOption(
         stringValue(raw.model),
         VIDEO_MODELS.filter((m) => m.id !== 'hyperframes-html').map((m) => m.id),
@@ -106,7 +110,7 @@ export function normalizeHomeMediaInputs(
       subject: stringValue(raw.subject) || 'an HTML-driven motion composition',
       style: stringValue(raw.style) || 'polished, kinetic, on-brand',
       aspect: ratio,
-      template: stringValue(raw.template) || firstTemplateId(surface, []),
+      template: validTemplateId(surface, stringValue(raw.template), promptTemplates),
       model: 'hyperframes-html',
       ratio,
       duration: validNumber(raw.duration, VIDEO_LENGTHS_SEC, 10),
@@ -132,7 +136,7 @@ export function normalizeHomeMediaInputs(
     aspect: validOption(stringValue(raw.aspect), MEDIA_ASPECTS, '16:9'),
     audioType,
     model,
-    duration: validNumber(raw.duration, AUDIO_DURATIONS_SEC, 10),
+    duration: validAudioDuration(audioType, raw.duration),
     ...(model === 'elevenlabs-v3'
       ? { voice: normalizedElevenLabsVoice(stringValue(raw.voice), voiceOptions) }
       : {}),
@@ -183,7 +187,7 @@ export function metadataForHomeMediaComposer(
     kind: 'audio',
     audioKind,
     audioModel,
-    audioDuration: validNumber(inputs.duration, AUDIO_DURATIONS_SEC, 10),
+    audioDuration: validAudioDuration(audioKind, inputs.duration),
     ...(audioModel === 'elevenlabs-v3' && stringValue(inputs.voice)
       ? { voice: stringValue(inputs.voice) }
       : {}),
@@ -252,7 +256,7 @@ function fieldsForSurface(
       sfx: 'Sound effect',
     }),
     selectField('model', 'Model', audioModels.map((m) => m.id), modelLabels(audioModels)),
-    selectField('duration', 'Duration', AUDIO_DURATIONS_SEC.map(String), secondsLabels(AUDIO_DURATIONS_SEC)),
+    selectField('duration', 'Duration', audioDurationsForKind(audioType).map(String), secondsLabels(audioDurationsForKind(audioType))),
   ];
   if (model === 'elevenlabs-v3') {
     const voices = homeElevenLabsVoiceOptions(voiceOptions);
@@ -330,7 +334,7 @@ function templateField(
     'Template',
     templates.map((template) => template.id),
     labels,
-    templates.length === 0 ? 'No template' : undefined,
+    templates.length === 0 ? NO_TEMPLATE_PLACEHOLDER : undefined,
   );
 }
 
@@ -368,7 +372,17 @@ function firstTemplateId(
   surface: HomeComposerMediaSurface,
   promptTemplates: PromptTemplateSummary[],
 ): string {
-  return templatesForHomeMediaSurface(surface, promptTemplates)[0]?.id ?? 'No template';
+  return templatesForHomeMediaSurface(surface, promptTemplates)[0]?.id ?? NO_TEMPLATE_PLACEHOLDER;
+}
+
+function validTemplateId(
+  surface: HomeComposerMediaSurface,
+  rawTemplate: string,
+  promptTemplates: PromptTemplateSummary[],
+): string {
+  const templates = templatesForHomeMediaSurface(surface, promptTemplates);
+  if (templates.some((template) => template.id === rawTemplate)) return rawTemplate;
+  return templates[0]?.id ?? NO_TEMPLATE_PLACEHOLDER;
 }
 
 function isHyperFramesTemplate(template: PromptTemplateSummary): boolean {
@@ -395,6 +409,20 @@ function voiceLabels(voices: Array<{ voiceId: string; name: string }>): Record<s
 
 function audioKinds(): AudioKind[] {
   return ['speech', 'sfx'];
+}
+
+function audioDurationsForKind(kind: AudioKind): number[] {
+  return kind === 'sfx' ? SFX_AUDIO_DURATIONS_SEC : AUDIO_DURATIONS_SEC;
+}
+
+function validAudioDuration(kind: AudioKind, raw: unknown): number {
+  const options = audioDurationsForKind(kind);
+  const value = typeof raw === 'number' ? raw : Number(raw);
+  if (options.includes(value)) return value;
+  if (kind === 'sfx' && Number.isFinite(value) && value > Math.max(...options)) {
+    return Math.max(...options);
+  }
+  return 10;
 }
 
 function homeAudioModels(kind: AudioKind) {

@@ -120,6 +120,27 @@ describe('HomeView media composer options', () => {
     );
   });
 
+  it('keeps text option popovers open while typing multiple characters', async () => {
+    stubFetch();
+    renderHome();
+
+    fireEvent.click(await screen.findByTestId('home-hero-rail-audio'));
+    await openOption('text');
+    const textInput = screen.getByTestId('home-hero-prompt-option-text-input');
+
+    let value = '';
+    for (const character of 'Welcome to Open Design.') {
+      value += character;
+      fireEvent.change(textInput, { target: { value } });
+      expect(screen.getByTestId('home-hero-prompt-option-text')).toBeTruthy();
+    }
+
+    expect(screen.getByTestId('home-hero-prompt-option-text')).toBeTruthy();
+    expect((screen.getByTestId('home-hero-input') as HTMLTextAreaElement).value).toContain(
+      'from Welcome to Open Design.',
+    );
+  });
+
   it('hides the full selector grid for media surfaces', async () => {
     stubFetch();
     renderHome();
@@ -158,6 +179,31 @@ describe('HomeView media composer options', () => {
     await openOption('template');
     const hyperframesTemplateOptions = optionTexts(screen.getByTestId('home-hero-prompt-option-template-select'));
     expect(hyperframesTemplateOptions).toEqual(['HyperFrames captions']);
+  });
+
+  it('replaces the template placeholder after media templates load', async () => {
+    stubFetch();
+    const onSubmit = vi.fn();
+    const props = homeProps({ onSubmit, promptTemplates: [] });
+    const view = render(<HomeView {...props} />);
+
+    fireEvent.click(await screen.findByTestId('home-hero-rail-image'));
+    await waitFor(() => expect(screen.getByTestId('home-hero-prompt-slot-template').textContent).toBe('No template'));
+
+    view.rerender(<HomeView {...props} promptTemplates={PROMPT_TEMPLATES} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('home-hero-prompt-slot-template').textContent).toBe('Image product concept');
+    });
+    fireEvent.click(screen.getByTestId('home-hero-submit'));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+        projectMetadata: expect.objectContaining({
+          promptTemplate: expect.objectContaining({ id: 'image-product' }),
+        }),
+      }));
+    });
   });
 
   it('submits HyperFrames as a video project with the hyperframes-html model', async () => {
@@ -253,6 +299,57 @@ describe('HomeView media composer options', () => {
     );
   });
 
+  it('caps Sound effect duration options and normalizes stale speech durations', async () => {
+    stubFetch();
+    renderHome();
+
+    fireEvent.click(await screen.findByTestId('home-hero-rail-audio'));
+    await openOption('duration');
+    fireEvent.change(screen.getByTestId('home-hero-prompt-option-duration-select'), {
+      target: { value: '60' },
+    });
+    await waitFor(() => {
+      expect((screen.getByTestId('home-hero-input') as HTMLTextAreaElement).value).toContain(
+        'for 60 seconds',
+      );
+    });
+
+    await openOption('audioType');
+    fireEvent.change(screen.getByTestId('home-hero-prompt-option-audioType-select'), {
+      target: { value: 'sfx' },
+    });
+
+    await waitFor(() => {
+      expect((screen.getByTestId('home-hero-input') as HTMLTextAreaElement).value).toContain(
+        'for 30 seconds',
+      );
+    });
+    await openOption('duration');
+    const durationOptions = optionTexts(screen.getByTestId('home-hero-prompt-option-duration-select'));
+    expect(durationOptions).toEqual(['5s', '10s', '15s', '30s']);
+  });
+
+  it('recomputes media metadata from textarea edits at submit time', async () => {
+    stubFetch();
+    const onSubmit = vi.fn();
+    renderHome({ onSubmit });
+
+    fireEvent.click(await screen.findByTestId('home-hero-rail-audio'));
+    const input = screen.getByTestId('home-hero-input') as HTMLTextAreaElement;
+    await waitFor(() => expect(input.value).toContain('for 10 seconds'));
+    fireEvent.change(input, {
+      target: { value: input.value.replace('for 10 seconds', 'for 30 seconds') },
+    });
+    fireEvent.click(screen.getByTestId('home-hero-submit'));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({
+        pluginInputs: expect.objectContaining({ duration: 30 }),
+        projectMetadata: expect.objectContaining({ audioDuration: 30 }),
+      }));
+    });
+  });
+
   it('uses the Audio text input as the audio source and plugin subject', async () => {
     stubFetch();
     const onSubmit = vi.fn();
@@ -306,16 +403,18 @@ describe('HomeView media composer options', () => {
 });
 
 function renderHome(overrides: Partial<React.ComponentProps<typeof HomeView>> = {}) {
-  return render(
-    <HomeView
-      projects={[]}
-      onSubmit={() => undefined}
-      onOpenProject={() => undefined}
-      onViewAllProjects={() => undefined}
-      promptTemplates={PROMPT_TEMPLATES}
-      {...overrides}
-    />,
-  );
+  return render(<HomeView {...homeProps(overrides)} />);
+}
+
+function homeProps(overrides: Partial<React.ComponentProps<typeof HomeView>> = {}): React.ComponentProps<typeof HomeView> {
+  return {
+    projects: [],
+    onSubmit: () => undefined,
+    onOpenProject: () => undefined,
+    onViewAllProjects: () => undefined,
+    promptTemplates: PROMPT_TEMPLATES,
+    ...overrides,
+  };
 }
 
 function stubFetch(options: { elevenLabsVoices?: Array<{ voiceId: string; name: string; category?: string }>; elevenLabsVoiceError?: string } = {}) {
