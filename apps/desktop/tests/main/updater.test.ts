@@ -125,6 +125,46 @@ function updaterEnv(metadataUrl: string): NodeJS.ProcessEnv {
   };
 }
 
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
+async function waitForRequestCount(requests: readonly unknown[], count: number): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (requests.length >= count) return;
+    await new Promise<void>((resolveWait) => setImmediate(resolveWait));
+  }
+  throw new Error(`expected ${count} update requests, saw ${requests.length}`);
+}
+
+function metadataResponse(version: string): Response {
+  return new Response(JSON.stringify({
+    baseVersion: version,
+    channel: "stable",
+    platforms: {
+      mac: {
+        arch: "arm64",
+        enabled: true,
+        artifacts: {
+          dmg: {
+            name: `open-design-${version}-mac-arm64.dmg`,
+            sha256: "0".repeat(64),
+            size: 1,
+            url: `https://example.invalid/open-design-${version}-mac-arm64.dmg`,
+          },
+        },
+      },
+    },
+    releaseVersion: version,
+    stableVersion: version,
+    version: 1,
+  }));
+}
+
 describe("desktop updater", () => {
   it("downloads, verifies, persists, and dry-runs opening a mac package", async () => {
     const root = makeRoot();
@@ -249,6 +289,61 @@ describe("desktop updater", () => {
       expect(installed.installResult).toBeUndefined();
     } finally {
       await fixture.close();
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  it("serializes more than one queued update operation", async () => {
+    const root = makeRoot();
+    const requests: Array<{ resolve: (response: Response) => void }> = [];
+    const fetchImpl: typeof globalThis.fetch = async () => {
+      const request = deferred<Response>();
+      requests.push(request);
+      return await request.promise;
+    };
+    try {
+      const updater = createDesktopUpdater(
+        {
+          arch: "arm64",
+          downloadRoot: root,
+          env: {
+            ...updaterEnv("https://example.invalid/metadata.json"),
+            [DESKTOP_UPDATE_ENV.AUTO_DOWNLOAD]: "0",
+          },
+          source: SIDECAR_SOURCES.TOOLS_PACK,
+        },
+        { fetch: fetchImpl },
+      );
+
+      const first = updater.checkForUpdates({ autoDownload: false });
+      const second = updater.checkForUpdates({ autoDownload: false });
+      const third = updater.checkForUpdates({ autoDownload: false });
+
+      await waitForRequestCount(requests, 1);
+      expect(requests).toHaveLength(1);
+
+      requests[0]?.resolve(metadataResponse("1.0.1"));
+      await expect(first).resolves.toMatchObject({
+        availableVersion: "1.0.1",
+        state: DESKTOP_UPDATE_STATES.AVAILABLE,
+      });
+      await waitForRequestCount(requests, 2);
+      await new Promise<void>((resolveWait) => setImmediate(resolveWait));
+      expect(requests).toHaveLength(2);
+
+      requests[1]?.resolve(metadataResponse("1.0.2"));
+      await expect(second).resolves.toMatchObject({
+        availableVersion: "1.0.2",
+        state: DESKTOP_UPDATE_STATES.AVAILABLE,
+      });
+      await waitForRequestCount(requests, 3);
+
+      requests[2]?.resolve(metadataResponse("1.0.3"));
+      await expect(third).resolves.toMatchObject({
+        availableVersion: "1.0.3",
+        state: DESKTOP_UPDATE_STATES.AVAILABLE,
+      });
+    } finally {
       rmSync(root, { force: true, recursive: true });
     }
   });

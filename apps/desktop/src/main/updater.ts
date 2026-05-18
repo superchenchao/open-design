@@ -666,7 +666,7 @@ export function createDesktopUpdater(
   let progress: DesktopUpdateProgressSnapshot | undefined;
   let state: DesktopUpdateState = DESKTOP_UPDATE_STATES.IDLE;
   let error: DesktopUpdateErrorSnapshot | undefined;
-  let operation: Promise<DesktopUpdateStatusSnapshot> | null = null;
+  let operation: Promise<unknown> = Promise.resolve();
 
   function supported(): boolean {
     return config.enabled && config.mode === DESKTOP_UPDATE_MODES.PACKAGE_LAUNCHER && config.platform === "darwin";
@@ -922,11 +922,9 @@ export function createDesktopUpdater(
   }
 
   async function serialized(run: () => Promise<DesktopUpdateStatusSnapshot>): Promise<DesktopUpdateStatusSnapshot> {
-    if (operation != null) await operation.catch(() => undefined);
-    operation = run().finally(() => {
-      operation = null;
-    });
-    return await operation;
+    const next = operation.catch(() => undefined).then(run);
+    operation = next.catch(() => undefined);
+    return await next;
   }
 
   return {
