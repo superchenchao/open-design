@@ -58,10 +58,24 @@ Cherry Studio is a desktop AI chat workspace for multi-model assistant workflows
 - ui_kits/app/ contains an applied interface example for future project reuse.
 - assets/, build/, and fonts/ preserve source-backed brand, runtime icons, and typography evidence.
 
+## Preview Manifest
+
+- preview/colors-primary.html reviews the captured primary palette and semantic color roles.
+- preview/colors-theme-light.html reviews light surfaces, borders, and text hierarchy.
+- preview/typography-specimens.html reviews Ubuntu typography specimens and dense UI text.
+- preview/spacing-tokens.html reviews compact layout rhythm, radius, and spacing rules.
+- preview/components-buttons.html reviews core controls and component states.
+- preview/brand-assets.html reviews preserved source assets, runtime icons, and fonts.
+
 ## Review Workflow
 
 Start with DESIGN.md, compare the preview cards, then inspect the applied UI kit. Reuse assets and fonts directly when building product surfaces.
 `;
+
+const README_WITHOUT_PREVIEW_MANIFEST = AUDIT_README.replace(
+  /\n## Preview Manifest\n\n[\s\S]*?\n## Review Workflow/u,
+  '\n## Review Workflow',
+);
 
 const README_WITHOUT_PRODUCT_OVERVIEW = `# Cherry Studio Design System
 
@@ -1084,6 +1098,48 @@ describe('connectors tool CLI', () => {
         code: 'readme_missing_package_reuse_guide',
         path: 'README.md',
         message: expect.stringContaining('Claude Design package guide'),
+      }),
+    ]));
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('warns when README.md lacks a concrete preview manifest', async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'od-package-audit-readme-preview-manifest-'));
+    process.chdir(tmpDir);
+    await mkdir(path.join(tmpDir, 'preview'), { recursive: true });
+    await mkdir(path.join(tmpDir, 'ui_kits/app/components'), { recursive: true });
+    await writeFile(path.join(tmpDir, 'DESIGN.md'), AUDIT_DESIGN_MD);
+    await writeFile(path.join(tmpDir, 'README.md'), README_WITHOUT_PREVIEW_MANIFEST);
+    await writeFile(path.join(tmpDir, 'SKILL.md'), AUDIT_SKILL);
+    await writeFile(path.join(tmpDir, 'colors_and_type.css'), AUDIT_TOKENS_CSS);
+    for (const fileName of [
+      'colors-primary.html',
+      'colors-theme-light.html',
+      'typography-specimens.html',
+      'spacing-tokens.html',
+      'components-buttons.html',
+      'brand-assets.html',
+    ]) {
+      await writeFile(path.join(tmpDir, 'preview', fileName), auditHtml(fileName));
+    }
+    await writeFile(path.join(tmpDir, 'ui_kits/app/index.html'), auditUiKitIndex());
+    await writeFile(path.join(tmpDir, 'ui_kits/app/README.md'), AUDIT_UI_KIT_README);
+    for (const componentName of AUDIT_COMPONENT_FILES) {
+      await writeFile(
+        path.join(tmpDir, 'ui_kits/app/components', componentName),
+        auditUiKitComponent(componentName),
+      );
+    }
+
+    const result = await runConnectorsToolCli(['design-system-package-audit', '--path', tmpDir]);
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(stdoutOutput.join('')).warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'readme_missing_preview_manifest',
+        path: 'README.md',
+        message: expect.stringContaining('concrete preview manifest'),
       }),
     ]));
 

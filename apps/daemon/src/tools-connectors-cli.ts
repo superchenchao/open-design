@@ -1759,8 +1759,8 @@ export async function auditDesignSystemPackage(
       );
     }
   }
+  const readmeText = fileSet.has('README.md') ? await readAuditText(projectPath, 'README.md') : undefined;
   if (fileSet.has('README.md')) {
-    const readmeText = await readAuditText(projectPath, 'README.md');
     if (readmeText !== undefined && !readmeHasProductOverview(readmeText)) {
       addIssue(
         'warning',
@@ -1811,6 +1811,14 @@ export async function auditDesignSystemPackage(
   requirePreviewCategory(previewFiles, /^preview\/typography-specimens\.html$/u, 'missing_typography_preview', 'Expected preview/typography-specimens.html.', addIssue);
   requirePreviewCategory(previewFiles, /^preview\/spacing-[^/]+\.html$/u, 'missing_spacing_preview', 'Expected at least one focused spacing preview card such as preview/spacing-tokens.html.', addIssue);
   requirePreviewCategory(previewFiles, /^preview\/components-[^/]+\.html$/u, 'missing_component_preview', 'Expected at least one focused component preview card such as preview/components-buttons.html.', addIssue);
+  if (readmeText !== undefined && !readmeHasPreviewManifest(readmeText, previewFiles)) {
+    addIssue(
+      'warning',
+      'readme_missing_preview_manifest',
+      'README.md should include a concrete preview manifest that lists the generated preview/*.html cards so reviewers and future agents know what to inspect.',
+      'README.md',
+    );
+  }
 
   const oldPreviewFiles = previewFiles.filter((filePath) => /preview\/(colors-node-types|colors-ui-palette|typography-scale|spacing-system|logo-variants)\.html$/u.test(filePath));
   if (oldPreviewFiles.length > 0) {
@@ -2238,6 +2246,19 @@ function readmeHasPackageReuseGuide(text: string): boolean {
     && /\b(?:reuse|review|inspect|copy|load|compose|start with|open)\b/iu.test(text)
     && /\b(?:preview|DESIGN\.md|colors_and_type\.css|ui_kits\/app|assets\/|fonts\/)\b/iu.test(text);
   return hasPackageContents && hasSourceContext && hasPreservedArtifacts && hasReuseWorkflow;
+}
+
+function readmeHasPreviewManifest(text: string, previewFiles: string[]): boolean {
+  if (previewFiles.length === 0) return true;
+  const previewSection = markdownSection(text, 'Preview Manifest')
+    ?? markdownSection(text, 'Preview Cards')
+    ?? markdownSection(text, 'Review Previews')
+    ?? markdownSection(text, 'Previews');
+  if (previewSection === undefined) return false;
+  const referencedPreviews = previewFiles.filter((filePath) =>
+    new RegExp(`\\b${escapeRegExp(filePath)}\\b`, 'iu').test(previewSection),
+  );
+  return referencedPreviews.length >= Math.min(4, previewFiles.length);
 }
 
 function uiKitReadmeHasReuseGuide(text: string): boolean {
