@@ -1564,6 +1564,8 @@ async function auditDesignSystemPackage(
   const hasFontEvidence = evidenceHasFonts(evidenceText) || files.some((filePath) => /^context\/(github|local-code)\/.+\/files\/.+\.(ttf|otf|woff2?)$/iu.test(filePath));
   const hasComponentEvidence = evidenceHasReusableComponents(evidenceText)
     || files.some((filePath) => /^context\/(github|local-code)\/.+\/files\/.+(?:\/|^)(components?|ui|app|layout|shell|navbar|sidebar|chat|input|composer|assistant|message|model)[^/]*\/?.*\.(tsx|ts|jsx|js|css|scss|less)$/iu.test(filePath));
+  const hasChatUiEvidence = evidenceHasChatInterface(evidenceText)
+    || files.some((filePath) => /^context\/(github|local-code)\/.+\/files\/.+(?:pages\/home|components\/app|inputbar|messages?|chat|assistants?|sidebar).*\.(tsx|ts|jsx|js|css|scss|less)$/iu.test(filePath));
   const uiKitComponentFiles = files.filter((filePath) => /^ui_kits\/app\/components\/.+\.(jsx|tsx|js|ts|css|html)$/iu.test(filePath));
   if (hasComponentEvidence && uiKitComponentFiles.length < 3) {
     addIssue(
@@ -1580,6 +1582,17 @@ async function auditDesignSystemPackage(
         'error',
         'thin_modular_ui_kit',
         `ui_kits/app/components/ is too thin for source-backed component evidence; expected at least 3000 bytes across reusable components, found ${componentByteTotal}.`,
+        'ui_kits/app/components/',
+      );
+    }
+  }
+  if (hasChatUiEvidence) {
+    const missingRoles = missingUiKitComponentRoles(uiKitComponentFiles);
+    if (missingRoles.length > 0) {
+      addIssue(
+        'error',
+        'missing_ui_kit_component_roles',
+        `Chat/workspace evidence requires UI kit components covering these roles: ${missingRoles.join(', ')}.`,
         'ui_kits/app/components/',
       );
     }
@@ -1720,6 +1733,25 @@ function evidenceHasFonts(evidenceText: string): boolean {
 
 function evidenceHasReusableComponents(evidenceText: string): boolean {
   return /### Reusable components|### App shell and navigation|### Chat and input surfaces|components?\/|ui_kits?\/|sidebar|navbar|composer|message bubble|assistant row|model selector/iu.test(evidenceText);
+}
+
+function evidenceHasChatInterface(evidenceText: string): boolean {
+  return /### Chat and input surfaces|pages\/home|inputbar|messages?\/|chat(area)?|assistant(list|item|stab)?|message bubble|composer/iu.test(evidenceText);
+}
+
+function missingUiKitComponentRoles(componentFiles: string[]): string[] {
+  const normalized = componentFiles.map((filePath) => path.basename(filePath).toLowerCase());
+  const roles = [
+    ['app shell', /(app|shell|layout|workspace)\.(jsx|tsx|js|ts|html|css)$/u],
+    ['navigation/sidebar', /(sidebar|nav|rail)\.(jsx|tsx|js|ts|html|css)$/u],
+    ['assistant/list rail', /(assistants?list|assistantitem|list|panel|tabs?)\.(jsx|tsx|js|ts|html|css)$/u],
+    ['chat area', /(chatarea|chat|messages?)\.(jsx|tsx|js|ts|html|css)$/u],
+    ['message bubble', /(messagebubble|message)\.(jsx|tsx|js|ts|html|css)$/u],
+    ['input bar/composer', /(inputbar|composer|input|messageinput)\.(jsx|tsx|js|ts|html|css)$/u],
+  ] as const;
+  return roles
+    .filter(([, pattern]) => !normalized.some((fileName) => pattern.test(fileName)))
+    .map(([role]) => role);
 }
 
 async function requestJson(baseUrl: URL, token: string, pathname: string, init: RequestInit = {}): Promise<{ status: number; body: unknown }> {

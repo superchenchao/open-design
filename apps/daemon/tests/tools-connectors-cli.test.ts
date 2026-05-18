@@ -116,6 +116,15 @@ const AUDIT_TOKENS_CSS = `:root {
 }
 `;
 
+const AUDIT_COMPONENT_FILES = [
+  'App.jsx',
+  'Sidebar.jsx',
+  'AssistantsList.jsx',
+  'ChatArea.jsx',
+  'InputBar.jsx',
+  'MessageBubble.jsx',
+];
+
 function auditHtml(title: string): string {
   const cards = Array.from({ length: 8 }, (_, index) => `<article><h2>${title} ${index + 1}</h2><p>Source-backed review content for compact desktop app surfaces, component states, spacing, typography, and reusable product modules.</p><button>Review state</button></article>`).join('');
   return `<!doctype html>
@@ -452,6 +461,7 @@ describe('connectors tool CLI', () => {
     await mkdir(path.join(tmpDir, 'assets'), { recursive: true });
     await mkdir(path.join(tmpDir, 'fonts/ubuntu'), { recursive: true });
     await mkdir(path.join(tmpDir, 'context/local-code/cherry/files/src/components'), { recursive: true });
+    await mkdir(path.join(tmpDir, 'context/local-code/cherry/files/src/pages/home'), { recursive: true });
     await writeFile(path.join(tmpDir, 'DESIGN.md'), AUDIT_DESIGN_MD);
     await writeFile(path.join(tmpDir, 'README.md'), AUDIT_README);
     await writeFile(path.join(tmpDir, 'SKILL.md'), AUDIT_SKILL);
@@ -469,7 +479,7 @@ describe('connectors tool CLI', () => {
     await writeFile(path.join(tmpDir, 'ui_kits/app/index.html'), auditHtml('Cherry Studio UI kit'));
     await writeFile(path.join(tmpDir, 'ui_kits/app/README.md'), '# UI kit\n');
     await mkdir(path.join(tmpDir, 'ui_kits/app/components'), { recursive: true });
-    for (const componentName of ['App.jsx', 'Sidebar.jsx', 'ChatArea.jsx']) {
+    for (const componentName of AUDIT_COMPONENT_FILES) {
       await writeFile(
         path.join(tmpDir, 'ui_kits/app/components', componentName),
         auditComponent(componentName.replace(/\.jsx$/u, '')),
@@ -492,7 +502,7 @@ describe('connectors tool CLI', () => {
     await writeFile(path.join(tmpDir, 'context/local-code/cherry.md'), [
       '# Local Design Evidence: cherry',
       '',
-      'Snapshot files written: 2',
+      'Snapshot files written: 3',
       '',
       '### Brand assets and icons',
       '- assets/logo.png -> `context/local-code/cherry/files/assets/logo.png` (binary asset)',
@@ -502,9 +512,13 @@ describe('connectors tool CLI', () => {
       '',
       '### Reusable components',
       '- src/components/Button.tsx -> `context/local-code/cherry/files/src/components/Button.tsx` (source)',
+      '',
+      '### Chat and input surfaces',
+      '- src/pages/home/Chat.tsx -> `context/local-code/cherry/files/src/pages/home/Chat.tsx` (source)',
     ].join('\n'));
     await writeFile(path.join(tmpDir, 'context/local-code/cherry/files/src/tokens.css'), ':root { --color-primary: #00b96b; }');
     await writeFile(path.join(tmpDir, 'context/local-code/cherry/files/src/components/Button.tsx'), 'export function Button(){ return <button />; }');
+    await writeFile(path.join(tmpDir, 'context/local-code/cherry/files/src/pages/home/Chat.tsx'), 'export function Chat(){ return <main><InputBar /><Messages /></main>; }');
 
     const result = await runConnectorsToolCli(['design-system-package-audit', '--path', tmpDir]);
 
@@ -561,6 +575,63 @@ describe('connectors tool CLI', () => {
     expect(result.exitCode).toBe(1);
     expect(JSON.parse(stdoutOutput.join('')).errors).toEqual(expect.arrayContaining([
       expect.objectContaining({ code: 'thin_modular_ui_kit', path: 'ui_kits/app/components/' }),
+    ]));
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('fails a design-system package audit when chat evidence lacks UI-kit role coverage', async () => {
+    const tmpDir = await mkdtemp(path.join(os.tmpdir(), 'od-package-audit-missing-roles-'));
+    process.chdir(tmpDir);
+    await mkdir(path.join(tmpDir, 'preview'), { recursive: true });
+    await mkdir(path.join(tmpDir, 'ui_kits/app/components'), { recursive: true });
+    await mkdir(path.join(tmpDir, 'assets'), { recursive: true });
+    await mkdir(path.join(tmpDir, 'fonts/ubuntu'), { recursive: true });
+    await mkdir(path.join(tmpDir, 'context/local-code/cherry/files/src/pages/home'), { recursive: true });
+    await writeFile(path.join(tmpDir, 'DESIGN.md'), AUDIT_DESIGN_MD);
+    await writeFile(path.join(tmpDir, 'README.md'), AUDIT_README);
+    await writeFile(path.join(tmpDir, 'SKILL.md'), AUDIT_SKILL);
+    await writeFile(path.join(tmpDir, 'colors_and_type.css'), AUDIT_TOKENS_CSS);
+    for (const fileName of [
+      'colors-primary.html',
+      'colors-theme-light.html',
+      'typography-specimens.html',
+      'spacing-tokens.html',
+      'components-buttons.html',
+      'brand-assets.html',
+    ]) {
+      await writeFile(path.join(tmpDir, 'preview', fileName), auditHtml(fileName));
+    }
+    await writeFile(path.join(tmpDir, 'ui_kits/app/index.html'), auditHtml('Cherry Studio UI kit'));
+    await writeFile(path.join(tmpDir, 'ui_kits/app/README.md'), '# UI kit\n');
+    for (const componentName of ['App.jsx', 'Sidebar.jsx', 'ChatArea.jsx']) {
+      await writeFile(
+        path.join(tmpDir, 'ui_kits/app/components', componentName),
+        auditComponent(componentName.replace(/\.jsx$/u, '')),
+      );
+    }
+    await writeFile(path.join(tmpDir, 'assets/logo.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    await writeFile(path.join(tmpDir, 'fonts/ubuntu/Ubuntu-Regular.ttf'), Buffer.from('font-data'));
+    await writeFile(path.join(tmpDir, 'context/source-context.md'), '# Design System Source Context\n\n## Local Code\n\n- /tmp/cherry\n');
+    await writeFile(path.join(tmpDir, 'context/local-code/cherry.md'), [
+      '# Local Design Evidence: cherry',
+      '',
+      'Snapshot files written: 1',
+      '',
+      '### Chat and input surfaces',
+      '- src/pages/home/Chat.tsx -> `context/local-code/cherry/files/src/pages/home/Chat.tsx` (source)',
+    ].join('\n'));
+    await writeFile(path.join(tmpDir, 'context/local-code/cherry/files/src/pages/home/Chat.tsx'), 'export function Chat(){ return <main><InputBar /><Messages /></main>; }');
+
+    const result = await runConnectorsToolCli(['design-system-package-audit', '--path', tmpDir]);
+
+    expect(result.exitCode).toBe(1);
+    expect(JSON.parse(stdoutOutput.join('')).errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'missing_ui_kit_component_roles',
+        path: 'ui_kits/app/components/',
+        message: expect.stringContaining('assistant/list rail'),
+      }),
     ]));
 
     await rm(tmpDir, { recursive: true, force: true });
@@ -629,7 +700,7 @@ describe('connectors tool CLI', () => {
     await writeFile(path.join(tmpDir, 'ui_kits/app/index.html'), auditHtml('Cherry Studio UI kit'));
     await writeFile(path.join(tmpDir, 'ui_kits/app/README.md'), '# UI kit\n');
     await mkdir(path.join(tmpDir, 'ui_kits/app/components'), { recursive: true });
-    for (const componentName of ['App.jsx', 'Sidebar.jsx', 'ChatArea.jsx']) {
+    for (const componentName of AUDIT_COMPONENT_FILES) {
       await writeFile(
         path.join(tmpDir, 'ui_kits/app/components', componentName),
         auditComponent(componentName.replace(/\.jsx$/u, '')),

@@ -164,8 +164,10 @@ describe('design systems registry', () => {
         'preview/colors-primary.html',
         'ui_kits/app/components/App.jsx',
         'ui_kits/app/components/Sidebar.jsx',
-        'ui_kits/app/components/PreviewCard.jsx',
-        'ui_kits/app/components/Composer.jsx',
+        'ui_kits/app/components/AssistantsList.jsx',
+        'ui_kits/app/components/ChatArea.jsx',
+        'ui_kits/app/components/InputBar.jsx',
+        'ui_kits/app/components/MessageBubble.jsx',
       ]),
     );
   });
@@ -206,8 +208,10 @@ describe('design systems registry', () => {
         'ui_kits/app/README.md',
         'ui_kits/app/components/App.jsx',
         'ui_kits/app/components/Sidebar.jsx',
-        'ui_kits/app/components/PreviewCard.jsx',
-        'ui_kits/app/components/Composer.jsx',
+        'ui_kits/app/components/AssistantsList.jsx',
+        'ui_kits/app/components/ChatArea.jsx',
+        'ui_kits/app/components/InputBar.jsx',
+        'ui_kits/app/components/MessageBubble.jsx',
       ]),
     );
     expect(files?.map((file) => file.path)).not.toEqual(
@@ -242,8 +246,10 @@ describe('design systems registry', () => {
       expect.arrayContaining([
         'ui_kits/app/components/App.jsx',
         'ui_kits/app/components/Sidebar.jsx',
-        'ui_kits/app/components/PreviewCard.jsx',
-        'ui_kits/app/components/Composer.jsx',
+        'ui_kits/app/components/AssistantsList.jsx',
+        'ui_kits/app/components/ChatArea.jsx',
+        'ui_kits/app/components/InputBar.jsx',
+        'ui_kits/app/components/MessageBubble.jsx',
       ]),
     );
     await expect(readUserDesignSystemFile(root, 'user:legacy', 'ui_kits/app/components/App.jsx'))

@@ -685,15 +685,9 @@ async function migrateLegacyDesignSystemPackage(
 
 async function writeDefaultUiKitComponentsIfMissing(dir: string, title: string): Promise<boolean> {
   const componentDir = path.join(dir, 'ui_kits', 'app', 'components');
-  const componentSpecs = [
-    ['App.jsx', 'App', 'Composes the workspace shell, navigation rail, review content, and composer surface.'],
-    ['Sidebar.jsx', 'Sidebar', 'Defines the compact navigation rail and active-section rhythm.'],
-    ['PreviewCard.jsx', 'PreviewCard', 'Captures a reusable review card with title, summary, state, and action slots.'],
-    ['Composer.jsx', 'Composer', 'Models the input/composer area used to collect design feedback and follow-up requests.'],
-  ] as const;
   let wroteAny = false;
   await mkdir(componentDir, { recursive: true });
-  for (const [fileName, componentName, purpose] of componentSpecs) {
+  for (const { fileName, componentName, purpose } of defaultUiKitComponentSpecs()) {
     const target = path.join(componentDir, fileName);
     try {
       const existing = await stat(target);
@@ -955,35 +949,37 @@ async function writeGeneratedDesignSystemFiles(
     ),
     writeFile(
       path.join(dir, 'ui_kits', 'app', 'README.md'),
-      `# ${input.title} UI Kit\n\nUse \`index.html\` as the applied interface example. Reuse \`components/\` as modular shell, navigation, preview-card, toolbar, and composer building blocks. Replace this scaffold with source-backed modular components when repository evidence is available.\n`,
+      `# ${input.title} UI Kit\n\nUse \`index.html\` as the applied interface example. Reuse \`components/\` as modular app shell, sidebar, assistant list, chat area, input bar, and message bubble building blocks. Replace this scaffold with source-backed modular components when repository evidence is available.\n`,
       'utf8',
     ),
-    writeFile(
-      path.join(dir, 'ui_kits', 'app', 'components', 'App.jsx'),
-      renderUiKitComponent('App', input.title, 'Composes the workspace shell, navigation rail, review content, and composer surface.'),
-      'utf8',
-    ),
-    writeFile(
-      path.join(dir, 'ui_kits', 'app', 'components', 'Sidebar.jsx'),
-      renderUiKitComponent('Sidebar', input.title, 'Defines the compact navigation rail and active-section rhythm.'),
-      'utf8',
-    ),
-    writeFile(
-      path.join(dir, 'ui_kits', 'app', 'components', 'PreviewCard.jsx'),
-      renderUiKitComponent('PreviewCard', input.title, 'Captures a reusable review card with title, summary, state, and action slots.'),
-      'utf8',
-    ),
-    writeFile(
-      path.join(dir, 'ui_kits', 'app', 'components', 'Composer.jsx'),
-      renderUiKitComponent('Composer', input.title, 'Models the input/composer area used to collect design feedback and follow-up requests.'),
-      'utf8',
+    ...defaultUiKitComponentSpecs().map(({ fileName, componentName, purpose }) =>
+      writeFile(
+        path.join(dir, 'ui_kits', 'app', 'components', fileName),
+        renderUiKitComponent(componentName, input.title, purpose),
+        'utf8',
+      ),
     ),
   ]);
+}
+
+function defaultUiKitComponentSpecs(): Array<{ fileName: string; componentName: string; purpose: string }> {
+  return [
+    { fileName: 'App.jsx', componentName: 'App', purpose: 'Composes the workspace shell, navigation rail, review content, and composer surface.' },
+    { fileName: 'Sidebar.jsx', componentName: 'Sidebar', purpose: 'Defines the compact navigation rail and active-section rhythm.' },
+    { fileName: 'AssistantsList.jsx', componentName: 'AssistantsList', purpose: 'Models the assistant, thread, or object list that anchors a product workspace.' },
+    { fileName: 'ChatArea.jsx', componentName: 'ChatArea', purpose: 'Composes the main conversation or review workspace with a header, content stream, and empty state.' },
+    { fileName: 'InputBar.jsx', componentName: 'InputBar', purpose: 'Models the primary composer with attachments, actions, and send affordances.' },
+    { fileName: 'MessageBubble.jsx', componentName: 'MessageBubble', purpose: 'Captures reusable message, note, or review-comment surfaces with metadata and status.' },
+  ];
 }
 
 function renderUiKitComponent(name: string, title: string, purpose: string): string {
   if (name === 'App') return renderAppUiKitComponent(title);
   if (name === 'Sidebar') return renderSidebarUiKitComponent(title);
+  if (name === 'AssistantsList') return renderAssistantsListUiKitComponent(title);
+  if (name === 'ChatArea') return renderChatAreaUiKitComponent(title);
+  if (name === 'InputBar') return renderInputBarUiKitComponent(title);
+  if (name === 'MessageBubble') return renderMessageBubbleUiKitComponent(title);
   if (name === 'PreviewCard') return renderPreviewCardUiKitComponent(title);
   if (name === 'Composer') return renderComposerUiKitComponent(title);
   return `export function ${name}({ children, title = '${escapeJsString(title)}' }) {
@@ -1073,6 +1069,132 @@ export function Sidebar({ title = '${escapeJsString(title)}', activeId = 'design
         </button>
       ))}
     </nav>
+  );
+}
+`;
+}
+
+function renderAssistantsListUiKitComponent(title: string): string {
+  return `const assistantItems = [
+  { id: 'default', name: '${escapeJsString(title)} reviewer', meta: 'Design review workspace', active: true },
+  { id: 'tokens', name: 'Token specialist', meta: 'Colors, type, spacing, and states', active: false },
+  { id: 'components', name: 'Component reviewer', meta: 'Cards, inputs, messages, and navigation', active: false },
+];
+
+const assistantsListStyles = {
+  panel: { width: 280, borderRight: '1px solid var(--color-border, #dfe3e8)', background: 'var(--color-surface, #fff)', padding: 14, display: 'grid', alignContent: 'start', gap: 10 },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  row: { display: 'grid', gridTemplateColumns: '32px 1fr', gap: 10, alignItems: 'center', padding: 10, borderRadius: 10, border: '1px solid transparent' },
+  active: { borderColor: 'var(--color-primary, #00b96b)', background: 'var(--color-primary-soft, rgba(0,185,107,.1))' },
+  avatar: { width: 32, height: 32, borderRadius: 10, background: 'var(--color-background-soft, #f7f8fa)', display: 'grid', placeItems: 'center', fontWeight: 700 },
+  meta: { color: 'var(--color-text-secondary, #73777f)', fontSize: 12 },
+};
+
+export function AssistantsList({ items = assistantItems }) {
+  return (
+    <aside style={assistantsListStyles.panel} aria-label="Assistants">
+      <header style={assistantsListStyles.header}>
+        <strong>Assistants</strong>
+        <button type="button">New</button>
+      </header>
+      {items.map((item) => (
+        <button key={item.id} type="button" style={{ ...assistantsListStyles.row, ...(item.active ? assistantsListStyles.active : {}) }}>
+          <span style={assistantsListStyles.avatar}>{item.name.slice(0, 1)}</span>
+          <span>
+            <strong>{item.name}</strong>
+            <small style={assistantsListStyles.meta}>{item.meta}</small>
+          </span>
+        </button>
+      ))}
+    </aside>
+  );
+}
+`;
+}
+
+function renderChatAreaUiKitComponent(title: string): string {
+  return `const chatMessages = [
+  { id: 'user', role: 'You', text: 'Create a compact review surface from the captured source evidence.' },
+  { id: 'assistant', role: '${escapeJsString(title)}', text: 'The system uses focused preview cards, source-backed tokens, and reusable app-kit components.' },
+];
+
+const chatAreaStyles = {
+  wrap: { minHeight: 640, background: 'var(--color-background, #f7f8fa)', display: 'grid', gridTemplateRows: 'auto 1fr auto' },
+  header: { minHeight: 54, borderBottom: '1px solid var(--color-border, #dfe3e8)', padding: '0 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--color-surface, #fff)' },
+  stream: { padding: 22, display: 'grid', alignContent: 'start', gap: 14, overflow: 'auto' },
+  note: { border: '1px solid var(--color-border, #dfe3e8)', borderRadius: 12, background: 'var(--color-surface, #fff)', padding: 14 },
+  composerSlot: { borderTop: '1px solid var(--color-border, #dfe3e8)', background: 'var(--color-surface, #fff)', padding: 16 },
+};
+
+export function ChatArea({ title = '${escapeJsString(title)} review', messages = chatMessages }) {
+  return (
+    <section style={chatAreaStyles.wrap} aria-label={title}>
+      <header style={chatAreaStyles.header}>
+        <strong>{title}</strong>
+        <button type="button">Open source context</button>
+      </header>
+      <div style={chatAreaStyles.stream}>
+        {messages.map((message) => (
+          <article key={message.id} style={chatAreaStyles.note}>
+            <small>{message.role}</small>
+            <p>{message.text}</p>
+          </article>
+        ))}
+      </div>
+      <div style={chatAreaStyles.composerSlot}>Use InputBar.jsx for the full composer surface.</div>
+    </section>
+  );
+}
+`;
+}
+
+function renderInputBarUiKitComponent(title: string): string {
+  return `const inputActions = ['Attach', 'Source', 'Revise'];
+
+const inputBarStyles = {
+  wrap: { border: '1px solid var(--color-border, #dfe3e8)', borderRadius: 14, background: 'var(--color-surface, #fff)', padding: 12, display: 'grid', gap: 10 },
+  field: { minHeight: 82, border: 0, outline: 0, resize: 'vertical', font: 'inherit', color: 'var(--color-text, #202124)' },
+  toolbar: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  actions: { display: 'flex', flexWrap: 'wrap', gap: 8 },
+  chip: { border: '1px solid var(--color-border, #dfe3e8)', borderRadius: 999, padding: '6px 10px', background: 'var(--color-background-soft, #f7f8fa)' },
+  send: { border: 0, borderRadius: 10, padding: '9px 14px', background: 'var(--color-primary, #00b96b)', color: '#fff', fontWeight: 700 },
+};
+
+export function InputBar({ title = '${escapeJsString(title)} prompt', actions = inputActions }) {
+  return (
+    <form style={inputBarStyles.wrap} aria-label={title}>
+      <textarea style={inputBarStyles.field} placeholder="Describe the design revision, evidence to inspect, or preview card to improve." />
+      <div style={inputBarStyles.toolbar}>
+        <div style={inputBarStyles.actions}>
+          {actions.map((action) => <button key={action} type="button" style={inputBarStyles.chip}>{action}</button>)}
+        </div>
+        <button type="submit" style={inputBarStyles.send}>Send</button>
+      </div>
+    </form>
+  );
+}
+`;
+}
+
+function renderMessageBubbleUiKitComponent(title: string): string {
+  return `const messageBubbleStyles = {
+  bubble: { maxWidth: 680, border: '1px solid var(--color-border, #dfe3e8)', borderRadius: 14, background: 'var(--color-surface, #fff)', padding: 14, display: 'grid', gap: 8 },
+  user: { marginLeft: 'auto', background: 'var(--color-primary-soft, rgba(0,185,107,.1))', borderColor: 'var(--color-primary, #00b96b)' },
+  meta: { display: 'flex', justifyContent: 'space-between', gap: 12, color: 'var(--color-text-secondary, #73777f)', fontSize: 12 },
+  text: { margin: 0, lineHeight: 1.55 },
+  status: { justifySelf: 'start', borderRadius: 999, padding: '4px 8px', background: 'var(--color-background-soft, #f7f8fa)', fontSize: 12 },
+};
+
+export function MessageBubble({ role = '${escapeJsString(title)}', text = 'Source-backed design-system guidance belongs in compact, reviewable message surfaces.', status = 'grounded', fromUser = false }) {
+  return (
+    <article style={{ ...messageBubbleStyles.bubble, ...(fromUser ? messageBubbleStyles.user : {}) }}>
+      <div style={messageBubbleStyles.meta}>
+        <strong>{role}</strong>
+        <span>{status}</span>
+      </div>
+      <p style={messageBubbleStyles.text}>{text}</p>
+      <span style={messageBubbleStyles.status}>Uses captured evidence</span>
+    </article>
   );
 }
 `;
