@@ -6,6 +6,8 @@ import type {
   ConnectorDetailResponse,
   ConnectorListResponse,
   ConnectorStatusResponse,
+  ImportLocalDesignSystemRequest,
+  ImportLocalDesignSystemResponse,
 } from '@open-design/contracts';
 import type {
   AgentInfo,
@@ -347,6 +349,42 @@ export async function fetchDesignSystem(id: string): Promise<DesignSystemDetail 
     return (await resp.json()) as DesignSystemDetail;
   } catch {
     return null;
+  }
+}
+
+export async function importLocalDesignSystem(
+  input: ImportLocalDesignSystemRequest,
+): Promise<ImportLocalDesignSystemResponse | { error: SkillImportError }> {
+  try {
+    const resp = await fetch('/api/design-systems/import/local', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (!resp.ok) {
+      const payload = (await resp.json().catch(() => null)) as
+        | { error?: SkillImportError | string; message?: string }
+        | null;
+      const error = payload?.error;
+      return {
+        error:
+          typeof error === 'object' && error !== null
+            ? error
+            : {
+                message:
+                  typeof error === 'string'
+                    ? error
+                    : payload?.message ?? `Import failed (${resp.status}).`,
+              },
+      };
+    }
+    return (await resp.json()) as ImportLocalDesignSystemResponse;
+  } catch (err) {
+    return {
+      error: {
+        message: err instanceof Error ? err.message : 'Import request failed.',
+      },
+    };
   }
 }
 

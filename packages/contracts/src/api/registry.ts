@@ -164,6 +164,17 @@ export interface DesignSystemResponse {
   designSystem: DesignSystemDetail;
 }
 
+export interface ImportLocalDesignSystemRequest {
+  /** Absolute local project directory selected by the user. */
+  baseDir: string;
+  /** Optional display name override for the generated design-system project. */
+  name?: string;
+}
+
+export interface ImportLocalDesignSystemResponse {
+  designSystem: DesignSystemSummary;
+}
+
 export interface HealthResponse {
   ok: true;
   service?: 'daemon';

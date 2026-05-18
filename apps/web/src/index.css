@@ -19072,6 +19072,12 @@ body.entry-resizing { cursor: col-resize; user-select: none; }
   margin: 0;
 }
 
+.library-install-status {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin: 0;
+}
+
 .library-source-badge {
   display: inline-block;
   font-size: 10px;
