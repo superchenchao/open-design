@@ -49,7 +49,13 @@ export function registerXaiRoutes(app: Express, ctx: RegisterXaiRoutesDeps) {
   const { PROJECT_ROOT } = ctx.paths;
   const getResolvedPort = () => resolvedPortRef.current;
 
-  const pendingAuth = new PendingAuthCache();
+  // Match the loopback listener's 30 min self-close timeout so the
+  // PKCE state, the open :56121 socket, and the paste-back UI all
+  // expire together. The default 10 min would let the listener and UI
+  // outlive the cached state, then `oauth/complete` and the listener
+  // callback would both fail with `state not found or expired` even
+  // though everything visible to the user still looks live.
+  const pendingAuth = new PendingAuthCache(30 * 60 * 1000);
   let activeListener: CallbackListener | null = null;
 
   const stopActiveListener = async () => {

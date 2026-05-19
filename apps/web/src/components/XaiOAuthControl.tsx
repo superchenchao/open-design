@@ -203,10 +203,16 @@ export function XaiOAuthControl() {
     setPendingState(result.response.state);
     startPoll();
     try {
+      // noopener,noreferrer breaks the auth.x.ai tab's reference back to
+      // this Settings tab, defending against reverse-tabnabbing if the
+      // remote page (or any redirect-target along the OAuth chain) ever
+      // turns hostile. The xAI flow doesn't use postMessage — the
+      // callback comes back through the daemon's :56121 listener (or
+      // the paste-back input below), so opener access is unnecessary.
       window.open(
         result.response.authorizeUrl,
         '_blank',
-        'noopener=no,noreferrer=no',
+        'noopener,noreferrer',
       );
     } catch {
       // Fallback anchor is always rendered while pending.
