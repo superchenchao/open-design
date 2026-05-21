@@ -934,6 +934,50 @@ describe("desktop updater", () => {
     }
   });
 
+  it("clears installer-open freeze once the restarted app matches the downloaded update", async () => {
+    const root = makeRoot();
+    const fixture = await createUpdaterFixture();
+    try {
+      const updater = createDesktopUpdater({
+        arch: "arm64",
+        downloadRoot: root,
+        env: updaterEnv(fixture.metadataUrl),
+        source: SIDECAR_SOURCES.TOOLS_PACK,
+      });
+
+      const downloaded = await updater.checkForUpdates();
+      const installed = await updater.installUpdate();
+      expect(installed.installResult?.path).toBe(downloaded.downloadPath);
+
+      const restarted = createDesktopUpdater({
+        arch: "arm64",
+        downloadRoot: root,
+        env: {
+          ...updaterEnv(fixture.metadataUrl),
+          [DESKTOP_UPDATE_ENV.CURRENT_VERSION]: "1.0.1",
+        },
+        source: SIDECAR_SOURCES.TOOLS_PACK,
+      });
+      const restored = await restarted.status();
+
+      expect(restored.state).toBe(DESKTOP_UPDATE_STATES.IDLE);
+      expect(restored.installResult).toBeUndefined();
+      expect(restored.downloadPath).toBeUndefined();
+
+      const store = JSON.parse(await readFile(join(root, "metadata.json"), "utf8")) as Record<string, unknown>;
+      expect(store.active).toBeUndefined();
+      expect(store.installFrozen).toBeUndefined();
+      expect(store.installResult).toBeUndefined();
+
+      const checked = await restarted.checkForUpdates();
+      expect(checked.state).toBe(DESKTOP_UPDATE_STATES.NOT_AVAILABLE);
+      expect(checked.installResult).toBeUndefined();
+    } finally {
+      await fixture.close();
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
   it("defaults counted beta nightly builds to the beta update channel", () => {
     const root = makeRoot();
     try {

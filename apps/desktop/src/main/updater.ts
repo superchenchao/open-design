@@ -1410,8 +1410,27 @@ export function createDesktopUpdater(
     const loadedActive = await loadActiveRelease(opened.root, opened.metadata, config, logger);
     if (!loadedActive.ok) return setState(DESKTOP_UPDATE_STATES.ERROR, loadedActive.error);
     activeRelease = loadedActive.active;
-    installFrozen = opened.metadata.installFrozen === true;
-    installResult = opened.metadata.installResult;
+    // If the app now runs at or beyond the stored active release, the
+    // external installer succeeded and its one-shot UI state is stale.
+    const clearedAppliedRelease =
+      activeRelease == null &&
+      (
+        opened.metadata.active != null ||
+        opened.metadata.installFrozen === true ||
+        opened.metadata.installResult != null
+      );
+    if (clearedAppliedRelease) {
+      await writeStoreMetadata(opened.root, {
+        ...opened.metadata,
+        active: undefined,
+        incoming: undefined,
+        installFrozen: undefined,
+        installResult: undefined,
+        version: STORE_METADATA_VERSION,
+      });
+    }
+    installFrozen = clearedAppliedRelease ? false : opened.metadata.installFrozen === true;
+    installResult = clearedAppliedRelease ? undefined : opened.metadata.installResult;
     lastCheckedAt = opened.metadata.lastCheckedAt;
     metadata = activeRelease?.ref.metadata ?? null;
     candidate = null;
