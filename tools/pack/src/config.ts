@@ -102,6 +102,15 @@ export type ToolPackConfig = {
    * Required for upload to be attempted; missing → strip-only path.
    */
   posthogCliProjectId?: string;
+  /**
+   * PostHog **management** host used by `@posthog/cli sourcemap upload`. This
+   * is the regional app host (e.g. `https://us.posthog.com`) — distinct from
+   * `posthogHost` above, which is the **ingest** host (`us.i.posthog.com`)
+   * used by the runtime SDK and accepts `/capture/` traffic only. Sourced
+   * from `POSTHOG_CLI_HOST`; when missing, the CLI defaults to the US Cloud
+   * app host on its own, which is correct for the official project.
+   */
+  posthogCliHost?: string;
   to: ToolPackBuildOutput;
   webOutputMode: ToolPackWebOutputMode;
   workspaceRoot: string;
@@ -190,6 +199,22 @@ function resolveToolPackPosthogCliProjectId(value: string | undefined): string |
     throw new Error(`POSTHOG_CLI_PROJECT_ID must be a numeric project id: ${value}`);
   }
   return normalized;
+}
+
+function resolveToolPackPosthogCliHost(value: string | undefined): string | undefined {
+  if (value == null) return undefined;
+  const normalized = value.trim();
+  if (normalized.length === 0) return undefined;
+  let parsed: URL;
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    throw new Error(`POSTHOG_CLI_HOST must be an absolute URL: ${value}`);
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error(`POSTHOG_CLI_HOST must be http(s): ${value}`);
+  }
+  return normalized.replace(/\/+$/, "");
 }
 
 function resolveToolPackTelemetryRelayUrl(value: string | undefined): string | undefined {
@@ -286,6 +311,7 @@ export function resolveToolPackConfig(
     posthogCliProjectId: resolveToolPackPosthogCliProjectId(
       process.env.POSTHOG_CLI_PROJECT_ID ?? process.env.POSTHOG_PROJECT_ID,
     ),
+    posthogCliHost: resolveToolPackPosthogCliHost(process.env.POSTHOG_CLI_HOST),
     to: resolveToolPackBuildOutput(platform, options.to),
     webOutputMode: resolveToolPackWebOutputMode(platform, process.env.OD_WEB_OUTPUT_MODE),
     workspaceRoot: WORKSPACE_ROOT,

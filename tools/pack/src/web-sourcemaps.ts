@@ -110,7 +110,11 @@ function readUploadEnv(config: ToolPackConfig): SourcemapCliEnv | null {
   return {
     apiKey: config.posthogCliApiKey,
     projectId: config.posthogCliProjectId,
-    host: config.posthogHost,
+    // Deliberately uses `posthogCliHost` (management host, us.posthog.com)
+    // rather than `posthogHost` (ingest host, us.i.posthog.com). When the
+    // CLI host is unset the @posthog/cli defaults to the US app host on
+    // its own, which is correct for the official project.
+    host: config.posthogCliHost,
   };
 }
 
