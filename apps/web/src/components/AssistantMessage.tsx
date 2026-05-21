@@ -42,7 +42,6 @@ import type {
   ChatMessageFeedbackReasonCode,
   ProjectFile,
 } from "../types";
-
 type TranslateFn = (
   key: keyof Dict,
   vars?: Record<string, string | number>
@@ -483,6 +482,15 @@ function AssistantFooter({
   );
 }
 
+interface AssistantFeedbackAnalyticsCtx {
+  projectId: string | null;
+  projectKind: TrackingProjectKind;
+  conversationId: string | null;
+  assistantMessageId: string;
+  runId: string | null;
+  hasProducedFiles: boolean;
+}
+
 function AssistantFeedback({
   feedback,
   onFeedback,
@@ -508,10 +516,6 @@ function AssistantFeedback({
 }) {
   const t = useT();
   const analytics = useAnalytics();
-  // P0 — analytics context the feedback events need. The four ids are
-  // either user-anchored (projectId / assistantMessageId) or run-anchored
-  // (runId), so we pass them down with a stable identity. `producedFileCount`
-  // feeds `has_produced_files` on assistant_feedback_button click.
   const [burstKey, setBurstKey] = useState(0);
   const [reasonRating, setReasonRating] =
     useState<ChatMessageFeedbackRating | null>(null);

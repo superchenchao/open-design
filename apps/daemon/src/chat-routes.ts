@@ -12,7 +12,7 @@ import { isSafeId as isSafeProjectId } from './projects.js';
 import { projectKindToTracking } from '@open-design/contracts/analytics';
 import { validateBaseUrlResolved } from './connectionTest.js';
 
-export interface RegisterChatRoutesDeps extends RouteDeps<'db' | 'design' | 'http' | 'chat' | 'agents' | 'critique' | 'validation' | 'lifecycle' | 'paths'> {}
+export interface RegisterChatRoutesDeps extends RouteDeps<'db' | 'design' | 'http' | 'chat' | 'agents' | 'critique' | 'validation' | 'lifecycle' | 'paths' | 'telemetry'> {}
 
 export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
   const { db, design } = ctx;
@@ -120,6 +120,60 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
       return sendApiError(res, 500, 'INTERNAL', `tool result write failed: ${reason}`);
     }
     res.json({ ok: true });
+  });
+
+  // Receives the user's thumbs-up/down (+ reason codes) for an assistant
+  // turn and forwards it to Langfuse as a `score-create`. Web persists the
+  // feedback itself via PUT /messages/:id; this endpoint exists only as a
+  // telemetry side channel — the daemon is the single network egress for
+  // Langfuse and gates on `telemetry.metrics + telemetry.content` consent.
+  // Fire-and-forget: respond 202 once enqueued so the UI isn't blocked.
+  app.post('/api/runs/:id/feedback', (req, res) => {
+    const runId = req.params.id;
+    const body = (req.body ?? {}) as Partial<{
+      projectId: string;
+      conversationId: string;
+      assistantMessageId: string;
+      rating: 'positive' | 'negative';
+      reasonCodes: string[];
+      hasCustomReason: boolean;
+      customReason: string;
+    }>;
+    if (!runId) {
+      return sendApiError(res, 400, 'INVALID_RUN_ID', 'runId missing');
+    }
+    if (body.rating !== 'positive' && body.rating !== 'negative') {
+      return sendApiError(res, 400, 'INVALID_RATING', 'rating must be positive or negative');
+    }
+    const reasonCodes = Array.isArray(body.reasonCodes)
+      ? body.reasonCodes.filter((c): c is string => typeof c === 'string')
+      : [];
+    const customReason = typeof body.customReason === 'string' ? body.customReason : '';
+    const reportFeedback = ctx.telemetry?.reportFeedback;
+    if (!reportFeedback) {
+      res.status(202).json({ status: 'skipped_no_sink' });
+      return;
+    }
+    // Build score metadata bag that lands in the Langfuse score body.
+    // Mirrors the PostHog event so analysts can cross-reference.
+    const scoreMetadata: Record<string, unknown> = {
+      projectId: body.projectId,
+      conversationId: body.conversationId,
+      assistantMessageId: body.assistantMessageId,
+      hasCustomReason: body.hasCustomReason === true,
+      customReason,
+    };
+    // Don't await — the request returns immediately. Errors are logged
+    // inside langfuse-bridge.
+    void reportFeedback({
+      runId,
+      rating: body.rating,
+      reasonCodes,
+      hasCustomReason: body.hasCustomReason === true,
+      customReason,
+      scoreMetadata,
+    });
+    res.status(202).json({ status: 'accepted' });
   });
 
   app.post('/api/chat', (req, res) => {
