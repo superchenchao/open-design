@@ -314,51 +314,23 @@ export function Header({
               </ul>
             </li>
             {/*
-              Learn — long-form reading surfaces (Tutorials videos + Blog posts).
-              Both are content destinations rather than catalog facets, so
-              they group naturally and free the top row from carrying both
-              labels separately.
+              Tutorials and Blog stay as standalone top-row links rather
+              than nesting under a Learn group: they're the only two
+              editorial reading surfaces, and rolling two items into a
+              dropdown adds a click without earning back any horizontal
+              space. The Library grouping above is what reclaimed the
+              row — Tutorials/Blog can live side by side at the cost of
+              one extra slot.
             */}
-            <li className='has-dropdown'>
-              <a
-                href={href('/blog/')}
-                className={
-                  active === 'tutorials' || active === 'blog'
-                    ? 'is-active'
-                    : undefined
-                }
-                aria-haspopup='true'
-                aria-expanded='false'
-              >
-                Learn
-                <span className='dropdown-caret' aria-hidden='true'>▾</span>
+            <li>
+              <a href={href('/tutorials/')} className={linkClass('tutorials')}>
+                Tutorials
               </a>
-              <ul className='nav-dropdown' role='menu'>
-                <li role='none'>
-                  <a
-                    role='menuitem'
-                    href={href('/tutorials/')}
-                    className={linkClass('tutorials')}
-                  >
-                    <span className='dropdown-name'>Tutorials</span>
-                    <span className='dropdown-blurb'>
-                      Community walkthroughs, deep-dives on YouTube.
-                    </span>
-                  </a>
-                </li>
-                <li role='none'>
-                  <a
-                    role='menuitem'
-                    href={href('/blog/')}
-                    className={linkClass('blog')}
-                  >
-                    <span className='dropdown-name'>{copy.navBlog}</span>
-                    <span className='dropdown-blurb'>
-                      Release notes, design notes, postmortems.
-                    </span>
-                  </a>
-                </li>
-              </ul>
+            </li>
+            <li>
+              <a href={href('/blog/')} className={linkClass('blog')}>
+                {copy.navBlog}
+              </a>
             </li>
             {/*
               Contact intentionally NOT exposed in the top nav: it's a

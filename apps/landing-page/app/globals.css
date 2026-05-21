@@ -375,6 +375,14 @@ body::before {
   height: 100%;
   object-fit: contain;
   display: block;
+  /*
+   * Round the corners of the brand glyph. The source PNG is a
+   * solid-fill square; clipping the corners gives the mark the
+   * modern app-icon silhouette (~22% of side length, matching the
+   * iOS / macOS visual convention) so it sits cleanly next to the
+   * "Open Design" wordmark instead of looking like a raw screenshot.
+   */
+  border-radius: 10px;
 }
 .brand-name {
   white-space: nowrap;
