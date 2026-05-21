@@ -1414,7 +1414,7 @@ export function App() {
         onRenameProject={handleRenameProject}
         onChangeDefaultDesignSystem={handleChangeDefaultDesignSystem}
         onCreateDesignSystem={() => navigate({ kind: 'design-system-create' })}
-        renderDesignSystemCreation={(onBack) => (
+        renderDesignSystemCreation={(onBack, hooks) => (
           <DesignSystemCreationFlow
             chrome="embedded"
             onBack={onBack}
@@ -1443,6 +1443,7 @@ export function App() {
             onSystemsRefresh={refreshDesignSystems}
             config={config}
             onOpenConnectorsTab={() => openSettings('composio')}
+            {...(hooks?.onBeforeGenerate ? { onBeforeGenerate: hooks.onBeforeGenerate } : {})}
           />
         )}
         onOpenDesignSystem={(id: string) => navigate({ kind: 'design-system-detail', designSystemId: id })}

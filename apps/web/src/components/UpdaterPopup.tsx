@@ -14,6 +14,8 @@ import {
 } from '../lib/updater';
 import { useT } from '../i18n';
 import type { Dict } from '../i18n/types';
+import { useAnalytics, useAppVersion } from '../analytics/provider';
+import { trackUpdatePopoverSurfaceView } from '../analytics/events';
 
 type InstallState = 'idle' | 'opening' | 'opened' | 'quitting';
 type Translator = (key: keyof Dict, vars?: Record<string, string | number>) => string;
@@ -89,6 +91,33 @@ export function UpdaterPopup() {
     if (!model.shouldPrompt || model.promptKey == null) return false;
     return model.promptKey !== dismissedPromptKey;
   }, [actionError, dismissedPromptKey, model.promptKey, model.shouldPrompt, panelOpen]);
+
+  // `surface_view page_name=home area=update_popover` — fires once per
+  // panel-open transition so the doc's "升级浮窗曝光" funnel actually
+  // sees data. `app_version_before` is the running daemon version,
+  // `app_version_after` is the available version the updater wants to
+  // install. Both optional so a popup that opens without a complete
+  // model still contributes a row.
+  const analytics = useAnalytics();
+  const appVersionBefore = useAppVersion();
+  const lastReportedKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!isPanelOpen) {
+      lastReportedKeyRef.current = null;
+      return;
+    }
+    const key = `${appVersionBefore}->${model.availableVersion ?? 'unknown'}`;
+    if (lastReportedKeyRef.current === key) return;
+    lastReportedKeyRef.current = key;
+    trackUpdatePopoverSurfaceView(analytics.track, {
+      page_name: 'home',
+      area: 'update_popover',
+      ...(appVersionBefore ? { app_version_before: appVersionBefore } : {}),
+      ...(model.availableVersion
+        ? { app_version_after: model.availableVersion }
+        : {}),
+    });
+  }, [analytics.track, appVersionBefore, isPanelOpen, model.availableVersion]);
 
   const close = useCallback(() => {
     if (installState === 'opening' || installState === 'quitting') return;

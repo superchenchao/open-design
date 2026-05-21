@@ -82,6 +82,10 @@ import type {
   SettingsCliTestResultProps,
   SettingsByokTestResultProps,
   SettingsConnectorAuthResultProps,
+  OnboardingClickProps,
+  OnboardingRuntimeScanResultProps,
+  OnboardingCompleteResultProps,
+  UpdatePopoverSurfaceViewProps,
 } from '@open-design/contracts/analytics';
 
 type TrackOptions = { requestId?: string; insertId?: string };
@@ -663,4 +667,44 @@ export function trackAssistantFeedbackReasonSubmit(
     props as unknown as Record<string, unknown>,
     options,
   );
+}
+
+// ---- Onboarding ---------------------------------------------------------
+//
+// `trackOnboardingClick` is the catch-all for the welcome flow's
+// runtime-pick / about-you / design-system source / continue / skip /
+// back / generate buttons; the discriminator combo (area + element +
+// action) narrows the row down inside PostHog so the dashboard can
+// split each step's funnel cleanly without a separate event name per
+// button. Lifecycle events that don't fit a click — CLI scan finishing,
+// onboarding wrapping up — get their own `onboarding_*_result` shape.
+
+export function trackOnboardingClick(
+  track: Track,
+  props: OnboardingClickProps,
+): void {
+  send(track, 'ui_click', props);
+}
+
+export function trackOnboardingRuntimeScanResult(
+  track: Track,
+  props: OnboardingRuntimeScanResultProps,
+): void {
+  send(track, 'onboarding_runtime_scan_result', props);
+}
+
+export function trackOnboardingCompleteResult(
+  track: Track,
+  props: OnboardingCompleteResultProps,
+): void {
+  send(track, 'onboarding_complete_result', props);
+}
+
+// ---- Update popover surface_view ----------------------------------------
+
+export function trackUpdatePopoverSurfaceView(
+  track: Track,
+  props: UpdatePopoverSurfaceViewProps,
+): void {
+  send(track, 'surface_view', props);
 }

@@ -41,7 +41,13 @@ export type AnalyticsEventName =
   | 'settings_view'
   | 'settings_cli_test_result'
   | 'settings_byok_test_result'
-  | 'settings_connector_auth_result';
+  | 'settings_connector_auth_result'
+  // Onboarding-only result events. UI clicks + page_views inside the
+  // onboarding flow reuse the generic `ui_click` / `page_view` shapes
+  // with `page_name=onboarding`; the three `onboarding_*` names below
+  // capture lifecycle moments that don't fit a click or a view.
+  | 'onboarding_runtime_scan_result'
+  | 'onboarding_complete_result';
 
 // ---- Pages ---------------------------------------------------------------
 
@@ -257,11 +263,161 @@ export type TrackingOnboardingStepName =
   | 'design_system'
   | 'generation';
 
+// How the user chose to connect to a model provider. `amr_cloud` is the
+// hosted offering the doc references; today the UI ships only
+// `local_cli` (Local Coding Agent) and `byok` (own model key). `none`
+// stamps the click events fired before any runtime was picked.
+export type TrackingOnboardingRuntimeType =
+  | 'amr_cloud'
+  | 'local_cli'
+  | 'byok'
+  | 'none';
+
+// What kind of source material the user pinned in the design-system
+// step. `text` covers the brand description textarea; `mixed` is
+// reserved for batches that combined more than one type.
+export type TrackingOnboardingSourceType =
+  | 'text'
+  | 'github_repo'
+  | 'local_code'
+  | 'fig'
+  | 'assets'
+  | 'mixed'
+  | 'none';
+
+// `completed`: user clicked through every step (with or without a DS).
+// `skipped`: user clicked Skip from any step. `cancelled`: user closed
+// the onboarding tab / navigated away without finishing.
+// `failed`: terminal error before completion.
+export type TrackingOnboardingCompletionResult =
+  | 'completed'
+  | 'skipped'
+  | 'cancelled'
+  | 'failed';
+
+export type TrackingOnboardingCompletionType =
+  | 'completed_with_design_system'
+  | 'completed_without_design_system'
+  | 'skipped';
+
+// CLI scan terminal state. `success`: at least one CLI was detected;
+// `failed`: scan errored or detected nothing; `timeout`: scan didn't
+// settle inside the budget. Daemon doesn't currently surface timeouts
+// for this scan; left in the type so a future watchdog can use it
+// without a contract change.
+export type TrackingOnboardingScanResult = 'success' | 'failed' | 'timeout';
+
+// About-you step values. Surfaces from `onboardingRole*` /
+// `onboardingOrg*` / `onboardingUse*` / `onboardingSource*` i18n
+// keys; this enum is the wire-format shape the dashboard groups on.
+// Kept as `string` rather than literal union because the product
+// catalogue extends (e.g. add a new role) more often than the wire
+// shape: a stricter union would force a contract bump for every new
+// option. `unknown` covers the "user didn't pick / picked Other"
+// path explicitly.
+export type TrackingOnboardingOrganizationSize = string;
+export type TrackingOnboardingUseCase = string;
+export type TrackingOnboardingDiscoverySource = string;
+
 export interface OnboardingPageViewProps {
   page_name: 'onboarding';
   area: TrackingOnboardingArea;
   step_index: TrackingOnboardingStepIndex;
   step_name: TrackingOnboardingStepName;
+  onboarding_session_id: string;
+}
+
+// ---- Onboarding ui_click ------------------------------------------------
+//
+// One interface so every onboarding click site can write
+// `trackOnboardingClick(...)`, regardless of which sub-surface. The doc
+// pre-allocates a large element / action enum because the funnel needs
+// to discriminate Skip from Back from Continue, runtime choice from
+// source selection, etc.
+export type TrackingOnboardingClickElement =
+  // Runtime / connect step
+  | 'amr_cloud'
+  | 'local_coding_agent'
+  | 'byok'
+  // Action buttons
+  | 'continue'
+  | 'back'
+  | 'skip'
+  | 'generate'
+  // About you fields
+  | 'organization_size'
+  | 'use_case'
+  | 'hear_about_us'
+  // Design system source options
+  | 'github_repo'
+  | 'local_code'
+  | 'fig_upload'
+  | 'assets_upload'
+  | 'show_access_methods';
+
+export type TrackingOnboardingClickAction =
+  | 'select_runtime'
+  | 'continue'
+  | 'back'
+  | 'skip'
+  | 'generate'
+  | 'select_option'
+  | 'add_source'
+  | 'upload_source'
+  | 'show_access_methods';
+
+// All optional except the discriminators (area/element/action/step/
+// session id). `organization_size`/`use_case`/`discovery_source` only
+// ride along on About-you clicks. `source_type`/`has_brand_description`/
+// `source_count` only on Design-system source clicks. `runtime_type`/
+// `is_recommended` only on Connect clicks. Doc explicitly forbids
+// brand text, GitHub URL, file name, or path values — all enum + bool
+// + count, no free-text.
+export interface OnboardingClickProps {
+  page_name: 'onboarding';
+  area: TrackingOnboardingArea;
+  element: TrackingOnboardingClickElement;
+  action: TrackingOnboardingClickAction;
+  step_index: TrackingOnboardingStepIndex;
+  step_name: TrackingOnboardingStepName;
+  onboarding_session_id: string;
+  runtime_type?: TrackingOnboardingRuntimeType;
+  is_recommended?: boolean;
+  organization_size?: TrackingOnboardingOrganizationSize;
+  use_case?: TrackingOnboardingUseCase;
+  discovery_source?: TrackingOnboardingDiscoverySource;
+  source_type?: TrackingOnboardingSourceType;
+  has_brand_description?: boolean;
+  source_count?: number;
+}
+
+// ---- Onboarding lifecycle result events ---------------------------------
+
+export interface OnboardingRuntimeScanResultProps {
+  page_name: 'onboarding';
+  area: 'runtime';
+  runtime_type: 'local_cli';
+  result: TrackingOnboardingScanResult;
+  detected_cli_count: number;
+  available_cli_count: number;
+  selected_cli_id?: TrackingCliProviderId;
+  error_code?: string;
+  duration_ms: number;
+  onboarding_session_id: string;
+}
+
+export interface OnboardingCompleteResultProps {
+  page_name: 'onboarding';
+  area: 'onboarding';
+  result: TrackingOnboardingCompletionResult;
+  exit_step_name: TrackingOnboardingStepName;
+  completion_type: TrackingOnboardingCompletionType;
+  runtime_type: TrackingOnboardingRuntimeType;
+  has_about_you: boolean;
+  has_design_system_request: boolean;
+  source_count: number;
+  error_code?: string;
+  duration_ms: number;
   onboarding_session_id: string;
 }
 
@@ -1046,7 +1202,8 @@ export type UiClickProps =
   | SettingsAppearanceClickProps
   | SettingsNotificationsClickProps
   | SettingsPetsClickProps
-  | SettingsPrivacyClickProps;
+  | SettingsPrivacyClickProps
+  | OnboardingClickProps;
 
 // ---- surface_view --------------------------------------------------------
 
@@ -1086,12 +1243,24 @@ export interface AssistantFeedbackReasonPanelSurfaceViewProps {
   rating: 'positive' | 'negative';
 }
 
+// Home toolbar "Update ready" popover. Fires once per render of the
+// upgrade-available card (see top-right of `EntryShell` /
+// `WorkspaceTabsBar`). `app_version_before` / `app_version_after` ride
+// along so the dashboard can compare adoption rate by version delta.
+export interface UpdatePopoverSurfaceViewProps {
+  page_name: 'home';
+  area: 'update_popover';
+  app_version_before?: string;
+  app_version_after?: string;
+}
+
 export type SurfaceViewProps =
   | HelpPopoverSurfaceViewProps
   | NewProjectModalSurfaceViewProps
   | PluginReplacementModalSurfaceViewProps
   | DesignSystemsTemplatesModalSurfaceViewProps
-  | AssistantFeedbackReasonPanelSurfaceViewProps;
+  | AssistantFeedbackReasonPanelSurfaceViewProps
+  | UpdatePopoverSurfaceViewProps;
 
 // ---- Result events -------------------------------------------------------
 
@@ -1203,18 +1372,35 @@ export interface UpdateApplyObservedProps {
   elapsed_bucket: TrackingUpdateApplyElapsedBucket;
 }
 
+// Discriminated union over the four surfaces that fire
+// `file_upload_result`. The `file_manager` shape is the original (Files
+// panel Upload button). `home` / `chat_panel` were added in PR #2459 so
+// the home + chat composer paperclip uploads stop being silent. The
+// `onboarding` shape covers the Design-system step's source ingest:
+// `source_type` is required so the dashboard can split the funnel by
+// source kind without inspecting `file_type`.
 export type TrackingFileUploadSurface =
-  | { page_name: 'file_manager'; area: 'file_manager' }
-  | { page_name: 'chat_panel'; area: 'chat_composer' }
-  | { page_name: 'home'; area: 'chat_composer' };
+  | { page_name: 'file_manager'; area: 'file_manager'; project_id: string }
+  | { page_name: 'chat_panel'; area: 'chat_composer'; project_id: string }
+  | { page_name: 'home'; area: 'chat_composer'; project_id: string }
+  | {
+      page_name: 'onboarding';
+      area: 'design_system_source';
+      source_type: 'local_code' | 'fig' | 'assets';
+      onboarding_session_id: string;
+      // Onboarding uploads happen BEFORE a project exists, so
+      // `project_id` is optional and present only when the upload was
+      // re-issued after a project landed (rare in the onboarding flow).
+      project_id?: string;
+    };
 
 export type FileUploadResultProps = TrackingFileUploadSurface & {
-  project_id: string;
   file_count: number;
   file_type: TrackingFileType;
   file_size_bucket: TrackingFileSizeBucket;
   result: TrackingRunResult;
   error_code?: string;
+  duration_ms?: number;
 };
 
 export interface ArtifactExportResultProps {
@@ -1372,7 +1558,9 @@ export type AnalyticsEventPayload =
   | { event: 'settings_view'; props: SettingsViewProps }
   | { event: 'settings_cli_test_result'; props: SettingsCliTestResultProps }
   | { event: 'settings_byok_test_result'; props: SettingsByokTestResultProps }
-  | { event: 'settings_connector_auth_result'; props: SettingsConnectorAuthResultProps };
+  | { event: 'settings_connector_auth_result'; props: SettingsConnectorAuthResultProps }
+  | { event: 'onboarding_runtime_scan_result'; props: OnboardingRuntimeScanResultProps }
+  | { event: 'onboarding_complete_result'; props: OnboardingCompleteResultProps };
 
 // ---- Enum mapping helpers (code ↔ CSV wire format) -----------------------
 

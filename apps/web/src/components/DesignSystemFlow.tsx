@@ -69,6 +69,21 @@ import type {
   TrackingDesignSystemsEntryFrom,
 } from '@open-design/contracts/analytics';
 
+// Source counts the embedded DS creation flow can report back to its
+// wrapper at Generate-click time. OnboardingView uses this to emit the
+// `generate` ui_click + `onboarding_complete_result` events with the
+// runtime/about-you context that only it knows; without this hook the
+// onboarding wrapper would have no way to see the user-pinned source
+// material because the form state lives inside `DesignSystemCreationFlow`.
+export interface DesignSystemGenerateSnapshot {
+  sourceCount: number;
+  hasBrandDescription: boolean;
+  githubRepoCount: number;
+  localFolderCount: number;
+  figFileCount: number;
+  assetFileCount: number;
+}
+
 interface CreationProps {
   onBack: () => void;
   onCreated: (projectId: string, project?: Project) => void;
@@ -77,6 +92,7 @@ interface CreationProps {
   config?: AppConfig;
   onOpenConnectorsTab?: () => void;
   chrome?: 'standalone' | 'embedded';
+  onBeforeGenerate?: (snapshot: DesignSystemGenerateSnapshot) => void;
 }
 
 interface DetailProps {
@@ -199,6 +215,7 @@ export function DesignSystemCreationFlow({
   config,
   onOpenConnectorsTab,
   chrome = 'standalone',
+  onBeforeGenerate,
 }: CreationProps) {
   const [step, setStep] = useState<SetupStep>('setup');
   const [state, setState] = useState<SetupState>(EMPTY_SETUP);
@@ -377,6 +394,26 @@ export function DesignSystemCreationFlow({
 
   async function generate() {
     if (generationStarting) return;
+    // Notify wrappers (currently OnboardingView) BEFORE we mutate any
+    // state so the click + completion telemetry rides with the same
+    // source-counts the user actually saw on screen. Snapshot is
+    // computed from the local `state` because OnboardingView can't
+    // peek into this flow's setup form.
+    if (onBeforeGenerate) {
+      const githubRepoCount = state.githubUrls?.length ?? 0;
+      const localFolderCount = state.codeFolders?.length ?? 0;
+      const figFileCount = state.figFiles?.length ?? 0;
+      const assetFileCount = state.assetFiles?.length ?? 0;
+      onBeforeGenerate({
+        sourceCount:
+          githubRepoCount + localFolderCount + figFileCount + assetFileCount,
+        hasBrandDescription: Boolean(state.company?.trim()),
+        githubRepoCount,
+        localFolderCount,
+        figFileCount,
+        assetFileCount,
+      });
+    }
     setGenerationStarting(true);
     setError(null);
     try {
