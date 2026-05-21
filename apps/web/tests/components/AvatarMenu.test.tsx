@@ -107,4 +107,48 @@ describe('AvatarMenu', () => {
     expect(agent.getAttribute('aria-current')).toBe('true');
     expect(agent.className).toContain('active');
   });
+
+  it('closes the popover when clicking the already-active local CLI mode', () => {
+    const onModeChange = vi.fn();
+    render(
+      <AvatarMenu
+        config={{ ...config, mode: 'daemon', agentId: 'codex' }}
+        agents={[codexAgent]}
+        daemonLive
+        onModeChange={onModeChange}
+        onAgentChange={vi.fn()}
+        onAgentModelChange={vi.fn()}
+        onOpenSettings={vi.fn()}
+        onRefreshAgents={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'avatar.title' }));
+    fireEvent.click(screen.getByRole('button', { name: /avatar.useLocal/ }));
+
+    expect(onModeChange).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'avatar.title' })).toBeNull();
+  });
+
+  it('opens settings when the active local CLI mode is offline', () => {
+    const onOpenSettings = vi.fn();
+    render(
+      <AvatarMenu
+        config={{ ...config, mode: 'daemon', agentId: 'codex' }}
+        agents={[codexAgent]}
+        daemonLive={false}
+        onModeChange={vi.fn()}
+        onAgentChange={vi.fn()}
+        onAgentModelChange={vi.fn()}
+        onOpenSettings={onOpenSettings}
+        onRefreshAgents={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'avatar.title' }));
+    fireEvent.click(screen.getByRole('button', { name: /avatar.useLocal/ }));
+
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog', { name: 'avatar.title' })).toBeNull();
+  });
 });

@@ -124,6 +124,13 @@ export function AvatarMenu({
             className={`avatar-item${config.mode === 'daemon' ? ' active' : ''}`}
             aria-current={config.mode === 'daemon' ? 'true' : undefined}
             onClick={() => {
+              if (config.mode === 'daemon') {
+                setOpen(false);
+                if (!daemonLive) {
+                  onOpenSettings();
+                }
+                return;
+              }
               onModeChange('daemon');
               if (!daemonLive) {
                 // No daemon — let user know via settings page rather than
