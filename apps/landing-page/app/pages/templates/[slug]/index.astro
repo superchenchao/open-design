@@ -242,7 +242,7 @@ const jsonLd = {
         {/* Click-to-expand: thumb is the summary; clicking opens the
             live iframe rendering the canonical artifact. Skill-template
             origin → /skills/<slug>/example.html; live-artifact origin
-            → /templates/<slug>/template.html. */}
+            → /templates/<slug>/preview.html. */}
         <details class="detail-preview-live">
           <summary class="detail-preview-thumb-trigger" aria-label={`Open interactive preview for ${template.name}`}>
             <LazyImg
@@ -258,7 +258,7 @@ const jsonLd = {
             <iframe
               src={
                 template.origin === 'live-artifact'
-                  ? `/templates/${template.slug}/template.html/`
+                  ? `/templates/${template.slug}/preview.html/`
                   : `/skills/${template.slug}/example.html/`
               }
               title={`${template.name} interactive preview`}
@@ -270,7 +270,7 @@ const jsonLd = {
               class="detail-preview-popout"
               href={
                 template.origin === 'live-artifact'
-                  ? `/templates/${template.slug}/template.html/`
+                  ? `/templates/${template.slug}/preview.html/`
                   : `/skills/${template.slug}/example.html/`
               }
               target="_blank"

@@ -1300,7 +1300,7 @@ body.sub-page {
  * =========================================================
  *
  * `details > summary` toggles an iframe that renders the canonical
- * `example.html` (or `template.html` for live-artifacts). The frame
+ * `example.html` (or `preview.html` for live-artifacts). The frame
  * is loaded lazily — click the summary, that's when the network
  * request goes out.
  */
