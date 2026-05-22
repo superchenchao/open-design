@@ -37,7 +37,7 @@ describe('GithubStarBadge', () => {
       json: async () => ({
         repo: 'nexu-io/open-design',
         stargazers_count: 42137,
-        fetchedAt: '2026-05-22T00:00:00.000Z',
+        fetchedAt: Date.parse('2026-05-22T00:00:00.000Z'),
         stale: false,
       } satisfies OpenDesignGithubRepoResponse),
     } satisfies Partial<Response>) as typeof fetch;

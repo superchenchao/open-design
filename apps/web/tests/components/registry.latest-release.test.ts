@@ -18,7 +18,7 @@ describe('fetchLatestGithubReleaseInfo', () => {
         repo: 'nexu-io/open-design',
         tag_name: 'v0.8.0-nightly.3',
         html_url: 'https://github.com/nexu-io/open-design/releases/tag/v0.8.0-nightly.3',
-        fetchedAt: '2026-05-22T00:00:00.000Z',
+        fetchedAt: Date.parse('2026-05-22T00:00:00.000Z'),
         stale: false,
       } satisfies OpenDesignGithubLatestReleaseResponse),
     } satisfies Partial<Response>) as typeof fetch;
