@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-22T06:04:43.802Z",
+  "generatedAt": "2026-05-22T06:05:10.854Z",
   "contributors": {
     "huyhoangnhh98": {
       "lastAnnouncedTier": "spark",
@@ -362,8 +362,9 @@
     },
     "nmsn": {
       "lastAnnouncedTier": "signal",
-      "lastKnownScore": 29,
-      "lastCheckedAt": "2026-05-14T03:03:36.134Z",
+      "lastKnownScore": 133,
+      "lastCheckedAt": "2026-05-22T06:05:10.854Z",
+      "scoreVersion": "weighted-v1",
       "lastAnnouncedAt": "2026-05-14T03:03:36.134Z"
     },
     "shawn-skywolfer": {
