@@ -41,6 +41,11 @@ type WorkflowRunsResponse = {
   workflow_runs: WorkflowRun[];
 };
 
+type ListPendingApprovalRunsDeps = {
+  loadWorkflowRunsResponse?: (path: string) => Promise<WorkflowRunsResponse>;
+  loadPullRequestsForHeadSha?: (repo: string, headSha: string) => Promise<PullRequest[]>;
+};
+
 const dryRun = process.env.DRY_RUN === "true";
 const defaultPendingRunPollIntervalMs = 3_000;
 const defaultPendingRunFirstAppearanceTimeoutMs = 4 * 60_000;
@@ -264,12 +269,18 @@ async function listPullRequestsForHeadSha(repo: string, headSha: string): Promis
   return githubPaginated<PullRequest>(`/repos/${repo}/commits/${headSha}/pulls`);
 }
 
-async function listPendingApprovalRuns(repo: string, pull: PullRequest): Promise<WorkflowRun[]> {
-  const runs = await github<WorkflowRunsResponse>(
-    `/repos/${repo}/actions/runs?event=pull_request&head_sha=${pull.head.sha}&status=action_required&per_page=100`,
-  );
+export async function listPendingApprovalRuns(
+  repo: string,
+  pull: PullRequest,
+  deps: ListPendingApprovalRunsDeps = {},
+): Promise<WorkflowRun[]> {
+  const loadWorkflowRunsResponse = deps.loadWorkflowRunsResponse ?? ((path: string) => github<WorkflowRunsResponse>(path));
+  const loadPullRequestsForHeadSha =
+    deps.loadPullRequestsForHeadSha ?? ((currentRepo: string, headSha: string) => listPullRequestsForHeadSha(currentRepo, headSha));
 
-  const associatedPullsForHeadSha = (await listPullRequestsForHeadSha(repo, pull.head.sha)).filter(
+  const runs = await loadWorkflowRunsResponse(`/repos/${repo}/actions/runs?event=pull_request&head_sha=${pull.head.sha}&per_page=100`);
+
+  const associatedPullsForHeadSha = (await loadPullRequestsForHeadSha(repo, pull.head.sha)).filter(
     (candidate) => candidate.state === "open",
   );
 

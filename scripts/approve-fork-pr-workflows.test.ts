@@ -5,6 +5,7 @@ import {
   hasPullApprovalStateDrift,
   isDeniedChangedPath,
   isPendingApprovalRun,
+  listPendingApprovalRuns,
   runTargetsPullRequest,
   waitForPendingApprovalRuns,
 } from "./approve-fork-pr-workflows.ts";
@@ -314,6 +315,61 @@ test("runTargetsPullRequest ignores base tip churn for the same PR association",
   };
 
   assert.equal(runTargetsPullRequest(run, pull, [pull]), true);
+});
+
+test("listPendingApprovalRuns fetches all pull_request runs for the head SHA and filters action_required client-side", async () => {
+  const pull = {
+    number: 2683,
+    state: "open",
+    changed_files: 1,
+    head: {
+      sha: "734076155c44e569304856590019cea54506fdab",
+      repo: { full_name: "someone/open-design" },
+    },
+    base: {
+      ref: "main",
+      sha: "4cd93a5c7a7b0db1961c854e55f8e0e6b1b45542",
+      repo: { full_name: "nexu-io/open-design" },
+    },
+  };
+
+  let requestedPath = "";
+  const pendingRuns = await listPendingApprovalRuns("nexu-io/open-design", pull, {
+    loadWorkflowRunsResponse: async (path) => {
+      requestedPath = path;
+      return {
+        workflow_runs: [
+          {
+            id: 26273463769,
+            name: "CI",
+            event: "pull_request",
+            status: "completed",
+            conclusion: "action_required",
+            head_sha: pull.head.sha,
+            path: ".github/workflows/ci.yml@main",
+            pull_requests: [],
+          },
+          {
+            id: 26273463770,
+            name: "CI",
+            event: "pull_request",
+            status: "completed",
+            conclusion: "success",
+            head_sha: pull.head.sha,
+            path: ".github/workflows/ci.yml@main",
+            pull_requests: [],
+          },
+        ],
+      };
+    },
+    loadPullRequestsForHeadSha: async () => [pull],
+  });
+
+  assert.equal(requestedPath.includes("status=action_required"), false);
+  assert.deepEqual(
+    pendingRuns.map((run) => run.id),
+    [26273463769],
+  );
 });
 
 test("hasPullApprovalStateDrift ignores base tip churn but still rejects base retargeting and head drift", () => {
