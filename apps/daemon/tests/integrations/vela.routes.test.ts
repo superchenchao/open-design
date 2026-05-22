@@ -104,12 +104,19 @@ beforeEach(() => {
   originalHome = process.env.HOME;
   tmpHome = mkdtempSync(path.join(tmpdir(), 'od-vela-routes-'));
   process.env.HOME = tmpHome;
-  process.env.VELA_PROFILE = 'local';
+  process.env.OPEN_DESIGN_AMR_PROFILE = 'local';
+  process.env.VELA_PROFILE = 'prod';
 });
 
 afterEach(() => {
   if (originalHome === undefined) delete process.env.HOME;
   else process.env.HOME = originalHome;
+  delete process.env.OPEN_DESIGN_AMR_PROFILE;
+  delete process.env.VELA_PROFILE;
+  delete process.env.FAKE_VELA_LOGIN_DELAY_MS;
+  delete process.env.FAKE_VELA_LOGIN_FAIL;
+  delete process.env.FAKE_VELA_LOGIN_USER_EMAIL;
+  delete process.env.FAKE_VELA_LOGIN_USER_PLAN;
   rmSync(tmpHome, { recursive: true, force: true });
 });
 
@@ -186,13 +193,36 @@ describe('POST /api/integrations/vela/login', () => {
 
     const cfg = JSON.parse(readFileSync(configPath(), 'utf8'));
     expect(cfg?.profiles?.local?.user?.email).toBe('login-route@example.com');
+    expect(cfg?.profiles?.prod).toBeUndefined();
+  });
+
+  it('passes the resolved AMR profile to vela login even when VELA_PROFILE is set differently', async () => {
+    process.env.OPEN_DESIGN_AMR_PROFILE = 'test';
+    process.env.VELA_PROFILE = 'local';
+    process.env.FAKE_VELA_LOGIN_USER_EMAIL = 'login-test@example.com';
+
+    const { status, body } = await postJson<{
+      pid: number;
+      profile: string;
+    }>(`${baseUrl}/api/integrations/vela/login`);
+    expect(status).toBe(202);
+    expect(body.profile).toBe('test');
+
+    for (let i = 0; i < 50; i += 1) {
+      if (existsSync(configPath())) break;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+
+    const cfg = JSON.parse(readFileSync(configPath(), 'utf8'));
+    expect(cfg?.profiles?.test?.user?.email).toBe('login-test@example.com');
+    expect(cfg?.profiles?.local).toBeUndefined();
   });
 
   it('returns 409 when a login subprocess is already in flight', async () => {
     // Use the stub's delay knob so the first login is still running when
     // the second request arrives; without this the first exits before the
     // route's `isVelaLoginInFlight` guard sees it.
-    process.env.FAKE_VELA_LOGIN_DELAY_MS = '500';
+    process.env.FAKE_VELA_LOGIN_DELAY_MS = '2000';
 
     const first = await postJson(`${baseUrl}/api/integrations/vela/login`);
     expect(first.status).toBe(202);
@@ -210,11 +240,29 @@ describe('POST /api/integrations/vela/login', () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
   });
+
+  it('returns an error when the login subprocess exits immediately with stderr', async () => {
+    process.env.FAKE_VELA_LOGIN_FAIL =
+      'profile "prod" api URL: is not configured';
+
+    const { status, body } = await postJson<{ error?: string }>(
+      `${baseUrl}/api/integrations/vela/login`,
+    );
+
+    expect(status).toBe(500);
+    expect(body.error).toContain('profile "prod" api URL: is not configured');
+  });
 });
 
 describe('POST /api/integrations/vela/logout', () => {
-  it('removes ~/.vela/config.json so the next status read returns loggedIn=false', async () => {
+  it('removes only the resolved profile so the next status read returns loggedIn=false', async () => {
     seedLogin('local');
+    const cfg = JSON.parse(readFileSync(configPath(), 'utf8'));
+    cfg.profiles.prod = {
+      runtimeKey: 'rt-prod',
+      user: { id: 'prod-user', email: 'prod@example.com' },
+    };
+    writeFileSync(configPath(), JSON.stringify(cfg, null, 2), 'utf8');
     expect(existsSync(configPath())).toBe(true);
 
     const { status, body } = await postJson<{ ok?: boolean }>(
@@ -222,7 +270,10 @@ describe('POST /api/integrations/vela/logout', () => {
     );
     expect(status).toBe(200);
     expect(body.ok).toBe(true);
-    expect(existsSync(configPath())).toBe(false);
+    expect(existsSync(configPath())).toBe(true);
+    const next = JSON.parse(readFileSync(configPath(), 'utf8'));
+    expect(next.profiles.local).toBeUndefined();
+    expect(next.profiles.prod.runtimeKey).toBe('rt-prod');
 
     const after = await getJson<{ loggedIn: boolean }>(
       `${baseUrl}/api/integrations/vela/status`,

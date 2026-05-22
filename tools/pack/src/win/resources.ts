@@ -3,12 +3,13 @@ import { dirname, join } from "node:path";
 
 import { hashJson, hashPath, ToolPackCache } from "../cache.js";
 import type { ToolPackConfig } from "../config.js";
-import { copyBundledResourceTrees, winResources } from "../resources.js";
+import { copyBundledResourceTrees, copyOptionalVelaCliBinary, VELA_CLI_BIN_ENV, winResources } from "../resources.js";
 import type { WinPaths, ResourceTreeCacheMetadata } from "./types.js";
 
 const RESOURCE_TREE_CACHE_SCHEMA_VERSION = 3;
 
 async function createResourceTreeCacheKey(config: ToolPackConfig): Promise<string> {
+  const velaCliBin = process.env[VELA_CLI_BIN_ENV]?.trim();
   return hashJson({
     assetsCommunityPets: await hashPath(join(config.workspaceRoot, "assets", "community-pets")),
     assetsFrames: await hashPath(join(config.workspaceRoot, "assets", "frames")),
@@ -21,6 +22,7 @@ async function createResourceTreeCacheKey(config: ToolPackConfig): Promise<strin
     promptTemplates: await hashPath(join(config.workspaceRoot, "prompt-templates")),
     schemaVersion: RESOURCE_TREE_CACHE_SCHEMA_VERSION,
     skills: await hashPath(join(config.workspaceRoot, "skills")),
+    velaCliBin: velaCliBin ? await hashPath(velaCliBin) : null,
   });
 }
 
@@ -46,6 +48,10 @@ export async function prepareResourceTree(
       await mkdir(resourceRoot, { recursive: true });
       await copyBundledResourceTrees({
         workspaceRoot: config.workspaceRoot,
+        resourceRoot,
+      });
+      await copyOptionalVelaCliBinary({
+        platform: "win",
         resourceRoot,
       });
       return { resourceName: "open-design" };

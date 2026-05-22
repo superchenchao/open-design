@@ -1,15 +1,17 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
 import { resolveAgentLaunch } from '../runtimes/launch.js';
 import { spawnEnvForAgent } from '../runtimes/env.js';
 import { getAgentDef } from '../runtimes/registry.js';
+import {
+  amrVelaProfileEnv,
+  resolveAmrProfile,
+} from './vela-profile.js';
 
-const ACTIVE_PROFILE_ENV = 'VELA_PROFILE';
-const DEFAULT_PROFILE = 'prod';
-const ALLOWED_PROFILES = new Set(['prod', 'test', 'local']);
+export { resolveAmrProfile } from './vela-profile.js';
 
 export interface VelaUser {
   id: string;
@@ -46,12 +48,6 @@ export function velaConfigPath(): string {
   return path.join(configDir(), 'config.json');
 }
 
-export function activeVelaProfileName(env: NodeJS.ProcessEnv = process.env): string {
-  const raw = (env[ACTIVE_PROFILE_ENV] || '').trim();
-  if (!raw) return DEFAULT_PROFILE;
-  return ALLOWED_PROFILES.has(raw) ? raw : DEFAULT_PROFILE;
-}
-
 function readConfigFile(): VelaConfigFileShape | null {
   const file = velaConfigPath();
   if (!existsSync(file)) return null;
@@ -68,7 +64,7 @@ function readConfigFile(): VelaConfigFileShape | null {
 export function readVelaLoginStatus(
   env: NodeJS.ProcessEnv = process.env,
 ): VelaLoginStatus {
-  const profile = activeVelaProfileName(env);
+  const profile = resolveAmrProfile(env);
   const configPath = velaConfigPath();
   const file = readConfigFile();
   const stored = file?.profiles?.[profile];
@@ -89,13 +85,20 @@ export function readVelaLoginStatus(
   return { loggedIn: true, profile, user, configPath };
 }
 
-export function forgetVelaLogin(): void {
-  // Delete the entire config file. The vela CLI rewrites it from scratch on
-  // the next successful `vela login`, so we don't need to preserve other
-  // profiles or top-level keys.
+export function forgetVelaLogin(env: NodeJS.ProcessEnv = process.env): void {
   const file = velaConfigPath();
   if (!existsSync(file)) return;
-  rmSync(file, { force: true });
+  const parsed = readConfigFile();
+  if (!parsed?.profiles) return;
+  const profile = resolveAmrProfile(env);
+  if (!Object.prototype.hasOwnProperty.call(parsed.profiles, profile)) return;
+  const nextProfiles = { ...parsed.profiles };
+  delete nextProfiles[profile];
+  writeFileSync(
+    file,
+    JSON.stringify({ ...parsed, profiles: nextProfiles }, null, 2),
+    'utf8',
+  );
 }
 
 export interface SpawnedVelaLogin {
@@ -105,6 +108,7 @@ export interface SpawnedVelaLogin {
 }
 
 const activeLoginProcs = new Map<number, ChildProcess>();
+const LOGIN_STARTUP_GRACE_MS = 250;
 
 export function isVelaLoginInFlight(): boolean {
   for (const [pid, child] of activeLoginProcs) {
@@ -119,7 +123,58 @@ export interface SpawnVelaLoginDeps {
   baseEnv?: NodeJS.ProcessEnv;
 }
 
-export function spawnVelaLogin(deps: SpawnVelaLoginDeps = {}): SpawnedVelaLogin {
+async function waitForImmediateLoginFailure(child: ChildProcess): Promise<void> {
+  let stderr = '';
+  let stdout = '';
+  child.stderr?.setEncoding('utf8');
+  child.stdout?.setEncoding('utf8');
+  child.stderr?.on('data', (chunk) => {
+    if (stderr.length < 4096) stderr += String(chunk);
+  });
+  child.stdout?.on('data', (chunk) => {
+    if (stdout.length < 4096) stdout += String(chunk);
+  });
+
+  const result = await new Promise<
+    | { kind: 'running' }
+    | { kind: 'exit'; code: number | null; signal: NodeJS.Signals | null }
+    | { kind: 'error'; error: Error }
+  >((resolve) => {
+    let settled = false;
+    const finish = (
+      value:
+        | { kind: 'running' }
+        | { kind: 'exit'; code: number | null; signal: NodeJS.Signals | null }
+        | { kind: 'error'; error: Error },
+    ) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const timer = setTimeout(
+      () => finish({ kind: 'running' }),
+      LOGIN_STARTUP_GRACE_MS,
+    );
+    child.once('exit', (code, signal) => finish({ kind: 'exit', code, signal }));
+    child.once('error', (error) => finish({ kind: 'error', error }));
+  });
+
+  if (result.kind === 'running') return;
+  if (result.kind === 'error') {
+    throw new Error(`vela login failed to start: ${result.error.message}`);
+  }
+  if (result.code === 0) return;
+  const detail = (stderr || stdout).trim();
+  throw new Error(
+    detail ||
+      `vela login exited before authentication completed (code ${result.code ?? 'null'}, signal ${result.signal ?? 'null'})`,
+  );
+}
+
+export async function spawnVelaLogin(
+  deps: SpawnVelaLoginDeps = {},
+): Promise<SpawnedVelaLogin> {
   if (isVelaLoginInFlight()) {
     throw new Error('vela login already running');
   }
@@ -132,7 +187,10 @@ export function spawnVelaLogin(deps: SpawnVelaLoginDeps = {}): SpawnedVelaLogin 
   if (!bin) {
     throw new Error('vela binary not found; install vela or configure VELA_BIN');
   }
-  const env = spawnEnvForAgent('amr', baseEnv, configuredEnv);
+  const env = {
+    ...spawnEnvForAgent('amr', baseEnv, configuredEnv),
+    ...amrVelaProfileEnv(baseEnv),
+  };
   const child = spawn(bin, ['login'], {
     stdio: ['ignore', 'pipe', 'pipe'],
     env,
@@ -147,12 +205,13 @@ export function spawnVelaLogin(deps: SpawnVelaLoginDeps = {}): SpawnedVelaLogin 
   };
   child.once('exit', cleanup);
   child.once('error', cleanup);
+  await waitForImmediateLoginFailure(child);
   // We don't surface URL/code in this API — vela CLI opens the browser itself
   // (via OpenBrowser in apps/cli/internal/commands/login.go). Callers poll
   // readVelaLoginStatus() to detect completion.
   return {
     pid: child.pid,
     startedAt: new Date().toISOString(),
-    profile: activeVelaProfileName(baseEnv),
+    profile: resolveAmrProfile(baseEnv),
   };
 }

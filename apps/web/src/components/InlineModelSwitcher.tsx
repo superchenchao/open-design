@@ -8,9 +8,14 @@
 // upward through the same callbacks `AvatarMenu` already uses, so the
 // switcher inherits autosave + daemon sync without re-implementing it.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../i18n';
 import { KNOWN_PROVIDERS } from '../state/config';
+import {
+  fetchVelaLoginStatus,
+  startVelaLogin,
+  type VelaLoginStatus,
+} from '../providers/daemon';
 import type { AgentInfo, ApiProtocol, AppConfig, ExecMode } from '../types';
 import { apiProtocolLabel } from '../utils/apiProtocol';
 import { AgentIcon } from './AgentIcon';
@@ -49,6 +54,13 @@ const API_PROTOCOL_TABS: Array<{ id: ApiProtocol; title: string }> = [
   { id: 'google', title: 'Google' },
 ];
 
+const AMR_LOGIN_POLL_INTERVAL_MS = 2000;
+const AMR_LOGIN_POLL_DURATION_MS = 5 * 60 * 1000;
+
+function displayAgentName(agent: Pick<AgentInfo, 'id' | 'name'>): string {
+  return agent.id === 'amr' ? 'AMR' : agent.name;
+}
+
 export function InlineModelSwitcher({
   config,
   agents,
@@ -63,6 +75,72 @@ export function InlineModelSwitcher({
   const t = useT();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [amrStatus, setAmrStatus] = useState<VelaLoginStatus | null>(null);
+  const [amrLoginPending, setAmrLoginPending] = useState(false);
+  const [amrLoginError, setAmrLoginError] = useState(false);
+  const amrPollRef = useRef<number | null>(null);
+
+  const stopAmrPolling = useCallback(() => {
+    if (amrPollRef.current !== null) {
+      window.clearInterval(amrPollRef.current);
+      amrPollRef.current = null;
+    }
+  }, []);
+
+  const refreshAmrStatus = useCallback(async () => {
+    const next = await fetchVelaLoginStatus();
+    if (next) setAmrStatus(next);
+    return next;
+  }, []);
+
+  const startAmrPolling = useCallback(() => {
+    stopAmrPolling();
+    const startedAt = Date.now();
+    const tick = async () => {
+      const next = await refreshAmrStatus();
+      if (next?.loggedIn) {
+        stopAmrPolling();
+        setAmrLoginPending(false);
+        return;
+      }
+      if (Date.now() - startedAt > AMR_LOGIN_POLL_DURATION_MS) {
+        stopAmrPolling();
+        setAmrLoginPending(false);
+      }
+    };
+    amrPollRef.current = window.setInterval(() => {
+      void tick();
+    }, AMR_LOGIN_POLL_INTERVAL_MS);
+  }, [refreshAmrStatus, stopAmrPolling]);
+
+  const handleAmrSignIn = useCallback(async () => {
+    setAmrLoginError(false);
+    setAmrLoginPending(true);
+    const result = await startVelaLogin();
+    if (!result.ok && !result.alreadyRunning) {
+      setAmrLoginPending(false);
+      setAmrLoginError(true);
+      return;
+    }
+    startAmrPolling();
+  }, [startAmrPolling]);
+
+  const handleAgentButtonClick = useCallback(
+    async (agentId: string) => {
+      onAgentChange?.(agentId);
+      if (agentId !== 'amr' || amrLoginPending) return;
+      const latest = amrStatus ?? (await refreshAmrStatus());
+      if (latest?.loggedIn) return;
+      await handleAmrSignIn();
+    },
+    [
+      amrLoginPending,
+      amrStatus,
+      handleAmrSignIn,
+      onAgentChange,
+      refreshAmrStatus,
+    ],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -81,6 +159,13 @@ export function InlineModelSwitcher({
     };
   }, [open]);
 
+  useEffect(() => {
+    if (open && agents.some((agent) => agent.id === 'amr' && agent.available)) {
+      void refreshAmrStatus();
+    }
+    return () => stopAmrPolling();
+  }, [agents, open, refreshAmrStatus, stopAmrPolling]);
+
   const installedAgents = useMemo(
     () => agents.filter((a) => a.available),
     [agents],
@@ -96,6 +181,21 @@ export function InlineModelSwitcher({
     currentChoice.model ?? currentAgent?.models?.[0]?.id ?? null;
   const currentModelLabel =
     currentAgent?.models?.find((m) => m.id === currentModelId)?.label ?? null;
+  const amrLoggedIn = amrStatus?.loggedIn === true;
+  const amrInlineStatus = amrLoginError
+    ? t('settings.amrLoginErrorCompact')
+    : amrLoggedIn
+      ? t('settings.amrSignedIn')
+      : amrLoginPending
+        ? t('settings.amrSigningIn')
+        : t('settings.amrSignIn');
+  const amrStatusIconName = amrLoginError
+    ? 'close'
+    : amrLoggedIn
+      ? 'check'
+      : amrLoginPending
+        ? 'spinner'
+        : 'minus';
 
   const apiProtocol = config.apiProtocol ?? 'anthropic';
   const providerForProtocol = useMemo(
@@ -119,7 +219,9 @@ export function InlineModelSwitcher({
       : t('inlineSwitcher.chipByok');
   const chipPrimary =
     config.mode === 'daemon'
-      ? currentAgent?.name ?? t('inlineSwitcher.noAgent')
+      ? currentAgent
+        ? displayAgentName(currentAgent)
+        : t('inlineSwitcher.noAgent')
       : apiProtocolLabel(apiProtocol);
   const chipModel =
     config.mode === 'daemon'
@@ -244,25 +346,54 @@ export function InlineModelSwitcher({
                   >
                     {installedAgents.map((a) => {
                       const active = config.agentId === a.id;
+                      const agentName = displayAgentName(a);
                       return (
-                        <button
+                        <div
                           key={a.id}
-                          type="button"
-                          role="radio"
-                          aria-checked={active}
-                          className={
-                            'inline-switcher__agent' +
-                            (active ? ' is-active' : '')
-                          }
-                          data-testid={`inline-model-switcher-agent-${a.id}`}
-                          onClick={() => onAgentChange?.(a.id)}
-                          title={a.version ? `${a.name} · ${a.version}` : a.name}
+                          className="inline-switcher__agent-row"
                         >
-                          <AgentIcon id={a.id} size={20} />
-                          <span className="inline-switcher__agent-name">
-                            {a.name}
-                          </span>
-                        </button>
+                          <button
+                            type="button"
+                            role="radio"
+                            aria-checked={active}
+                            aria-label={
+                              a.id === 'amr'
+                                ? `${agentName} ${amrInlineStatus}`
+                                : agentName
+                            }
+                            className={
+                              'inline-switcher__agent' +
+                              (active ? ' is-active' : '')
+                            }
+                            data-testid={`inline-model-switcher-agent-${a.id}`}
+                            onClick={() => void handleAgentButtonClick(a.id)}
+                            title={
+                              a.version ? `${agentName} · ${a.version}` : agentName
+                            }
+                          >
+                            <AgentIcon id={a.id} size={20} />
+                            <span className="inline-switcher__agent-name">
+                              {agentName}
+                            </span>
+                            {a.id === 'amr' ? (
+                              amrStatusIconName ? (
+                                <span
+                                  className={
+                                    'inline-switcher__agent-status-icon' +
+                                    (amrLoginError ? ' is-error' : '') +
+                                    (amrLoginPending ? ' is-pending' : '') +
+                                    (amrLoggedIn ? ' is-signed-in' : '') +
+                                    (!amrLoginError && !amrLoginPending && !amrLoggedIn
+                                      ? ' is-signed-out'
+                                      : '')
+                                  }
+                                >
+                                  <Icon name={amrStatusIconName} size={13} />
+                                </span>
+                              ) : null
+                            ) : null}
+                          </button>
+                        </div>
                       );
                     })}
                   </div>

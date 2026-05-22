@@ -65,6 +65,24 @@ test('spawnEnvForAgent expands configured env home paths', () => {
   assert.equal(env.PATH, '/usr/bin');
 });
 
+test('spawnEnvForAgent injects the resolved AMR profile after configured env', () => {
+  const env = spawnEnvForAgent(
+    'amr',
+    {
+      OPEN_DESIGN_AMR_PROFILE: 'test',
+      VELA_PROFILE: 'prod',
+      PATH: '/usr/bin',
+    },
+    {
+      VELA_PROFILE: 'local',
+    },
+  );
+
+  assert.equal(env.VELA_PROFILE, 'test');
+  assert.equal(env.OPEN_DESIGN_AMR_PROFILE, 'test');
+  assert.equal(env.PATH, '/usr/bin');
+});
+
 test('resolveAgentExecutable prefers a configured CODEX_BIN override over PATH resolution', () => {
   const dir = mkdtempSync(join(tmpdir(), 'od-codex-bin-'));
   try {
@@ -245,6 +263,35 @@ fsTest('detectAgents marks Codex available when nvm exposes a node shim but laun
     });
   } finally {
     rmSync(home, { recursive: true, force: true });
+  }
+});
+
+fsTest('detectAgents marks AMR available from packaged built-in Vela under a minimal PATH', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'od-detect-amr-built-in-'));
+  try {
+    return await withEnvSnapshot(['PATH', 'OD_AGENT_HOME', 'OD_RESOURCE_ROOT'], async () => {
+      const resourceRoot = join(root, 'resources', 'open-design');
+      const builtInVela = join(resourceRoot, 'bin', 'vela');
+      mkdirSync(join(resourceRoot, 'bin'), { recursive: true });
+      writeFileSync(
+        builtInVela,
+        '#!/bin/sh\nif [ "$1" = "--version" ]; then echo "vela manual-amr"; exit 0; fi\nexit 0\n',
+      );
+      chmodSync(builtInVela, 0o755);
+      process.env.PATH = '';
+      process.env.OD_AGENT_HOME = join(root, 'empty-home');
+      process.env.OD_RESOURCE_ROOT = resourceRoot;
+
+      const agents = await detectAgents();
+      const amrAgent = agents.find((agent) => agent.id === 'amr');
+
+      assert.ok(amrAgent);
+      assert.equal(amrAgent.available, true);
+      assert.equal(amrAgent.path, builtInVela);
+      assert.equal(amrAgent.version, 'vela manual-amr');
+    });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });
 

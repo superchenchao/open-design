@@ -624,12 +624,34 @@
   color: var(--text-strong);
 }
 .inline-switcher__agent-name {
-  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: left;
+}
+.inline-switcher__agent-status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-left: auto;
+  border-radius: 999px;
+  color: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.inline-switcher__agent-status-icon.is-error {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+.inline-switcher__agent-status-icon.is-signed-out {
+  color: var(--text-muted);
+  background: var(--bg-subtle);
+}
+.inline-switcher__agent-status-icon.is-pending svg {
+  animation: spin 0.8s linear infinite;
 }
 
 /* Provider chips (BYOK mode) */

@@ -4992,7 +4992,7 @@ export async function startServer({
     try {
       const appConfig = await readAppConfig(RUNTIME_DATA_DIR);
       const configuredEnv = agentCliEnvForAgent(appConfig.agentCliEnv, 'amr');
-      const spawned = spawnVelaLogin({ configuredEnv });
+      const spawned = await spawnVelaLogin({ configuredEnv });
       res.status(202).json(spawned);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

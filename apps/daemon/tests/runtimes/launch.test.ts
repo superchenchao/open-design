@@ -8,6 +8,7 @@ import {
   codex,
   mkdirSync,
   mkdtempSync,
+  minimalAgentDef,
   resolveAgentLaunch,
   rmSync,
   tmpdir,
@@ -109,6 +110,33 @@ fsTest('resolveAgentLaunch selects nvm-installed codex under a minimal PATH and 
     });
   } finally {
     rmSync(home, { recursive: true, force: true });
+  }
+});
+
+fsTest('resolveAgentLaunch uses packaged built-in Vela for AMR and prepends its dirname', () => {
+  const root = mkdtempSync(join(tmpdir(), 'od-launch-amr-built-in-'));
+  try {
+    return withEnvSnapshot(['PATH', 'OD_AGENT_HOME', 'OD_RESOURCE_ROOT'], () => {
+      const resourceRoot = join(root, 'resources', 'open-design');
+      const builtInDir = join(resourceRoot, 'bin');
+      const builtInVela = join(builtInDir, 'vela');
+      mkdirSync(builtInDir, { recursive: true });
+      writeFileSync(builtInVela, '#!/bin/sh\nexit 0\n');
+      chmodSync(builtInVela, 0o755);
+      process.env.PATH = '';
+      process.env.OD_AGENT_HOME = join(root, 'empty-home');
+      process.env.OD_RESOURCE_ROOT = resourceRoot;
+
+      const launch = resolveAgentLaunch(minimalAgentDef({ id: 'amr', bin: 'vela' }));
+
+      assert.equal(launch.selectedPath, builtInVela);
+      assert.equal(launch.launchPath, builtInVela);
+      assert.equal(launch.launchKind, 'selected');
+      assert.deepEqual(launch.childPathPrepend, [builtInDir]);
+      assert.equal(launch.diagnostic, null);
+    });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });
 

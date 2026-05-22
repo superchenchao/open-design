@@ -241,6 +241,14 @@ export interface Dict {
   'settings.amrLoggedInWithPlan': string;
   'settings.amrLoggedInPill': string;
   'settings.amrNotLoggedIn': string;
+  'settings.amrCloud': string;
+  'settings.amrSignInToContinue': string;
+  'settings.amrSignIn': string;
+  'settings.amrSignedIn': string;
+  'settings.amrNotSignedIn': string;
+  'settings.amrSigningIn': string;
+  'settings.amrAccountStatus': string;
+  'settings.amrLoginErrorCompact': string;
   'settings.apiSection': string;
   'settings.quickFillProvider': string;
   'settings.customProvider': string;

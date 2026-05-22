@@ -15,7 +15,7 @@ import {
   shouldInstallInternalPackageForMacPrebundle,
   shouldUseMacStandalonePrebundle,
 } from "../mac-prebundle.js";
-import { copyBundledResourceTrees } from "../resources.js";
+import { copyBundledResourceTrees, copyOptionalVelaCliBinary } from "../resources.js";
 import { runEsbuild, runNpmInstall, runPnpm } from "./commands.js";
 import { INTERNAL_PACKAGES } from "./constants.js";
 import { resolveMacInstallIdentity } from "./identity.js";
@@ -132,6 +132,10 @@ export async function copyResourceTree(config: ToolPackConfig, paths: MacPaths):
   await mkdir(join(paths.resourceRoot, "bin"), { recursive: true });
   await cp(process.execPath, join(paths.resourceRoot, "bin", "node"));
   await chmod(join(paths.resourceRoot, "bin", "node"), 0o755);
+  await copyOptionalVelaCliBinary({
+    platform: "mac",
+    resourceRoot: paths.resourceRoot,
+  });
 }
 
 export async function collectWorkspaceTarballs(

@@ -27,7 +27,7 @@ import {
 } from "@open-design/platform";
 
 import type { ToolPackConfig } from "./config.js";
-import { copyBundledResourceTrees, linuxResources } from "./resources.js";
+import { copyBundledResourceTrees, copyOptionalVelaCliBinary, linuxResources } from "./resources.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -431,6 +431,10 @@ async function copyResourceTree(config: ToolPackConfig, paths: LinuxPaths): Prom
   await mkdir(join(paths.resourceRoot, "bin"), { recursive: true });
   await cp(process.execPath, join(paths.resourceRoot, "bin", "node"));
   await chmod(join(paths.resourceRoot, "bin", "node"), 0o755);
+  await copyOptionalVelaCliBinary({
+    platform: "linux",
+    resourceRoot: paths.resourceRoot,
+  });
 }
 
 // --- Step 4: writeAssembledApp helper ---

@@ -104,6 +104,15 @@ const availableAgents: AgentInfo[] = [
   },
 ];
 
+const amrAgent: AgentInfo = {
+  id: 'amr',
+  name: 'AMR (vela)',
+  bin: 'amr',
+  available: true,
+  version: '1.0.0',
+  models: [{ id: 'default', label: 'Default' }],
+};
+
 type OnRefreshAgents = (
   options?: AgentRefreshOptions,
 ) => void | AgentInfo[] | Promise<void | AgentInfo[]>;
@@ -1282,36 +1291,16 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
     expect(screen.getByRole('tab', { name: /BYOK.*API provider/i }).getAttribute('aria-selected')).toBe('true');
   });
 
-  it('runs the Local CLI connection test for the selected installed agent', async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+  it('does not render a Local CLI connection test for selected installed agents', () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = input.toString();
-      // MemoryModelInline mounts inside the Local CLI section and reads
-      // the current extraction override from /api/memory on mount.
-      // Swallow it here so the assertion below only counts the
-      // test-connection POST the user actually triggered.
       if (url === '/api/memory') {
         return new Response(
           JSON.stringify({ enabled: true, memories: [], extraction: null }),
           { status: 200, headers: { 'content-type': 'application/json' } },
         );
       }
-      expect(url).toBe('/api/test/connection');
-      expect(JSON.parse(String(init?.body))).toMatchObject({
-        mode: 'agent',
-        agentId: 'codex',
-        agentCliEnv: {},
-      });
-      return new Response(
-        JSON.stringify({
-          ok: true,
-          kind: 'ok',
-          latencyMs: 31,
-          agentName: 'Codex CLI',
-          model: 'default',
-          sample: 'ready',
-        }),
-        { status: 200, headers: { 'content-type': 'application/json' } },
-      );
+      throw new Error(`Unexpected fetch: ${url}`);
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -1321,18 +1310,48 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
     );
 
     fireEvent.click(screen.getByRole('tab', { name: /Local CLI.*1 installed/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Test' }));
 
-    await waitFor(() => {
-      expect(screen.getByText('Testing connection…')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Codex CLI/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Test' })).toBeNull();
+  });
+
+  it('renders the AMR local agent without vela branding and without the Local CLI test action', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (url === '/api/memory') {
+        return new Response(
+          JSON.stringify({ enabled: true, memories: [], extraction: null }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      if (url === '/api/integrations/vela/status') {
+        return new Response(
+          JSON.stringify({
+            loggedIn: false,
+            profile: 'default',
+            user: null,
+            configPath: '/Users/test/.vela/config.json',
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
     });
-    await waitFor(() => {
-      expect(screen.getByText(/Codex CLI replied in 31 ms/)).toBeTruthy();
-    });
-    const testConnectionCalls = fetchMock.mock.calls.filter(
-      ([input]) => input.toString() === '/api/test/connection',
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderSettingsDialog(
+      { mode: 'daemon', agentId: 'amr' },
+      { agents: [amrAgent] },
     );
-    expect(testConnectionCalls).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('tab', { name: /Local CLI.*1 installed/i }));
+
+    expect(screen.getByRole('button', { name: /^AMR\b/ })).toBeTruthy();
+    expect(screen.queryByText(/AMR \(vela\)/i)).toBeNull();
+    expect(screen.queryByText(/vela/i)).toBeNull();
+    expect(screen.queryByText(/Not signed in/i)).toBeNull();
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Test' })).toBeNull();
   });
 });
 

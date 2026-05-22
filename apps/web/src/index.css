@@ -5389,6 +5389,94 @@ a.avatar-item:visited {
   background: color-mix(in srgb, var(--accent-tint) 58%, transparent);
   color: var(--accent-strong);
 }
+.amr-login-pill {
+  display: flex;
+  align-self: stretch;
+  align-items: center;
+}
+.amr-account-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.2;
+}
+.amr-account-control--compact {
+  align-self: stretch;
+  gap: 6px;
+}
+.amr-account-control__status {
+  overflow: hidden;
+  min-width: 0;
+  max-width: 180px;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.amr-account-control--signed-in .amr-account-control__status {
+  color: var(--text);
+}
+.amr-account-control--error .amr-account-control__status,
+.amr-account-control__error {
+  color: var(--danger);
+}
+.amr-account-control__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--accent-strong);
+  font: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.amr-account-control__action:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent-tint) 58%, transparent);
+}
+.amr-account-control__action:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+.amr-login-pill .amr-account-control__action {
+  align-self: stretch;
+  min-height: 0;
+  padding: 0 18px;
+  border: 0;
+  border-left: 1px solid var(--border-soft);
+  border-radius: 0;
+  background: transparent;
+}
+.amr-login-pill-badge {
+  margin: 0 10px 0 -2px;
+  padding: 2px 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-sm);
+  background: var(--bg-muted);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.onboarding-view__amr-cloud-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+}
+.onboarding-view__amr-cloud-card .amr-account-control {
+  justify-self: start;
+}
 .agent-card:hover:not(.disabled) {
   border-color: var(--border-strong);
 }

@@ -84,6 +84,12 @@ import { KNOWN_PROVIDERS } from '../state/config';
 import type { KnownProvider } from '../state/config';
 import { testApiProvider } from '../providers/connection-test';
 import { fetchProviderModels } from '../providers/provider-models';
+import {
+  fetchVelaLoginStatus,
+  startVelaLogin,
+  type VelaLoginStatus,
+} from '../providers/daemon';
+import { AmrAccountControl } from './AmrLoginPill';
 
 // The topbar chips (GitHub star, model switcher, Use everywhere)
 // collapse into the settings dropdown when the viewport gets
@@ -732,11 +738,15 @@ function OnboardingView({
 }) {
   const t = useT();
   const analytics = useAnalytics();
+  const AMR_LOGIN_POLL_INTERVAL_MS = 2000;
+  const AMR_LOGIN_POLL_DURATION_MS = 5 * 60 * 1000;
   const [step, setStep] = useState(0);
-  const [runtime, setRuntime] = useState<'local' | 'byok' | null>(null);
+  const [runtime, setRuntime] = useState<'amr' | 'local' | 'byok' | null>(null);
   const [designSource, setDesignSource] = useState<'github' | 'upload' | 'prompt' | null>(null);
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
   const [cliScanStatus, setCliScanStatus] = useState<'idle' | 'scanning' | 'done'>('idle');
+  const [amrStatus, setAmrStatus] = useState<VelaLoginStatus | null>(null);
+  const [amrLoginPending, setAmrLoginPending] = useState(false);
   const [visibleAgentIds, setVisibleAgentIds] = useState<string[]>([]);
   const [providerTestState, setProviderTestState] = useState<
     | { status: 'idle' }
@@ -759,6 +769,7 @@ function OnboardingView({
   });
   const agentRevealTimersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
   const cliScanTokenRef = useRef(0);
+  const amrLoginPollCancelledRef = useRef(false);
   const apiProtocol = config.apiProtocol ?? 'anthropic';
   const providerTestInputKey = [
     apiProtocol,
@@ -799,17 +810,39 @@ function OnboardingView({
       provider.baseUrl === (config.apiProviderBaseUrl ?? config.baseUrl),
   ) ?? null;
   const visibleAgents = agents.filter(
-    (agent) => agent.available && visibleAgentIds.includes(agent.id),
+    (agent) => agent.available && agent.id !== 'amr' && visibleAgentIds.includes(agent.id),
   );
+  const amrAgent = agents.find((agent) => agent.id === 'amr' && agent.available) ?? null;
+  const amrSignedIn = amrStatus?.loggedIn === true;
+  const amrSelectedAndSignedOut = runtime === 'amr' && !amrSignedIn;
   const selectedAgent = visibleAgents.find((agent) => agent.id === config.agentId) ?? null;
   const selectedAgentChoice = selectedAgent ? (config.agentModels?.[selectedAgent.id] ?? {}) : {};
 
   useEffect(() => {
     return () => {
+      amrLoginPollCancelledRef.current = true;
       agentRevealTimersRef.current.forEach((timer) => clearTimeout(timer));
       agentRevealTimersRef.current = [];
     };
   }, []);
+
+  useEffect(() => {
+    if (!amrAgent || runtime !== null) return;
+    setRuntime('amr');
+    onModeChange('daemon');
+    onAgentChange('amr');
+  }, [amrAgent, onAgentChange, onModeChange, runtime]);
+
+  useEffect(() => {
+    if (!amrAgent) return;
+    let cancelled = false;
+    void fetchVelaLoginStatus().then((next) => {
+      if (!cancelled && next) setAmrStatus(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [amrAgent]);
 
   // Onboarding 4-step funnel (v2 doc). Fires one `page_view` per step
   // exposure. The fourth step (`generation`) lives in
@@ -1020,11 +1053,53 @@ function OnboardingView({
   }
 
   function handlePrimaryAction() {
+    if (amrSelectedAndSignedOut) {
+      void handleAmrSignInToContinue();
+      return;
+    }
     if (isLastStep) {
       onFinish();
       return;
     }
     setStep((current) => current + 1);
+  }
+
+  async function handleAmrSignInToContinue() {
+    if (amrLoginPending) return;
+    amrLoginPollCancelledRef.current = false;
+    setAmrLoginPending(true);
+    try {
+      const currentStatus = await fetchVelaLoginStatus();
+      if (currentStatus) setAmrStatus(currentStatus);
+      if (currentStatus?.loggedIn) {
+        setStep((current) => current + 1);
+        return;
+      }
+      const loginResult = await startVelaLogin();
+      if (!loginResult.ok && !loginResult.alreadyRunning) return;
+      if (await pollAmrLoginCompletion()) {
+        setStep((current) => current + 1);
+      }
+    } finally {
+      setAmrLoginPending(false);
+    }
+  }
+
+  async function pollAmrLoginCompletion(): Promise<boolean> {
+    const startedAt = Date.now();
+    while (
+      !amrLoginPollCancelledRef.current &&
+      Date.now() - startedAt <= AMR_LOGIN_POLL_DURATION_MS
+    ) {
+      await new Promise((resolve) =>
+        window.setTimeout(resolve, AMR_LOGIN_POLL_INTERVAL_MS),
+      );
+      if (amrLoginPollCancelledRef.current) return false;
+      const nextStatus = await fetchVelaLoginStatus();
+      if (nextStatus) setAmrStatus(nextStatus);
+      if (nextStatus?.loggedIn) return true;
+    }
+    return false;
   }
 
   async function scanCliAgents() {
@@ -1038,7 +1113,7 @@ function OnboardingView({
     try {
       const nextAgents = await onRefreshAgents();
       if (cliScanTokenRef.current !== scanToken) return;
-      const availableAgents = nextAgents.filter((agent) => agent.available);
+      const availableAgents = nextAgents.filter((agent) => agent.available && agent.id !== 'amr');
       if (availableAgents.length === 0) {
         setCliScanStatus('done');
         return;
@@ -1138,9 +1213,11 @@ function OnboardingView({
     }
   }
 
-  const primaryActionLabel = isLastStep
-    ? t('settings.onboardingFinish')
-    : t('settings.onboardingContinue');
+  const primaryActionLabel = amrSelectedAndSignedOut
+    ? t('settings.amrSignInToContinue')
+    : isLastStep
+      ? t('settings.onboardingFinish')
+      : t('settings.onboardingContinue');
 
   return (
     <section className="onboarding-view" aria-labelledby="onboarding-title">
@@ -1170,6 +1247,38 @@ function OnboardingView({
                 body={t('settings.onboardingConnectBody')}
               />
               <div className="onboarding-view__runtime-stack">
+                {amrAgent ? (
+                  <div className="onboarding-view__amr-cloud-card">
+                    <OnboardingChoiceCard
+                      icon="orbit"
+                      title={t('settings.amrCloud')}
+                      body={t('settings.onboardingExecutionBody')}
+                      badge={t('settings.onboardingRecommended')}
+                      featured
+                      selected={runtime === 'amr'}
+                      onClick={() => {
+                        setRuntime('amr');
+                        onModeChange('daemon');
+                        onAgentChange('amr');
+                      }}
+                    />
+                    {runtime === 'amr' ? (
+                      <AmrAccountControl
+                        status={
+                          amrSignedIn
+                            ? 'signed-in'
+                            : amrLoginPending
+                              ? 'signing-in'
+                              : 'signed-out'
+                        }
+                        compact
+                        email={amrStatus?.user?.email ?? ''}
+                        showSignInAction={false}
+                        signInDisabled={amrLoginPending}
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
                 <div className="onboarding-view__alternatives">
                   {runtimeItems.map((item) => (
                     <OnboardingChoiceCard
@@ -1348,6 +1457,7 @@ function OnboardingView({
                 type="button"
                 className="onboarding-view__primary"
                 onClick={handlePrimaryAction}
+                disabled={amrLoginPending}
               >
                 <span>{primaryActionLabel}</span>
                 <Icon name={isLastStep ? 'check' : 'chevron-right'} size={16} />

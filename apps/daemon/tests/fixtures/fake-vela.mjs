@@ -193,6 +193,7 @@ stdin.on('data', (chunk) => {
 });
 
 stdin.on('end', () => {
+  if (argv[2] === 'login') return;
   stdout.end();
   // Mirror real ACP runtimes that exit on EOF so the host's child.on('close')
   // fires promptly and the chat run can finalize.
@@ -203,11 +204,14 @@ stdin.on('end', () => {
 // without expecting any ACP traffic. Real vela goes through a device-auth
 // loop and writes ~/.vela/config.json on success; the stub skips the loop
 // and just writes the file so Open Design's status reader and AmrLoginPill
-// poller see the same on-disk projection production produces. Note: this
-// branch is checked BEFORE the ACP setup above (the export at the top of
-// the file installs stdin handlers eagerly), so we always exit early here
-// instead of also opening the ACP stdio bridge.
+// poller see the same on-disk projection production produces. The stdin EOF
+// handler above ignores login mode so delayed login tests can keep this
+// process alive without opening the ACP stdio bridge.
 function loginAndExit() {
+  if (env.FAKE_VELA_LOGIN_FAIL) {
+    stderr.write(`${env.FAKE_VELA_LOGIN_FAIL}\n`);
+    exit(1);
+  }
   const profile = (env.VELA_PROFILE || 'prod').trim() || 'prod';
   const allowed = new Set(['prod', 'test', 'local']);
   if (!allowed.has(profile)) {

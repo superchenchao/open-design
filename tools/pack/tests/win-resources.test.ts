@@ -92,4 +92,32 @@ describe("prepareResourceTree", () => {
       await rm(root, { force: true, recursive: true });
     }
   });
+
+  it("copies a configured Vela CLI binary into the Windows resource tree", async () => {
+    const root = await mkdtemp(join(tmpdir(), "open-design-win-vela-"));
+    const workspaceRoot = join(root, "workspace");
+    const resourceRoot = join(root, "materialized", "open-design");
+    const source = join(root, "source", "vela.exe");
+    const cache = new ToolPackCache(join(root, "cache"));
+    const config = { workspaceRoot } as ToolPackConfig;
+    const paths = { resourceRoot } as WinPaths;
+    const originalVelaBin = process.env.OPEN_DESIGN_VELA_CLI_BIN;
+
+    try {
+      await createWorkspaceFixture(workspaceRoot);
+      await mkdir(join(root, "source"), { recursive: true });
+      await writeFile(source, "fake vela exe\n", "utf8");
+      process.env.OPEN_DESIGN_VELA_CLI_BIN = source;
+
+      await prepareResourceTree(config, paths, cache, { materialize: true });
+
+      await expect(readFile(join(resourceRoot, "bin", "vela.exe"), "utf8")).resolves.toBe(
+        "fake vela exe\n",
+      );
+    } finally {
+      if (originalVelaBin == null) delete process.env.OPEN_DESIGN_VELA_CLI_BIN;
+      else process.env.OPEN_DESIGN_VELA_CLI_BIN = originalVelaBin;
+      await rm(root, { force: true, recursive: true });
+    }
+  });
 });

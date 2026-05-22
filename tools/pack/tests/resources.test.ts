@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile, mkdir, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { copyBundledResourceTrees } from "../src/resources.js";
+import { copyBundledResourceTrees, copyOptionalVelaCliBinary } from "../src/resources.js";
 
 describe("copyBundledResourceTrees", () => {
   it("includes daemon resource trees", async () => {
@@ -112,6 +112,55 @@ describe("copyBundledResourceTrees", () => {
           "utf8",
         ),
       ).resolves.toBe("{\"plugins\":[]}\n");
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
+  });
+});
+
+describe("copyOptionalVelaCliBinary", () => {
+  it("copies a configured Vela CLI binary into the POSIX resource bin", async () => {
+    const root = await mkdtemp(join(tmpdir(), "open-design-tools-pack-vela-"));
+    const source = join(root, "source", "vela");
+    const resourceRoot = join(root, "resources", "open-design");
+
+    try {
+      await mkdir(join(root, "source"), { recursive: true });
+      await writeFile(source, "#!/bin/sh\nexit 0\n", "utf8");
+
+      const copied = await copyOptionalVelaCliBinary({
+        env: { OPEN_DESIGN_VELA_CLI_BIN: source },
+        platform: "mac",
+        resourceRoot,
+      });
+
+      const target = join(resourceRoot, "bin", "vela");
+      await expect(readFile(target, "utf8")).resolves.toBe("#!/bin/sh\nexit 0\n");
+      expect(copied).toEqual({ source, target });
+      expect((await stat(target)).mode & 0o111).not.toBe(0);
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
+  });
+
+  it("copies a configured Vela CLI binary into the Windows resource bin", async () => {
+    const root = await mkdtemp(join(tmpdir(), "open-design-tools-pack-vela-win-"));
+    const source = join(root, "source", "vela.exe");
+    const resourceRoot = join(root, "resources", "open-design");
+
+    try {
+      await mkdir(join(root, "source"), { recursive: true });
+      await writeFile(source, "fake exe\n", "utf8");
+
+      const copied = await copyOptionalVelaCliBinary({
+        env: { OPEN_DESIGN_VELA_CLI_BIN: source },
+        platform: "win",
+        resourceRoot,
+      });
+
+      const target = join(resourceRoot, "bin", "vela.exe");
+      await expect(readFile(target, "utf8")).resolves.toBe("fake exe\n");
+      expect(copied).toEqual({ source, target });
     } finally {
       await rm(root, { force: true, recursive: true });
     }

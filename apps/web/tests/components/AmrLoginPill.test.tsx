@@ -12,9 +12,13 @@
  */
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { ComponentProps } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { AmrLoginPill } from '../../src/components/AmrLoginPill';
+import {
+  AmrAccountControl,
+  AmrLoginPill,
+} from '../../src/components/AmrLoginPill';
 import { I18nProvider } from '../../src/i18n';
 
 interface StubbedResponse {
@@ -49,13 +53,82 @@ function renderPill() {
   );
 }
 
+function renderAccountControl(
+  props: ComponentProps<typeof AmrAccountControl>,
+) {
+  return render(
+    <I18nProvider initial="en">
+      <AmrAccountControl {...props} />
+    </I18nProvider>,
+  );
+}
+
+describe('AmrAccountControl', () => {
+  it('renders the compact signed-out status and sign-in action', () => {
+    const onSignIn = vi.fn();
+
+    renderAccountControl({
+      status: 'signed-out',
+      compact: true,
+      onSignIn,
+    });
+
+    expect(
+      screen.getByRole('group', { name: 'AMR account status' }),
+    ).toBeTruthy();
+    expect(screen.getByText('Not signed in')).toBeTruthy();
+    const signIn = screen.getByRole('button', { name: 'Sign in' });
+    expect(signIn).toBeTruthy();
+
+    fireEvent.click(signIn);
+    expect(onSignIn).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the signing-in state without exposing a second action', () => {
+    renderAccountControl({
+      status: 'signing-in',
+      compact: true,
+      onSignIn: vi.fn(),
+    });
+
+    expect(screen.getByText('Signing in…')).toBeTruthy();
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('renders the signed-in email without profile fallback details', () => {
+    renderAccountControl({
+      status: 'signed-in',
+      email: 'leaf@example.com',
+      compact: true,
+      profile: 'local',
+    });
+
+    expect(screen.getByText('leaf@example.com')).toBeTruthy();
+    expect(screen.queryByText('LOCAL')).toBeNull();
+    expect(screen.queryByText('local')).toBeNull();
+  });
+
+  it('renders compact login errors with AMR-labeled text', () => {
+    renderAccountControl({
+      status: 'error',
+      compact: true,
+      errorMessage: 'command failed',
+      onSignIn: vi.fn(),
+    });
+
+    expect(screen.getByText('AMR sign-in failed.')).toBeTruthy();
+    expect(screen.queryByText('command failed')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy();
+  });
+});
+
 describe('AmrLoginPill', () => {
   it('renders a Sign-in button when /status reports loggedIn=false', async () => {
     globalThis.fetch = vi.fn(async (input) => {
       const url = typeof input === 'string' ? input : (input as URL).toString();
       if (url.endsWith('/api/integrations/vela/status')) {
         return jsonResponse({
-          body: { loggedIn: false, profile: 'local', user: null, configPath: '/x' },
+          body: { loggedIn: false, profile: 'prod', user: null, configPath: '/x' },
         });
       }
       throw new Error(`unexpected fetch: ${url}`);
@@ -64,6 +137,34 @@ describe('AmrLoginPill', () => {
     renderPill();
 
     expect(await screen.findByRole('button', { name: 'Sign in' })).toBeTruthy();
+    expect(screen.queryByText('TEST')).toBeNull();
+    expect(screen.queryByText('LOCAL')).toBeNull();
+  });
+
+  it('renders a TEST badge next to the signed-out action for the test profile', async () => {
+    globalThis.fetch = vi.fn(async () =>
+      jsonResponse({
+        body: { loggedIn: false, profile: 'test', user: null, configPath: '/x' },
+      }),
+    ) as typeof fetch;
+
+    renderPill();
+
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeTruthy();
+    expect(screen.getByText('TEST')).toBeTruthy();
+  });
+
+  it('renders a LOCAL badge next to the signed-out action for the local profile', async () => {
+    globalThis.fetch = vi.fn(async () =>
+      jsonResponse({
+        body: { loggedIn: false, profile: 'local', user: null, configPath: '/x' },
+      }),
+    ) as typeof fetch;
+
+    renderPill();
+
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeTruthy();
+    expect(screen.getByText('LOCAL')).toBeTruthy();
   });
 
   it('renders a "Signed in" pill (with the Sign-out aria-label) when /status reports a logged-in user', async () => {
@@ -86,7 +187,8 @@ describe('AmrLoginPill', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
     });
-    expect(screen.getByText('Signed in')).toBeTruthy();
+    expect(screen.getByText('leaf@example.com')).toBeTruthy();
+    expect(screen.getByText('LOCAL')).toBeTruthy();
   });
 
   it('stops click propagation so the Sign-in button never bubbles up to the agent-card-select sibling', async () => {
@@ -136,6 +238,37 @@ describe('AmrLoginPill', () => {
         ),
       ).toBe(true);
     });
+  });
+
+  it('shows an AMR error instead of staying in signing-in state when login fails immediately', async () => {
+    const fetchMock = vi.fn(async (input, init) => {
+      const url = typeof input === 'string' ? input : (input as URL).toString();
+      if (url.endsWith('/api/integrations/vela/status')) {
+        return jsonResponse({
+          body: { loggedIn: false, profile: 'prod', user: null, configPath: '/x' },
+        });
+      }
+      if (
+        url.endsWith('/api/integrations/vela/login') &&
+        init?.method === 'POST'
+      ) {
+        return jsonResponse({
+          status: 500,
+          body: { error: 'profile "prod" api URL: is not configured' },
+        });
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    renderPill();
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign in' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeTruthy();
+    });
+    expect(screen.getByText('AMR sign-in failed.')).toBeTruthy();
+    expect(screen.queryByText('Signing in…')).toBeNull();
   });
 
   it('logout POSTs /logout and flips the pill back to Sign-in', async () => {

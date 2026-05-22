@@ -128,6 +128,28 @@ function configuredExecutableOverride(
   }
 }
 
+function packagedBuiltInExecutable(def: RuntimeAgentDef): string | null {
+  if (def.id !== 'amr') return null;
+  const resourceRoot = process.env.OD_RESOURCE_ROOT?.trim();
+  if (!resourceRoot) return null;
+  const candidate = path.join(
+    resourceRoot,
+    'bin',
+    process.platform === 'win32' ? 'vela.exe' : 'vela',
+  );
+  try {
+    if (!statSync(candidate).isFile()) return null;
+    if (process.platform === 'win32') {
+      if (!looksExecutableOnWindows(candidate)) return null;
+    } else {
+      accessSync(candidate, constants.X_OK);
+    }
+    return candidate;
+  } catch {
+    return null;
+  }
+}
+
 export function resolveAgentExecutable(
   def: RuntimeAgentDef,
   configuredEnv: Record<string, string> = {},
@@ -163,9 +185,10 @@ export function inspectAgentExecutableResolution(
       break;
     }
   }
+  const builtInPath = packagedBuiltInExecutable(def);
   return {
     configuredOverridePath,
     pathResolvedPath,
-    selectedPath: configuredOverridePath || pathResolvedPath,
+    selectedPath: configuredOverridePath || builtInPath || pathResolvedPath,
   };
 }

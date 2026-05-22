@@ -1,4 +1,5 @@
 import { expandConfiguredEnv } from './paths.js';
+import { amrVelaProfileEnv } from '../integrations/vela-profile.js';
 
 type RuntimeEnvMap = NodeJS.ProcessEnv | Record<string, string>;
 
@@ -29,6 +30,9 @@ export function spawnEnvForAgent(
     ...baseEnv,
     ...expandConfiguredEnv(configuredEnv),
   };
+  if (agentId === 'amr') {
+    Object.assign(env, amrVelaProfileEnv(env));
+  }
   if (agentId !== 'claude') return env;
   const hasCustomBaseUrl = Object.keys(env).some(
     (k) =>

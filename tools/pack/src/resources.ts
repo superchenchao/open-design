@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { cp } from "node:fs/promises";
+import { chmod, cp, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -50,6 +50,9 @@ export const linuxResources = {
   desktopTemplate: join(resourcesRoot, "linux", "open-design.desktop.template"),
 } as const;
 
+export const VELA_CLI_BIN_ENV = "OPEN_DESIGN_VELA_CLI_BIN";
+type VelaCliPlatform = "linux" | "mac" | "win";
+
 const BUNDLED_RESOURCE_TREES = [
   { from: "skills", to: "skills" },
   // After the skills/design-templates split (specs/current/skills-and-design-templates.md)
@@ -78,4 +81,24 @@ export async function copyBundledResourceTrees({
       recursive: true,
     });
   }
+}
+
+export async function copyOptionalVelaCliBinary({
+  env = process.env,
+  platform,
+  resourceRoot,
+}: {
+  env?: NodeJS.ProcessEnv;
+  platform: VelaCliPlatform;
+  resourceRoot: string;
+}): Promise<{ source: string; target: string } | null> {
+  const source = env[VELA_CLI_BIN_ENV]?.trim();
+  if (!source) return null;
+  const target = join(resourceRoot, "bin", platform === "win" ? "vela.exe" : "vela");
+  await mkdir(dirname(target), { recursive: true });
+  await cp(source, target);
+  if (platform !== "win") {
+    await chmod(target, 0o755);
+  }
+  return { source, target };
 }
