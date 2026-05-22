@@ -70,7 +70,7 @@ describe('RecentProjectsStrip', () => {
 
     await waitFor(() => {
       expect(designSystemCard?.querySelector('.recent-projects__card-thumb-logo img')).toBeTruthy();
-      expect(container.querySelector('.recent-projects__card-thumb-html iframe')).toBeTruthy();
+      expect(container.querySelector('.recent-projects__card-thumb-html .recent-projects__thumb-iframe-stage iframe')).toBeTruthy();
     });
   });
 });

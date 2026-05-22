@@ -113,9 +113,24 @@
   height: 56%;
   object-fit: contain;
 }
+.recent-projects__thumb-iframe-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #fff;
+}
 .recent-projects__thumb-iframe {
   pointer-events: none;
   background: #fff;
+}
+.recent-projects__thumb-iframe-stage .recent-projects__thumb-iframe {
+  inset: auto;
+  top: 0;
+  left: 0;
+  width: 500%;
+  height: 500%;
+  transform: scale(0.2);
+  transform-origin: 0 0;
 }
 .recent-projects__card-glyph {
   font-family: var(--serif);

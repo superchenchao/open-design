@@ -30,6 +30,7 @@ import type {
 import { EntryShell } from './EntryShell';
 import type { IntegrationTab } from './IntegrationsView';
 import type { CreateInput } from './NewProjectPanel';
+import type { SettingsSection } from './SettingsDialog';
 import {
   fetchConnectors,
   fetchConnectorStatuses,
@@ -113,7 +114,7 @@ interface Props {
   onOpenDesignSystem?: (id: string) => void;
   onDesignSystemsRefresh?: () => Promise<void> | void;
   onPersistComposioKey: (composio: AppConfig['composio']) => Promise<void> | void;
-  onOpenSettings: (section?: 'execution' | 'media' | 'composio' | 'orbit' | 'integrations' | 'mcpClient' | 'language' | 'appearance' | 'notifications' | 'pet' | 'library' | 'about' | 'memory' | 'designSystems') => void;
+  onOpenSettings: (section?: SettingsSection) => void;
   onCompleteOnboarding: () => void;
 }
 

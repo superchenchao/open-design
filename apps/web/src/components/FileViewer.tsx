@@ -33,6 +33,7 @@ import {
   fetchProjectDeployments,
   fetchProjectFilePreview,
   fetchProjectFileText,
+  openExternalUrl,
   uploadProjectFiles,
   liveArtifactPreviewUrl,
   projectFileUrl,
@@ -82,6 +83,14 @@ import type {
 } from '../types';
 import { Icon } from './Icon';
 import { Toast } from './Toast';
+import {
+  SOCIAL_SHARE_TARGETS,
+  buildArtifactSocialShareCaption,
+  buildArtifactSocialShareText,
+  buildArtifactSocialShareTitle,
+  buildSocialShareUrl,
+  isLikelyPublicShareUrl,
+} from '../lib/social-share';
 import { PaletteTweaks, type PaletteId } from './PaletteTweaks';
 import { PreviewDrawOverlay, type PreviewDrawMode } from './PreviewDrawOverlay';
 import {
@@ -162,6 +171,8 @@ type DeployResultCard = {
   status: string;
   message?: string;
 };
+type ShareMenuTab = 'export' | 'publish';
+type DeployModalPurpose = 'deploy' | 'social-share';
 const MAX_BRIDGE_COORDINATE = 1_000_000;
 const PREVIEW_VIEWPORT_PRESETS: PreviewViewportPreset[] = [
   {
@@ -3558,6 +3569,7 @@ function HtmlViewer({
   const zoomMenuRef = useRef<HTMLDivElement | null>(null);
   const [presentMenuOpen, setPresentMenuOpen] = useState(false);
   const [shareMenuOpen, setShareMenuOpen] = useState(false);
+  const [shareMenuTab, setShareMenuTab] = useState<ShareMenuTab>('export');
   const [exportReadyNudge, setExportReadyNudge] = useState(false);
   const exportReadyNudgeSeenRef = useRef<Set<string>>(new Set());
   // Template save UX. We surface a transient "Saved" pill in the share
@@ -3571,6 +3583,7 @@ function HtmlViewer({
   const [deployment, setDeployment] = useState<WebDeploymentInfo | null>(null);
   const [deploymentsByProvider, setDeploymentsByProvider] = useState<Partial<Record<WebDeployProviderId, WebDeploymentInfo>>>({});
   const [deployModalOpen, setDeployModalOpen] = useState(false);
+  const [deployModalPurpose, setDeployModalPurpose] = useState<DeployModalPurpose>('deploy');
   const [deployConfig, setDeployConfig] = useState<WebDeployConfigResponse | null>(null);
   const [deploying, setDeploying] = useState(false);
   const [deployPhase, setDeployPhase] = useState<'idle' | 'deploying' | 'preparing-link'>('idle');
@@ -3578,6 +3591,7 @@ function HtmlViewer({
   const [deployError, setDeployError] = useState<string | null>(null);
   const [deployResult, setDeployResult] = useState<WebDeployProjectFileResponse | null>(null);
   const [copiedDeployLink, setCopiedDeployLink] = useState<string | null>(null);
+  const [copiedSocialShare, setCopiedSocialShare] = useState<string | null>(null);
   const [deployProviderId, setDeployProviderId] = useState<WebDeployProviderId>(DEFAULT_DEPLOY_PROVIDER_ID);
   const [deployToken, setDeployToken] = useState('');
   const [teamId, setTeamId] = useState('');
@@ -5250,13 +5264,22 @@ function HtmlViewer({
     }
   }
 
-  async function openDeployModal(nextProviderId: WebDeployProviderId = deployProviderId) {
+  async function openDeployModal(
+    nextProviderId: WebDeployProviderId = deployProviderId,
+    purpose: DeployModalPurpose = 'deploy',
+  ) {
     setShareMenuOpen(false);
+    setDeployModalPurpose(purpose);
     setDeployModalOpen(true);
     setDeployError(null);
     setCopiedDeployLink(null);
     setDeployPhase('idle');
     await loadDeployProvider(nextProviderId, { fallbackToExisting: true });
+  }
+
+  function closeDeployModal() {
+    setDeployModalOpen(false);
+    setDeployModalPurpose('deploy');
   }
 
   async function changeDeployProvider(nextProviderId: WebDeployProviderId) {
@@ -5404,6 +5427,20 @@ function HtmlViewer({
     }, 1800);
   }
 
+  async function copySocialShareText(key: string, text: string) {
+    const copied = await copyTextToClipboard(text);
+    if (!copied) return;
+    setCopiedSocialShare(key);
+    window.setTimeout(() => {
+      setCopiedSocialShare((current) => (current === key ? null : current));
+    }, 1800);
+  }
+
+  function openSocialShareLink(url: string) {
+    setShareMenuOpen(false);
+    void openExternalUrl(url);
+  }
+
   function presentInThisTab() {
     setPresentMenuOpen(false);
     setInTabPresent(true);
@@ -5505,7 +5542,11 @@ function HtmlViewer({
     fireArtifactHeaderClick('share_dropdown');
     setExportReadyNudge(false);
     markExportReadyNudgeSeen(projectId, file.name);
-    setShareMenuOpen((v) => !v);
+    setShareMenuOpen((v) => {
+      const next = !v;
+      if (next) setShareMenuTab('export');
+      return next;
+    });
   };
   const visibleSideComments = useMemo(
     () => previewComments
@@ -5585,11 +5626,25 @@ function HtmlViewer({
       ? t('fileViewer.redeployToProvider', { provider: label })
       : t('fileViewer.deployToProvider', { provider: label });
   };
-  const deployCopyLinks = DEPLOY_PROVIDER_OPTIONS.map((option) => ({
-    providerId: option.id,
-    providerLabel: t(option.labelKey),
-    url: deploymentsByProvider[option.id]?.url?.trim() || '',
-  })).filter((item) => item.url);
+  const deployCopyLinks = DEPLOY_PROVIDER_OPTIONS.map((option) => {
+    const providerDeployment = deploymentsByProvider[option.id];
+    return {
+      providerId: option.id,
+      providerLabel: t(option.labelKey),
+      status: providerDeployment?.status,
+      url: providerDeployment?.url?.trim() || '',
+    };
+  }).filter((item) => item.url);
+  const socialShareUrl =
+    deployResultCards.find((card) => deployResultState(card.status) === 'ready' && isLikelyPublicShareUrl(card.url))?.url ||
+    deployCopyLinks.find((item) => deployResultState(item.status) === 'ready' && isLikelyPublicShareUrl(item.url))?.url ||
+    '';
+  const socialShareTitle = buildArtifactSocialShareTitle(file.name);
+  const socialShareText = buildArtifactSocialShareText({ title: socialShareTitle });
+  const socialShareCaption = buildArtifactSocialShareCaption({
+    title: socialShareTitle,
+    url: socialShareUrl || undefined,
+  });
   const deployButtonLabel =
     deployPhase === 'deploying'
       ? t('fileViewer.deployingToProvider', { provider: deployProviderLabel })
@@ -6027,185 +6082,216 @@ function HtmlViewer({
               </button>
               {shareMenuOpen ? (
                 <div className="share-menu-popover" role="menu">
-                  <button
-                    type="button"
-                    className="share-menu-item"
-                    role="menuitem"
-                    onClick={() => {
-                      setShareMenuOpen(false);
-                      fireShareExport('pdf', () => exportProjectAsPdf({
-                        deck: effectiveDeck,
-                        fallbackPdf: () => exportAsPdf(source ?? '', exportTitle, { deck: effectiveDeck }),
-                        filePath: file.name,
-                        projectId,
-                        title: exportTitle,
-                      }));
-                    }}
-                  >
-                    <span className="share-menu-icon"><Icon name="file" size={14} /></span>
-                    <span>
-                      {effectiveDeck
-                        ? t('fileViewer.exportPdfAllSlides')
-                        : t('fileViewer.exportPdf')}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="share-menu-item"
-                    role="menuitem"
-                    disabled={!canPptx}
-                    title={
-                      onExportAsPptx
-                        ? streaming
-                          ? t('fileViewer.exportPptxBusy')
-                          : t('fileViewer.exportPptxHint')
-                        : t('fileViewer.exportPptxNa')
-                    }
-                    onClick={() => {
-                      setShareMenuOpen(false);
-                      fireShareExport('pptx', () => {
-                        if (onExportAsPptx) onExportAsPptx(file.name);
-                      });
-                    }}
-                  >
-                    <span className="share-menu-icon"><Icon name="present" size={14} /></span>
-                    <span>{t('fileViewer.exportPptx') + '…'}</span>
-                  </button>
-                  <div className="share-menu-divider" />
-                  <button
-                    type="button"
-                    className="share-menu-item"
-                    role="menuitem"
-                    onClick={() => {
-                      setShareMenuOpen(false);
-                      fireShareExport('zip', () => exportProjectAsZip({
-                        projectId,
-                        filePath: file.name,
-                        fallbackHtml: source ?? '',
-                        fallbackTitle: exportTitle,
-                      }));
-                    }}
-                  >
-                    <span className="share-menu-icon"><Icon name="download" size={14} /></span>
-                    <span>{t('fileViewer.exportZip')}</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="share-menu-item"
-                    role="menuitem"
-                    onClick={() => {
-                      setShareMenuOpen(false);
-                      fireShareExport('html', () => exportAsHtml(source ?? '', exportTitle));
-                    }}
-                  >
-                    <span className="share-menu-icon"><Icon name="file-code" size={14} /></span>
-                    <span>{t('fileViewer.exportHtml')}</span>
-                  </button>
-                  {/* Export as Markdown — pass-through download of the
-                      artifact source with a `.md` extension. No conversion
-                      runs; the file body is identical to the Source view.
-                      Useful for piping the artifact into markdown-aware
-                      tooling (LLM context windows, vault apps). See
-                      issue #279. */}
-                  <button
-                    type="button"
-                    className="share-menu-item"
-                    role="menuitem"
-                    onClick={() => {
-                      setShareMenuOpen(false);
-                      fireShareExport('markdown', () => exportAsMd(source ?? '', exportTitle));
-                    }}
-                  >
-                    <span className="share-menu-icon"><Icon name="file" size={14} /></span>
-                    <span>{t('fileViewer.exportMd')}</span>
-                  </button>
-                  {!useUrlLoadPreview ? (
+                  <div className="share-menu-tabs" role="tablist" aria-label="Share menu sections">
                     <button
                       type="button"
-                      className="share-menu-item"
-                      role="menuitem"
-                      onClick={async () => {
-                        setShareMenuOpen(false);
-                        const iframe = iframeRef.current;
-                        if (!iframe) return;
-                        const snap = await requestPreviewSnapshot(iframe);
-                        try {
-                          if (snap) {
-                            exportAsImage(snap.dataUrl, exportTitle);
-                          } else {
-                            console.warn('[exportAsImage] snapshot capture returned null');
-                            alert(t('fileViewer.exportImageFailed'));
-                          }
-                        } catch (err) {
-                          console.warn('[exportAsImage] failed to convert snapshot:', err);
-                          alert(t('fileViewer.exportImageFailed'));
+                      className={`share-menu-tab${shareMenuTab === 'export' ? ' active' : ''}`}
+                      role="tab"
+                      aria-selected={shareMenuTab === 'export'}
+                      onClick={() => setShareMenuTab('export')}
+                    >
+                      Export
+                    </button>
+                    <button
+                      type="button"
+                      className={`share-menu-tab${shareMenuTab === 'publish' ? ' active' : ''}`}
+                      role="tab"
+                      aria-selected={shareMenuTab === 'publish'}
+                      onClick={() => setShareMenuTab('publish')}
+                    >
+                      Publish
+                    </button>
+                  </div>
+                  {shareMenuTab === 'export' ? (
+                    <div className="share-menu-panel" role="tabpanel">
+                      <button
+                        type="button"
+                        className="share-menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          setShareMenuOpen(false);
+                          fireShareExport('pdf', () => exportProjectAsPdf({
+                            deck: effectiveDeck,
+                            fallbackPdf: () => exportAsPdf(source ?? '', exportTitle, { deck: effectiveDeck }),
+                            filePath: file.name,
+                            projectId,
+                            title: exportTitle,
+                          }));
+                        }}
+                      >
+                        <span className="share-menu-icon"><Icon name="file" size={14} /></span>
+                        <span>
+                          {effectiveDeck
+                            ? t('fileViewer.exportPdfAllSlides')
+                            : t('fileViewer.exportPdf')}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className="share-menu-item"
+                        role="menuitem"
+                        disabled={!canPptx}
+                        title={
+                          onExportAsPptx
+                            ? streaming
+                              ? t('fileViewer.exportPptxBusy')
+                              : t('fileViewer.exportPptxHint')
+                            : t('fileViewer.exportPptxNa')
                         }
-                      }}
-                    >
-                      <span className="share-menu-icon"><Icon name="image" size={14} /></span>
-                      <span>{t('fileViewer.exportImage')}</span>
-                    </button>
-                  ) : null}
-                  <div className="share-menu-divider" />
-                  <button
-                    type="button"
-                    className="share-menu-item"
-                    role="menuitem"
-                    disabled={savingTemplate}
-                    onClick={() => {
-                      fireShareExport('template', () => {
-                        openSaveAsTemplateModal();
-                      });
-                    }}
-                  >
-                    <span className="share-menu-icon"><Icon name="copy" size={14} /></span>
-                    <span>
-                      {savingTemplate
-                        ? t('fileViewer.savingTemplate')
-                        : templateNote
-                          ? templateNote
-                          : t('fileViewer.saveAsTemplate')}
-                    </span>
-                  </button>
-                  <div className="share-menu-divider" />
-                  {DEPLOY_PROVIDER_OPTIONS.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      className="share-menu-item"
-                      role="menuitem"
-                      onClick={() => {
-                        const format =
-                          option.id === 'cloudflare-pages'
-                            ? 'cloudflare_pages'
-                            : option.id === 'vercel-self'
-                              ? 'vercel'
-                              : 'vercel';
-                        fireShareExport(format, () => openDeployModal(option.id));
-                      }}
-                    >
-                      <span className="share-menu-icon"><Icon name="upload" size={14} /></span>
-                      <span>{deployActionLabelFor(option.id)}</span>
-                    </button>
-                  ))}
-                  {deployCopyLinks.length > 0 ? (
-                    <div className="share-menu-divider" />
-                  ) : null}
-                  {deployCopyLinks.map((item) => (
-                    <button
-                      key={`copy-${item.providerId}`}
-                      type="button"
-                      className="share-menu-item"
-                      role="menuitem"
-                      onClick={() => {
-                        setShareMenuOpen(false);
-                        void copyDeployLink(item.url);
-                      }}
-                    >
-                      <span className="share-menu-icon"><Icon name="copy" size={14} /></span>
-                      <span>{copyDeployMenuLabel(item.providerLabel, item.url)}</span>
-                    </button>
-                  ))}
+                        onClick={() => {
+                          setShareMenuOpen(false);
+                          fireShareExport('pptx', () => {
+                            if (onExportAsPptx) onExportAsPptx(file.name);
+                          });
+                        }}
+                      >
+                        <span className="share-menu-icon"><Icon name="present" size={14} /></span>
+                        <span>{t('fileViewer.exportPptx') + '…'}</span>
+                      </button>
+                      <div className="share-menu-divider" />
+                      <button
+                        type="button"
+                        className="share-menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          setShareMenuOpen(false);
+                          fireShareExport('zip', () => exportProjectAsZip({
+                            projectId,
+                            filePath: file.name,
+                            fallbackHtml: source ?? '',
+                            fallbackTitle: exportTitle,
+                          }));
+                        }}
+                      >
+                        <span className="share-menu-icon"><Icon name="download" size={14} /></span>
+                        <span>{t('fileViewer.exportZip')}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="share-menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          setShareMenuOpen(false);
+                          fireShareExport('html', () => exportAsHtml(source ?? '', exportTitle));
+                        }}
+                      >
+                        <span className="share-menu-icon"><Icon name="file-code" size={14} /></span>
+                        <span>{t('fileViewer.exportHtml')}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="share-menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          setShareMenuOpen(false);
+                          fireShareExport('markdown', () => exportAsMd(source ?? '', exportTitle));
+                        }}
+                      >
+                        <span className="share-menu-icon"><Icon name="file" size={14} /></span>
+                        <span>{t('fileViewer.exportMd')}</span>
+                      </button>
+                      {!useUrlLoadPreview ? (
+                        <button
+                          type="button"
+                          className="share-menu-item"
+                          role="menuitem"
+                          onClick={async () => {
+                            setShareMenuOpen(false);
+                            const iframe = iframeRef.current;
+                            if (!iframe) return;
+                            const snap = await requestPreviewSnapshot(iframe);
+                            try {
+                              if (snap) {
+                                exportAsImage(snap.dataUrl, exportTitle);
+                              } else {
+                                console.warn('[exportAsImage] snapshot capture returned null');
+                                alert(t('fileViewer.exportImageFailed'));
+                              }
+                            } catch (err) {
+                              console.warn('[exportAsImage] failed to convert snapshot:', err);
+                              alert(t('fileViewer.exportImageFailed'));
+                            }
+                          }}
+                        >
+                          <span className="share-menu-icon"><Icon name="image" size={14} /></span>
+                          <span>{t('fileViewer.exportImage')}</span>
+                        </button>
+                      ) : null}
+                      <div className="share-menu-divider" />
+                      <button
+                        type="button"
+                        className="share-menu-item"
+                        role="menuitem"
+                        disabled={savingTemplate}
+                        onClick={() => {
+                          fireShareExport('template', () => {
+                            openSaveAsTemplateModal();
+                          });
+                        }}
+                      >
+                        <span className="share-menu-icon"><Icon name="copy" size={14} /></span>
+                        <span>
+                          {savingTemplate
+                            ? t('fileViewer.savingTemplate')
+                            : templateNote
+                              ? templateNote
+                              : t('fileViewer.saveAsTemplate')}
+                        </span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="share-menu-panel" role="tabpanel">
+                      {DEPLOY_PROVIDER_OPTIONS.map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          className="share-menu-item"
+                          role="menuitem"
+                          onClick={() => {
+                            const format =
+                              option.id === 'cloudflare-pages'
+                                ? 'cloudflare_pages'
+                                : option.id === 'vercel-self'
+                                  ? 'vercel'
+                                  : 'vercel';
+                            fireShareExport(format, () => openDeployModal(option.id));
+                          }}
+                        >
+                          <span className="share-menu-icon"><Icon name="upload" size={14} /></span>
+                          <span>{deployActionLabelFor(option.id)}</span>
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className="share-menu-item"
+                        role="menuitem"
+                        onClick={() => {
+                          void openDeployModal(deployProviderId, 'social-share');
+                        }}
+                      >
+                        <span className="share-menu-icon"><Icon name="share" size={14} /></span>
+                        <span>Social share...</span>
+                      </button>
+                      {deployCopyLinks.length > 0 ? (
+                        <div className="share-menu-divider" />
+                      ) : null}
+                      {deployCopyLinks.map((item) => (
+                        <button
+                          key={`copy-${item.providerId}`}
+                          type="button"
+                          className="share-menu-item"
+                          role="menuitem"
+                          onClick={() => {
+                            setShareMenuOpen(false);
+                            void copyDeployLink(item.url);
+                          }}
+                        >
+                          <span className="share-menu-icon"><Icon name="copy" size={14} /></span>
+                          <span>{copyDeployMenuLabel(item.providerLabel, item.url)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ) : null}
             </div>
@@ -6657,9 +6743,19 @@ function HtmlViewer({
         <div className="modal-backdrop" role="presentation">
           <div className="modal deploy-modal deploy-flow-modal" role="dialog" aria-modal="true">
             <div className="modal-head">
-              <div className="kicker">{deployProviderLabel}</div>
-              <h2>{t('fileViewer.deployToProvider', { provider: deployProviderLabel })}</h2>
-              <p className="subtitle">{t('fileViewer.deployModalSubtitle')}</p>
+              <div className="kicker">
+                {deployModalPurpose === 'social-share' ? 'SOCIAL SHARE' : deployProviderLabel}
+              </div>
+              <h2>
+                {deployModalPurpose === 'social-share'
+                  ? 'Share this HTML'
+                  : t('fileViewer.deployToProvider', { provider: deployProviderLabel })}
+              </h2>
+              <p className="subtitle">
+                {deployModalPurpose === 'social-share'
+                  ? 'Create or reuse a public deployment link, then share it across social platforms.'
+                  : t('fileViewer.deployModalSubtitle')}
+              </p>
             </div>
             <div className="deploy-form">
               <label className="deploy-provider-field">
@@ -6883,12 +6979,76 @@ function HtmlViewer({
                   </div>
                 </div>
               ) : null}
+              {deployModalPurpose === 'social-share' ? (
+                <div className="social-share-flow">
+                  <div className="social-share-step">
+                    <div className="social-share-step-index">Step 1</div>
+                    <div>
+                      <h3>Publish a public link</h3>
+                      <p>
+                        Use the same Vercel or Cloudflare Pages deploy flow so every social share points at a reachable URL.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="social-share-step">
+                    <div className="social-share-step-index">Step 2</div>
+                    <div>
+                      <h3>Share the deployed page</h3>
+                      {socialShareUrl ? (
+                        <p className="social-share-url">{socialShareUrl}</p>
+                      ) : (
+                        <p>Deploy first to unlock 小红书 copy and social platform share actions.</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="social-share-actions">
+                    <button
+                      type="button"
+                      className="viewer-action"
+                      disabled={!socialShareUrl}
+                      onClick={() => {
+                        void copySocialShareText('rednote', socialShareCaption);
+                      }}
+                    >
+                      <Icon name={copiedSocialShare === 'rednote' ? 'check' : 'copy'} size={14} />
+                      <span>
+                        {copiedSocialShare === 'rednote'
+                          ? t('fileViewer.copied')
+                          : 'Copy 小红书 caption'}
+                      </span>
+                    </button>
+                    {SOCIAL_SHARE_TARGETS.map((target) => {
+                      const url = socialShareUrl
+                        ? buildSocialShareUrl(target.id, {
+                            title: socialShareTitle,
+                            text: socialShareText,
+                            url: socialShareUrl,
+                          })
+                        : '';
+                      return (
+                        <button
+                          key={target.id}
+                          type="button"
+                          className="viewer-action"
+                          disabled={!url}
+                          onClick={() => {
+                            if (url) openSocialShareLink(url);
+                          }}
+                        >
+                          <Icon name="external-link" size={14} />
+                          <span>{target.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
             </div>
             <div className="modal-foot">
               <button
                 type="button"
                 className="ghost-link button-like"
-                onClick={() => setDeployModalOpen(false)}
+                onClick={closeDeployModal}
               >
                 {t('common.cancel')}
               </button>

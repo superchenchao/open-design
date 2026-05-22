@@ -91,7 +91,9 @@ export function DesignSystemsSection({ cfg, setCfg }: Props) {
   useEffect(() => {
     if (!highlightedDesignSystemId) return;
     const raf = window.requestAnimationFrame(() => {
-      cardRefs.current.get(highlightedDesignSystemId)?.scrollIntoView({
+      const card = cardRefs.current.get(highlightedDesignSystemId);
+      if (!card?.scrollIntoView) return;
+      card.scrollIntoView({
         behavior: 'smooth',
         block: 'center',
       });

@@ -170,14 +170,16 @@ export function RecentProjectsStrip({
                     playsInline
                   />
                 ) : cover.kind === 'html' && cover.src ? (
-                  <iframe
-                    className="recent-projects__thumb-iframe"
-                    src={cover.src}
-                    title=""
-                    loading="lazy"
-                    sandbox="allow-scripts"
-                    tabIndex={-1}
-                  />
+                  <div className="recent-projects__thumb-iframe-stage">
+                    <iframe
+                      className="recent-projects__thumb-iframe"
+                      src={cover.src}
+                      title=""
+                      loading="lazy"
+                      sandbox="allow-scripts"
+                      tabIndex={-1}
+                    />
+                  </div>
                 ) : (
                   <span className="recent-projects__card-glyph">{cover.initial}</span>
                 )}

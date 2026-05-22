@@ -3539,7 +3539,11 @@ export function ProjectView({
         backLabel={t('project.backToProjects')}
         actions={(
           <>
-            <HandoffButton projectId={project.id} />
+            <HandoffButton
+              projectId={project.id}
+              projectName={project.name}
+              projectDir={projectDetail.resolvedDir}
+            />
             <AvatarMenu
               config={config}
               agents={agents}

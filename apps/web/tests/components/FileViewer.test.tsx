@@ -683,6 +683,7 @@ describe('FileViewer SVG artifacts', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /share/i }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Publish' }));
 
     expect(screen.getByRole('menuitem', { name: /Deploy to Vercel/i })).toBeTruthy();
     fireEvent.click(screen.getByRole('menuitem', { name: /Deploy to Cloudflare Pages/i }));
@@ -859,6 +860,7 @@ describe('FileViewer SVG artifacts', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /share/i }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Publish' }));
     fireEvent.click(await screen.findByRole('menuitem', { name: /Deploy to Cloudflare Pages/i }));
 
     const providerSelect = await screen.findByRole('combobox', { name: /Provider/i });
@@ -921,6 +923,7 @@ describe('FileViewer SVG artifacts', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /share/i }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Publish' }));
     fireEvent.click(await screen.findByRole('menuitem', { name: /Deploy to Cloudflare Pages/i }));
 
     const providerSelect = await screen.findByRole('combobox', { name: /Provider/i });
@@ -1047,6 +1050,7 @@ describe('FileViewer SVG artifacts', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /share/i }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Publish' }));
     fireEvent.click(await screen.findByRole('menuitem', { name: /Deploy to Cloudflare Pages/i }));
 
     const zoneSelect = await screen.findByRole('combobox', { name: /Domain/i });
@@ -1138,6 +1142,7 @@ describe('FileViewer SVG artifacts', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /share/i }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Publish' }));
 
     expect(await screen.findByRole('menuitem', { name: /Copy link · Vercel/i })).toBeTruthy();
     const cloudflareCopy = await screen.findByRole('menuitem', { name: /Copy link · Cloudflare Pages/i });
@@ -1185,9 +1190,129 @@ describe('FileViewer SVG artifacts', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /share/i }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Publish' }));
 
     expect(await screen.findByRole('menuitem', { name: /Copy link · Cloudflare Pages/i })).toBeTruthy();
     expect(screen.queryByRole('menuitem', { name: /Copy link · Vercel/i })).toBeNull();
+  });
+
+  it('moves social sharing into the publish tab deployment flow', async () => {
+    const file = baseFile({
+      name: 'campaign.html',
+      path: 'campaign.html',
+      mime: 'text/html',
+      kind: 'html',
+      artifactManifest: {
+        version: 1,
+        kind: 'html',
+        title: 'Campaign',
+        entry: 'campaign.html',
+        renderer: 'html',
+        exports: ['html'],
+      },
+    });
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+      if (url === '/api/projects/project-1/deployments') {
+        return new Response(JSON.stringify({
+          deployments: [
+            {
+              id: 'vercel-deploy',
+              projectId: 'project-1',
+              fileName: 'campaign.html',
+              providerId: 'vercel-self',
+              url: 'https://campaign.vercel.app',
+              deploymentCount: 1,
+              target: 'preview',
+              status: 'ready',
+              createdAt: 1,
+              updatedAt: 2,
+            },
+          ],
+        }), { status: 200 });
+      }
+      if (url === '/api/deploy/config?providerId=vercel-self') {
+        return new Response(JSON.stringify({
+          providerId: 'vercel-self',
+          configured: true,
+          tokenMask: 'tok_****',
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({}), { status: 404 });
+    }));
+
+    render(
+      <FileViewer projectId="project-1" projectKind="prototype" file={file}
+        liveHtml="<html><body><h1>Campaign</h1></body></html>"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /share/i }));
+    expect(screen.getByRole('tab', { name: 'Export' })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: /Copy React prompt/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Publish' }));
+    expect(screen.getByRole('menuitem', { name: /Deploy to Vercel/i })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /Social share/i })).toBeTruthy();
+    expect(screen.queryByRole('menuitem', { name: /Copy React prompt/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole('menuitem', { name: /Social share/i }));
+
+    expect(await screen.findByRole('dialog')).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Share this HTML' })).toBeTruthy();
+    expect(screen.getAllByText('https://campaign.vercel.app').length).toBeGreaterThan(0);
+    const xShare = screen.getByRole('button', { name: /X \/ Twitter/i }) as HTMLButtonElement;
+    const facebookShare = screen.getByRole('button', { name: /Facebook/i }) as HTMLButtonElement;
+    expect(screen.getByRole('button', { name: /Copy 小红书 caption/i })).toBeTruthy();
+    expect(xShare.disabled).toBe(false);
+    expect(facebookShare.disabled).toBe(false);
+  });
+
+  it('keeps social share modal actions disabled until html has a public deployment link', async () => {
+    const file = baseFile({
+      name: 'local.html',
+      path: 'local.html',
+      mime: 'text/html',
+      kind: 'html',
+      artifactManifest: {
+        version: 1,
+        kind: 'html',
+        title: 'Local',
+        entry: 'local.html',
+        renderer: 'html',
+        exports: ['html'],
+      },
+    });
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+      if (url === '/api/projects/project-1/deployments') {
+        return new Response(JSON.stringify({ deployments: [] }), { status: 200 });
+      }
+      if (url === '/api/deploy/config?providerId=vercel-self') {
+        return new Response(JSON.stringify({
+          providerId: 'vercel-self',
+          configured: false,
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({}), { status: 404 });
+    }));
+
+    render(
+      <FileViewer projectId="project-1" projectKind="prototype" file={file}
+        liveHtml="<html><body><h1>Local</h1></body></html>"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /share/i }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Publish' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /Social share/i }));
+
+    expect(await screen.findByRole('dialog')).toBeTruthy();
+    expect(screen.getByText(/Deploy first to unlock/i)).toBeTruthy();
+    const xShare = screen.getByRole('button', { name: /X \/ Twitter/i }) as HTMLButtonElement;
+    const rednote = screen.getByRole('button', { name: /Copy 小红书 caption/i }) as HTMLButtonElement;
+    expect(xShare.disabled).toBe(true);
+    expect(rednote.disabled).toBe(true);
   });
 
   it('renders unsafe SVG source as escaped text instead of executable markup', () => {
