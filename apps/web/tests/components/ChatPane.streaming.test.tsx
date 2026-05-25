@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { forwardRef } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -190,6 +190,70 @@ Expected output:
     expect(container.querySelector('.todo-in_progress')).toBeNull();
     expect(container.querySelector('.op-todo-current')).toBeNull();
   });
+  it('shows several queued prompts above the composer before collapsing overflow', () => {
+    const onRemoveQueuedSend = vi.fn();
+    const onSendQueuedNow = vi.fn();
+    const onUpdateQueuedSend = vi.fn();
+    const { container } = render(
+      <ChatPane
+        messages={[]}
+        streaming
+        error={null}
+        projectId="project-1"
+        projectFiles={[]}
+        queuedItems={[
+          { id: 'queued-1', prompt: 'Make the export button larger and use a warmer accent' },
+          { id: 'queued-2', prompt: 'Then adjust the title spacing' },
+          { id: 'queued-3', prompt: 'Reduce the subtitle size' },
+          { id: 'queued-4', prompt: 'Switch to a lighter font weight' },
+          { id: 'queued-5', prompt: 'Add hover polish' },
+        ]}
+        onRemoveQueuedSend={onRemoveQueuedSend}
+        onSendQueuedNow={onSendQueuedNow}
+        onUpdateQueuedSend={onUpdateQueuedSend}
+        onEnsureProject={async () => 'project-1'}
+        onSend={vi.fn()}
+        onStop={vi.fn()}
+        conversations={conversations}
+        activeConversationId="conv-1"
+        onSelectConversation={vi.fn()}
+        onDeleteConversation={vi.fn()}
+        projectMetadata={projectMetadata}
+      />,
+    );
+
+    const strip = container.querySelector('.chat-queued-send-strip');
+    expect(strip).not.toBeNull();
+    expect(strip?.textContent).toContain('5 Queued');
+    expect(strip?.textContent).not.toContain('Start Multitasking');
+    expect(container.querySelectorAll('.chat-queued-send-row')).toHaveLength(4);
+    expect(strip?.textContent).toContain('Make the export button larger and use a warmer accent');
+    expect(strip?.textContent).toContain('Then adjust the title spacing');
+    expect(strip?.textContent).toContain('Reduce the subtitle size');
+    expect(strip?.textContent).toContain('Switch to a lighter font weight');
+    expect(strip?.textContent).toContain('+1');
+    expect(container.querySelector('.chat-queued-send-overflow')?.textContent).toContain('+1');
+    expect(strip?.textContent).not.toContain('Add hover polish');
+
+    const sendNowButtons = screen.getAllByRole('button', { name: 'chat.send' });
+    fireEvent.click(sendNowButtons[1]!);
+    expect(onSendQueuedNow).toHaveBeenCalledWith('queued-2');
+
+    const editButtons = screen.getAllByRole('button', { name: 'Edit' });
+    fireEvent.click(editButtons[0]!);
+    const editInput = screen.getByRole('textbox', { name: 'Edit queued task' });
+    expect((editInput as HTMLInputElement).value).toBe(
+      'Make the export button larger and use a warmer accent',
+    );
+    fireEvent.change(editInput, { target: { value: 'Use a bolder export button' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onUpdateQueuedSend).toHaveBeenCalledWith('queued-1', 'Use a bolder export button');
+
+    const removeButtons = screen.getAllByRole('button', { name: 'chat.comments.remove' });
+    fireEvent.click(removeButtons[1]!);
+    expect(onRemoveQueuedSend).toHaveBeenCalledWith('queued-2');
+  });
+
 });
 
 const conversations: Conversation[] = [

@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -195,6 +196,16 @@ interface Props {
   onTouchProject: () => void;
   onProjectChange: (next: Project) => void;
   onProjectsRefresh: () => void;
+}
+
+interface QueuedChatSend {
+  id: string;
+  conversationId: string;
+  prompt: string;
+  attachments: ChatAttachment[];
+  commentAttachments: ChatCommentAttachment[];
+  meta?: ChatSendMeta;
+  createdAt: number;
 }
 
 let liveArtifactEventSequence = 0;
@@ -509,6 +520,11 @@ export function ProjectView({
   const [liveArtifacts, setLiveArtifacts] = useState<LiveArtifactSummary[]>([]);
   const [liveArtifactEvents, setLiveArtifactEvents] = useState<LiveArtifactEventItem[]>([]);
   const [workspaceFocused, setWorkspaceFocused] = useState(false);
+  const [manualEditInspectorActive, setManualEditInspectorActive] = useState(false);
+  const [commentInspectorActive, setCommentInspectorActive] = useState(false);
+  const manualEditInspectorPortalId = useId();
+  const commentInspectorPortalId = useId();
+  const leftInspectorActive = manualEditInspectorActive || commentInspectorActive;
   // Per-session override for the BYOK SenseAudio chat's generate_image
   // tool. Seeded once from Settings (config.byokImageModel) so the
   // composer dropdown opens on the user's chosen default; subsequent
@@ -589,6 +605,8 @@ export function ProjectView({
   const abortRef = useRef<AbortController | null>(null);
   const cancelRef = useRef<AbortController | null>(null);
   const streamingConversationIdRef = useRef<string | null>(null);
+  const [queuedChatSends, setQueuedChatSends] = useState<QueuedChatSend[]>([]);
+  const queuedChatSendsRef = useRef<QueuedChatSend[]>([]);
   const sendTextBufferRef = useRef<BufferedTextUpdates | null>(null);
   const reattachTextBuffersRef = useRef<Set<BufferedTextUpdates>>(new Set());
   const reattachControllersRef = useRef<Map<string, AbortController>>(new Map());
@@ -634,6 +652,8 @@ export function ProjectView({
   useEffect(() => {
     setChatSeed(null);
     setAutoAuditRepairSeed(null);
+    queuedChatSendsRef.current = [];
+    setQueuedChatSends([]);
   }, [project.id]);
   // Monotonic token bumped on every `conversation-created` refresh dispatch.
   // Two rapid events (e.g. concurrent routine runs against the same reused
@@ -660,10 +680,17 @@ export function ProjectView({
   const currentConversationBusy = currentConversationLoading
     || currentConversationStreaming
     || currentConversationHasActiveRun;
+  const currentConversationAwaitingActiveRunAttach =
+    currentConversationHasActiveRun && !currentConversationStreaming;
   const currentConversationSendDisabled = currentConversationLoading
-    || currentConversationHasActiveRun
-    || failedMessagesConversationId === activeConversationId;
+    || failedMessagesConversationId === activeConversationId
+    || currentConversationAwaitingActiveRunAttach;
   const currentConversationActionDisabled = currentConversationBusy || currentConversationSendDisabled;
+  const currentConversationQueuedItems = activeConversationId
+    ? queuedChatSends
+        .filter((item) => item.conversationId === activeConversationId)
+        .map((item) => ({ id: item.id, prompt: item.prompt }))
+    : [];
   // Disabled during a resume too: an in-flight handoff synthesis ends in
   // its own createConversation, so a concurrent "New conversation" click
   // would spawn a second conversation behind the resumed one.
@@ -1994,17 +2021,57 @@ export function ProjectView({
     onProjectsRefresh,
   ]);
 
+  const enqueueChatSend = useCallback((item: QueuedChatSend) => {
+    const next = [...queuedChatSendsRef.current, item];
+    queuedChatSendsRef.current = next;
+    setQueuedChatSends(next);
+  }, []);
+
+  const removeQueuedChatSend = useCallback((id: string) => {
+    const next = queuedChatSendsRef.current.filter((item) => item.id !== id);
+    queuedChatSendsRef.current = next;
+    setQueuedChatSends(next);
+  }, []);
+
+  const updateQueuedChatSend = useCallback((id: string, prompt: string) => {
+    const next = queuedChatSendsRef.current.map((item) =>
+      item.id === id ? { ...item, prompt } : item,
+    );
+    queuedChatSendsRef.current = next;
+    setQueuedChatSends(next);
+  }, []);
+
   const handleSend = useCallback(
     async (
       prompt: string,
       attachments: ChatAttachment[],
       commentAttachments: ChatCommentAttachment[] = commentsToAttachments(attachedComments),
       meta?: ChatSendMeta,
+      baseMessages?: ChatMessage[],
+      options?: { bypassQueue?: boolean },
     ) => {
+      const historyBase = baseMessages ?? messages;
       if (!activeConversationId) return;
       if (messagesConversationIdRef.current !== activeConversationId) return;
-      if (currentConversationBusy) return;
       if (!prompt.trim() && attachments.length === 0 && commentAttachments.length === 0) return;
+      if (currentConversationBusy && !options?.bypassQueue) {
+        enqueueChatSend({
+          id: randomUUID(),
+          conversationId: activeConversationId,
+          prompt,
+          attachments,
+          commentAttachments,
+          ...(meta === undefined ? {} : { meta }),
+          createdAt: Date.now(),
+        });
+        if (commentAttachments.length > 0) {
+          const reservedCommentIds = new Set(commentAttachments.map((attachment) => attachment.id));
+          setAttachedComments((current) =>
+            current.filter((comment) => !reservedCommentIds.has(comment.id)),
+          );
+        }
+        return;
+      }
       setChatSeed(null);
       const runConversationId = activeConversationId;
       setError(null);
@@ -2076,7 +2143,7 @@ export function ProjectView({
         );
       };
       activeCompletionNotificationRunsRef.current.add(assistantId);
-      const nextHistory = [...messages, userMsg];
+      const nextHistory = [...historyBase, userMsg];
       setMessages([...nextHistory, assistantMsg]);
       markStreamingConversation(runConversationId);
       updateConversationLatestRun(config.mode === 'daemon' ? 'running' : 'queued');
@@ -2093,12 +2160,15 @@ export function ProjectView({
       persistMessage(assistantMsg);
       if (commentAttachments.length > 0) {
         void patchAttachedStatuses(commentAttachments, 'applying');
-        setAttachedComments([]);
+        const consumedCommentIds = new Set(commentAttachments.map((attachment) => attachment.id));
+        setAttachedComments((current) =>
+          current.filter((comment) => !consumedCommentIds.has(comment.id)),
+        );
       }
       // If this is the first turn, derive a working title from the prompt
       // so the conversation is identifiable in the dropdown without a
       // round-trip through the agent.
-      if (messages.length === 0) {
+      if (historyBase.length === 0) {
         const title = isDesignSystemWorkspacePrompt(prompt)
           ? DESIGN_SYSTEM_WORKSPACE_DISPLAY_TITLE
           : prompt.slice(0, 60).trim();
@@ -2559,6 +2629,7 @@ export function ProjectView({
       attachedComments,
       activeConversationId,
       currentConversationBusy,
+      enqueueChatSend,
       messages,
       config,
       locale,
@@ -2583,6 +2654,43 @@ export function ProjectView({
       onProjectChange,
     ],
   );
+
+  const sendQueuedChatSendNow = useCallback((id: string) => {
+    const item = queuedChatSendsRef.current.find((candidate) => candidate.id === id);
+    if (!item) return;
+    removeQueuedChatSend(id);
+    void handleSend(
+      item.prompt,
+      item.attachments,
+      item.commentAttachments,
+      item.meta,
+      undefined,
+      { bypassQueue: true },
+    );
+  }, [handleSend, removeQueuedChatSend]);
+
+  useEffect(() => {
+    if (!activeConversationId) return;
+    if (currentConversationBusy) return;
+    if (messagesConversationIdRef.current !== activeConversationId) return;
+    const next = queuedChatSendsRef.current.find(
+      (item) => item.conversationId === activeConversationId,
+    );
+    if (!next) return;
+    removeQueuedChatSend(next.id);
+    void handleSend(
+      next.prompt,
+      next.attachments,
+      next.commentAttachments,
+      next.meta,
+    );
+  }, [
+    activeConversationId,
+    currentConversationBusy,
+    queuedChatSends,
+    handleSend,
+    removeQueuedChatSend,
+  ]);
 
   useEffect(() => {
     if (!autoAuditRepairSeed) return;
@@ -3677,6 +3785,7 @@ export function ProjectView({
         ref={splitRef}
         className={[
           projectSplitClassName(workspaceFocused),
+          leftInspectorActive && !workspaceFocused ? 'split-manual-edit' : '',
           resizingChatPanel && !workspaceFocused ? 'is-resizing-chat' : '',
         ].filter(Boolean).join(' ')}
         style={workspaceFocused
@@ -3687,7 +3796,19 @@ export function ProjectView({
             }}
       >
         <div className="split-chat-slot" hidden={workspaceFocused}>
-          {activeConversationId || conversationLoadError ? (
+          {manualEditInspectorActive ? (
+            <div
+              id={manualEditInspectorPortalId}
+              className="manual-edit-left-host"
+              aria-label="Edit inspector"
+            />
+          ) : commentInspectorActive ? (
+            <div
+              id={commentInspectorPortalId}
+              className="comment-left-host"
+              aria-label="Comments"
+            />
+          ) : activeConversationId || conversationLoadError ? (
             <ChatPane
               // The conversation id is part of the key so switching conversations
               // resets internal scroll/draft state inside ChatPane and ChatComposer.
@@ -3695,6 +3816,7 @@ export function ProjectView({
               messages={messages}
               streaming={currentConversationStreaming}
               sendDisabled={currentConversationSendDisabled}
+              queuedItems={currentConversationQueuedItems}
               error={conversationLoadError ?? error ?? audioVoiceOptionsError}
               projectId={project.id}
               projectKindForTracking={projectKindToTracking(project.metadata?.kind)}
@@ -3711,6 +3833,9 @@ export function ProjectView({
               onDeleteComment={(commentId) => void removePreviewComment(commentId)}
               onSend={handleSend}
               onStop={handleStop}
+              onRemoveQueuedSend={removeQueuedChatSend}
+              onUpdateQueuedSend={updateQueuedChatSend}
+              onSendQueuedNow={sendQueuedChatSendNow}
               onRequestOpenFile={requestOpenFile}
               onRequestPluginFolderAgentAction={handlePluginFolderAgentAction}
               initialDraft={chatInitialDraft}
@@ -3770,20 +3895,24 @@ export function ProjectView({
           )}
         </div>
         {!workspaceFocused ? (
-          <div
-            className="split-resize-handle"
-            role="separator"
-            aria-orientation="vertical"
-            aria-label={chatResizeLabel}
-            aria-valuemin={chatPanelAriaMinWidth}
-            aria-valuemax={chatPanelMaxWidth}
-            aria-valuenow={chatPanelWidth}
-            tabIndex={0}
-            title={chatResizeLabel}
-            onPointerDown={handleChatResizePointerDown}
-            onKeyDown={handleChatResizeKeyDown}
-            onBlur={handleChatResizeBlur}
-          />
+          leftInspectorActive ? (
+            <div className="split-edit-divider" aria-hidden />
+          ) : (
+            <div
+              className="split-resize-handle"
+              role="separator"
+              aria-orientation="vertical"
+              aria-label={chatResizeLabel}
+              aria-valuemin={chatPanelAriaMinWidth}
+              aria-valuemax={chatPanelMaxWidth}
+              aria-valuenow={chatPanelWidth}
+              tabIndex={0}
+              title={chatResizeLabel}
+              onPointerDown={handleChatResizePointerDown}
+              onKeyDown={handleChatResizeKeyDown}
+              onBlur={handleChatResizeBlur}
+            />
+          )
         ) : null}
         <FileWorkspace
           projectId={project.id}

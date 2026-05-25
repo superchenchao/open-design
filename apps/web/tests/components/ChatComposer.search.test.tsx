@@ -71,7 +71,7 @@ describe('ChatComposer /search command', () => {
       .mockReturnValueOnce(firstUpload.promise)
       .mockReturnValueOnce(secondUpload.promise);
 
-    const { rerender } = render(
+    render(
       <ChatComposer
         projectId="project-1"
         projectFiles={[]}
@@ -117,42 +117,34 @@ describe('ChatComposer /search command', () => {
       await Promise.all([firstUpload.promise, secondUpload.promise]);
     });
 
-    await waitFor(() => expect(screen.getByText('first.png')).toBeTruthy());
-    expect(screen.getByText('second.png')).toBeTruthy();
-    const input = screen.getByTestId('chat-composer-input') as HTMLTextAreaElement;
-    expect(input.value).toContain('first note');
-    expect(input.value).toContain('second note');
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(2));
     expect(screen.queryByTestId('staged-comment-attachments')).toBeNull();
 
-    rerender(
-      <ChatComposer
-        projectId="project-1"
-        projectFiles={[]}
-        streaming={false}
-        onEnsureProject={async () => 'project-1'}
-        onSend={onSend}
-        onStop={vi.fn()}
-      />,
-    );
-    fireEvent.click(screen.getByTestId('chat-send'));
-
-    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
-    const [, attachments, commentAttachments] = onSend.mock.calls[0]! as [
+    const firstCall = onSend.mock.calls.find(([prompt]) => prompt === 'first note');
+    const secondCall = onSend.mock.calls.find(([prompt]) => prompt === 'second note');
+    expect(firstCall).toBeTruthy();
+    expect(secondCall).toBeTruthy();
+    const [, firstAttachments, firstCommentAttachments] = firstCall! as [
       string,
       ChatAttachment[],
       ChatCommentAttachment[],
     ];
-    expect(attachments).toEqual(expect.arrayContaining([
+    const [, secondAttachments, secondCommentAttachments] = secondCall! as [
+      string,
+      ChatAttachment[],
+      ChatCommentAttachment[],
+    ];
+    expect(firstAttachments).toEqual([
       { path: 'uploads/first.png', name: 'first.png', kind: 'image' },
-      { path: 'uploads/second.png', name: 'second.png', kind: 'image' },
-    ]));
-    expect(commentAttachments).toHaveLength(2);
-    expect(new Set(commentAttachments.map((attachment) => attachment.id)).size).toBe(2);
-    expect(commentAttachments.map((attachment) => attachment.order)).toEqual([1, 2]);
-    expect(commentAttachments.map((attachment) => attachment.screenshotPath).sort()).toEqual([
-      'uploads/first.png',
-      'uploads/second.png',
     ]);
+    expect(secondAttachments).toEqual([
+      { path: 'uploads/second.png', name: 'second.png', kind: 'image' },
+    ]);
+    expect(firstCommentAttachments).toHaveLength(1);
+    expect(secondCommentAttachments).toHaveLength(1);
+    expect(firstCommentAttachments[0]?.screenshotPath).toBe('uploads/first.png');
+    expect(secondCommentAttachments[0]?.screenshotPath).toBe('uploads/second.png');
+    expect(firstCommentAttachments[0]?.id).not.toBe(secondCommentAttachments[0]?.id);
   });
 
   it('sends draw annotations directly when requested', async () => {
@@ -276,12 +268,25 @@ describe('ChatComposer /search command', () => {
       },
     }));
 
-    await waitFor(() => expect(screen.getByText('drawing.png')).toBeTruthy());
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
     expect(screen.queryByText('Visual mark')).toBeNull();
-    expect(screen.getByText('drawing.png')).toBeTruthy();
     expect(screen.queryByTestId('staged-comment-attachments')).toBeNull();
-    expect((screen.getByTestId('chat-composer-input') as HTMLTextAreaElement).value).toBe('tighten this area');
-    expect(onSend).not.toHaveBeenCalled();
+    expect((screen.getByTestId('chat-composer-input') as HTMLTextAreaElement).value).toBe('');
+    const [prompt, attachments, commentAttachments] = onSend.mock.calls[0]! as [
+      string,
+      ChatAttachment[],
+      ChatCommentAttachment[],
+    ];
+    expect(prompt).toBe('tighten this area');
+    expect(attachments).toEqual([
+      { path: 'uploads/drawing.png', name: 'drawing.png', kind: 'image' },
+    ]);
+    expect(commentAttachments).toHaveLength(1);
+    expect(commentAttachments[0]).toMatchObject({
+      screenshotPath: 'uploads/drawing.png',
+      selectionKind: 'visual',
+      comment: 'tighten this area',
+    });
   });
 
   it('previews a staged image attachment from its chip', () => {

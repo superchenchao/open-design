@@ -220,6 +220,10 @@ interface Props {
   hasActiveDesignSystem?: boolean;
   activeDesignSystem?: DesignSystemSummary | null;
   sendDisabled?: boolean;
+  queuedItems?: Array<{ id: string; prompt: string }>;
+  onRemoveQueuedSend?: (id: string) => void;
+  onUpdateQueuedSend?: (id: string, prompt: string) => void;
+  onSendQueuedNow?: (id: string) => void;
   // Names that exist in the project folder. Tool cards and chips use this
   // set to decide whether a path can be opened as a tab.
   projectFileNames?: Set<string>;
@@ -307,6 +311,7 @@ export function ChatPane({
   messages,
   streaming,
   sendDisabled = false,
+  queuedItems = [],
   error,
   projectId,
   projectKindForTracking = null,
@@ -322,6 +327,9 @@ export function ChatPane({
   onDeleteComment,
   onSend,
   onStop,
+  onRemoveQueuedSend,
+  onUpdateQueuedSend,
+  onSendQueuedNow,
   onRequestOpenFile,
   onRequestPluginFolderAgentAction,
   initialDraft,
@@ -930,6 +938,12 @@ export function ChatPane({
             dismissedKey={dismissedPinnedTodoKey}
             onDismiss={setDismissedPinnedTodoKey}
           />
+          <QueuedSendStrip
+            items={queuedItems}
+            onRemove={onRemoveQueuedSend}
+            onUpdate={onUpdateQueuedSend}
+            onSendNow={onSendQueuedNow}
+          />
           <ChatComposer
             ref={composerRef}
             projectId={projectId}
@@ -1017,6 +1031,155 @@ function PinnedTodoSlot({
       />
     </div>
   );
+}
+
+function QueuedSendStrip({
+  items,
+  onRemove,
+  onSendNow,
+  onUpdate,
+}: {
+  items: Array<{ id: string; prompt: string }>;
+  onRemove?: (id: string) => void;
+  onSendNow?: (id: string) => void;
+  onUpdate?: (id: string, prompt: string) => void;
+}) {
+  const t = useT();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingDraft, setEditingDraft] = useState('');
+  if (items.length === 0) return null;
+  const visible = items.slice(0, QUEUED_SEND_VISIBLE_LIMIT);
+  const extra = items.length - visible.length;
+  const startEdit = (item: { id: string; prompt: string }) => {
+    setEditingId(item.id);
+    setEditingDraft(item.prompt);
+  };
+  const commitEdit = () => {
+    if (!editingId) return;
+    const next = editingDraft.trim();
+    if (next) onUpdate?.(editingId, next);
+    setEditingId(null);
+    setEditingDraft('');
+  };
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditingDraft('');
+  };
+  return (
+    <div className="chat-queued-send-strip" data-testid="chat-queued-send-strip">
+      <div className="chat-queued-send-header">
+        <div className="chat-queued-send-heading">
+          <strong>{items.length} Queued</strong>
+          <span aria-hidden>↩</span>
+          <span>to Send</span>
+        </div>
+      </div>
+      {visible.map((item, index) => (
+        <div
+          className={`chat-queued-send-row${index === 0 ? ' chat-queued-send-row-active' : ''}${
+            editingId === item.id ? ' chat-queued-send-row-editing' : ''
+          }`}
+          key={item.id}
+        >
+          {editingId === item.id ? (
+            <form
+              className="chat-queued-send-edit-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                commitEdit();
+              }}
+            >
+              <input
+                className="chat-queued-send-edit-input"
+                value={editingDraft}
+                // eslint-disable-next-line jsx-a11y/no-autofocus
+                autoFocus
+                onChange={(event) => setEditingDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    cancelEdit();
+                  }
+                }}
+                aria-label="Edit queued task"
+              />
+              <button
+                type="submit"
+                className="chat-queued-send-action"
+                title="Save"
+                aria-label="Save"
+                disabled={!editingDraft.trim()}
+              >
+                <Icon name="check" size={13} />
+              </button>
+              <button
+                type="button"
+                className="chat-queued-send-action"
+                title="Cancel"
+                aria-label="Cancel"
+                onClick={cancelEdit}
+              >
+                <Icon name="close" size={13} />
+              </button>
+            </form>
+          ) : (
+            <>
+              <span className="chat-queued-send-title">{summarizeQueuedPrompt(item.prompt)}</span>
+              <div className="chat-queued-send-actions">
+                {onUpdate ? (
+                  <button
+                    type="button"
+                    className="chat-queued-send-action"
+                    title="Edit"
+                    aria-label="Edit"
+                    onClick={() => startEdit(item)}
+                  >
+                    <Icon name="pencil" size={13} />
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="chat-queued-send-action"
+                  title={t('chat.send')}
+                  aria-label={t('chat.send')}
+                  onClick={() => onSendNow?.(item.id)}
+                  disabled={!onSendNow}
+                >
+                  <Icon name="arrow-up" size={13} />
+                </button>
+                {onRemove ? (
+                  <button
+                    type="button"
+                    className="chat-queued-send-action"
+                    onClick={() => onRemove(item.id)}
+                    title={t('chat.comments.remove')}
+                    aria-label={t('chat.comments.remove')}
+                  >
+                    <Icon name="trash" size={13} />
+                  </button>
+                ) : null}
+              </div>
+            </>
+          )}
+        </div>
+      ))}
+      {extra > 0 ? (
+        <div className="chat-queued-send-overflow">
+          <span className="chat-queued-send-overflow-line" aria-hidden />
+          <span className="chat-queued-send-extra">+{extra}</span>
+          <span>more queued</span>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+const QUEUED_SEND_VISIBLE_LIMIT = 4;
+
+function summarizeQueuedPrompt(prompt: string): string {
+  const normalized = prompt.replace(/\s+/g, ' ').trim();
+  if (!normalized) return 'Queued follow-up';
+  return normalized.length > 58 ? `${normalized.slice(0, 57)}...` : normalized;
 }
 
 function CommentsPanel({
