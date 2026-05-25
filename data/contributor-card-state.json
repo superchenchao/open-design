@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-25T02:33:12.956Z",
+  "generatedAt": "2026-05-25T02:41:35.865Z",
   "contributors": {
     "1115052994": {
       "lastAnnouncedTier": "spark",
@@ -428,8 +428,8 @@
     },
     "leilei926524-tech": {
       "lastAnnouncedTier": "signal",
-      "lastKnownScore": 136,
-      "lastCheckedAt": "2026-05-20T13:28:03.406Z",
+      "lastKnownScore": 146,
+      "lastCheckedAt": "2026-05-25T02:41:35.865Z",
       "scoreVersion": "weighted-v1",
       "lastAnnouncedAt": "2026-05-17T07:20:02.648Z"
     },
