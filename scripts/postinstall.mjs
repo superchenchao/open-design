@@ -11,6 +11,7 @@ const buildTargets = [
   "packages/platform",
   "packages/download",
   "packages/host",
+  "packages/launcher-proto",
   "packages/registry-protocol",
   "packages/agui-adapter",
   "packages/plugin-runtime",
@@ -28,12 +29,31 @@ function resolvePackageManagerInvocation() {
   const pnpmExecPath = process.env.npm_execpath;
   if (pnpmExecPath != null && pnpmExecPath.length > 0) {
     if (jsExtensions.has(extname(pnpmExecPath).toLowerCase())) {
-      return { argsPrefix: [pnpmExecPath], command: process.execPath };
+      return { argsPrefix: [pnpmExecPath], command: process.execPath, shell: false };
     }
-    return { argsPrefix: [], command: pnpmExecPath };
+    if (process.platform === "win32" && /\.(?:bat|cmd)$/i.test(pnpmExecPath)) {
+      return {
+        argsPrefix: ["/d", "/s", "/c", pnpmExecPath],
+        command: process.env.ComSpec ?? "cmd.exe",
+        shell: false,
+      };
+    }
+    return {
+      argsPrefix: [],
+      command: pnpmExecPath,
+      shell: false,
+    };
   }
 
-  return { argsPrefix: [], command: process.platform === "win32" ? "pnpm.cmd" : "pnpm" };
+  if (process.platform === "win32") {
+    return {
+      argsPrefix: ["/d", "/s", "/c", "pnpm.cmd"],
+      command: process.env.ComSpec ?? "cmd.exe",
+      shell: false,
+    };
+  }
+
+  return { argsPrefix: [], command: "pnpm", shell: false };
 }
 
 const packageManager = resolvePackageManagerInvocation();
@@ -44,6 +64,7 @@ for (const target of buildTargets) {
     [...packageManager.argsPrefix, "-C", target, "run", "build"],
     {
       cwd: repoRoot,
+      shell: packageManager.shell,
       stdio: "inherit",
     },
   );
@@ -82,7 +103,7 @@ if (needsRebuild) {
   const rebuild = spawnSync(
     packageManager.command,
     [...packageManager.argsPrefix, "--filter", "@open-design/daemon", "rebuild", "better-sqlite3"],
-    { cwd: repoRoot, stdio: "inherit" },
+    { cwd: repoRoot, shell: packageManager.shell, stdio: "inherit" },
   );
   if (rebuild.error != null) throw rebuild.error;
   if (rebuild.status !== 0) {
