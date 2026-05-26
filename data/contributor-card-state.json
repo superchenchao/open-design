@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-26T03:19:44.066Z",
+  "generatedAt": "2026-05-26T03:23:46.446Z",
   "contributors": {
     "1115052994": {
       "lastAnnouncedTier": "spark",
@@ -1211,8 +1211,8 @@
     },
     "neogenix": {
       "lastAnnouncedTier": "signal",
-      "lastKnownScore": 111,
-      "lastCheckedAt": "2026-05-22T16:24:59.676Z",
+      "lastKnownScore": 123,
+      "lastCheckedAt": "2026-05-26T03:23:46.446Z",
       "scoreVersion": "weighted-v1",
       "lastAnnouncedAt": "2026-05-20T07:23:55.649Z"
     },
