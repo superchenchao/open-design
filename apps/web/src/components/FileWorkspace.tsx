@@ -107,6 +107,8 @@ interface Props {
   onUseDesignSystem?: (id: string, title: string) => void;
   onConnectRepo?: () => void;
   githubConnected?: boolean;
+  commentPortalId?: string;
+  onCommentModeChange?: (active: boolean) => void;
 }
 
 interface SketchState {
@@ -223,6 +225,8 @@ export function FileWorkspace({
   onUseDesignSystem,
   onConnectRepo,
   githubConnected,
+  commentPortalId,
+  onCommentModeChange,
 }: Props) {
   const t = useT();
   const analytics = useAnalytics();
@@ -1066,6 +1070,8 @@ export function FileWorkspace({
             onSendBoardCommentAttachments={onSendBoardCommentAttachments}
             onFileSaved={onRefreshFiles}
             onOpenFileReplacing={openFileReplacing}
+            commentPortalId={commentPortalId}
+            onCommentModeChange={onCommentModeChange}
           />
         ) : (
           <div className="viewer-empty">
