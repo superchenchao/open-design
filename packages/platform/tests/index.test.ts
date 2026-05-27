@@ -178,12 +178,12 @@ describe("system proxy env resolution", () => {
       HTTP_PROXY: "http://127.0.0.1:7890",
       HTTPS_PROXY: "http://corp-proxy.internal:7891",
       ALL_PROXY: "socks5://127.0.0.1:1080",
-      NO_PROXY: ".local,localhost,127.0.0.1,::1",
+      NO_PROXY: ".local,localhost,127.0.0.1,[::1]",
       NODE_USE_ENV_PROXY: "1",
       http_proxy: "http://127.0.0.1:7890",
       https_proxy: "http://corp-proxy.internal:7891",
       all_proxy: "socks5://127.0.0.1:1080",
-      no_proxy: ".local,localhost,127.0.0.1,::1",
+      no_proxy: ".local,localhost,127.0.0.1,[::1]",
     });
   });
 
@@ -207,9 +207,28 @@ HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settin
       HTTP_PROXY: "http://10.0.0.2:8080",
       HTTPS_PROXY: "http://10.0.0.3:8443",
       ALL_PROXY: "socks5://10.0.0.4:1080",
-      NO_PROXY: "localhost,127.0.0.1,::1,.local,.corp",
+      NO_PROXY: "localhost,127.0.0.1,[::1],.local,.corp",
       NODE_USE_ENV_PROXY: "1",
     });
+  });
+
+  it("normalizes bare IPv6 loopback bypass entries to bracketed form", () => {
+    const env = parseWindowsInternetSettingsProxyOutput({
+      proxyEnable: `
+HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings
+    ProxyEnable    REG_DWORD    0x1
+`,
+      proxyServer: `
+HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings
+    ProxyServer    REG_SZ    http=10.0.0.2:8080
+`,
+      proxyOverride: `
+HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings
+    ProxyOverride    REG_SZ    ::1;localhost
+`,
+    });
+
+    expect(env.NO_PROXY).toBe("[::1],localhost,127.0.0.1");
   });
 
   it("preserves a wildcard macOS bypass list", () => {
