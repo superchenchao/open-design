@@ -12,6 +12,7 @@ import {
   createAgentSink,
   isSmokeOkReply,
   mergeNoProxyWithLoopbackDefaults,
+  proxyDispatcherRequestInit,
   redactSecrets,
   resolveConnectionTestTimeoutMs,
   testAgentConnection,
@@ -1509,7 +1510,7 @@ describe('POST /api/test/connection provider mode', () => {
   });
 
   it('uses a live system-proxy dispatcher for provider-mode fetches', async () => {
-    const proxySpy = vi.spyOn(platform, 'resolveSystemProxyEnv').mockReturnValue({
+    const proxySpy = vi.spyOn(platform, 'resolveSystemProxyEnvCached').mockReturnValue({
       HTTPS_PROXY: 'http://system-proxy.internal:8443',
       NODE_USE_ENV_PROXY: '1',
     });
@@ -1548,6 +1549,15 @@ describe('POST /api/test/connection provider mode', () => {
     expect(mergeNoProxyWithLoopbackDefaults(input)).toBe(expected);
   });
 
+  it('ignores SOCKS-only ALL_PROXY values for the HTTP proxy dispatcher', async () => {
+    const { close, requestInit } = proxyDispatcherRequestInit({
+      ALL_PROXY: 'socks5://system-socks:1080',
+    });
+
+    expect(requestInit).toEqual({});
+    await expect(close()).resolves.toBeUndefined();
+  });
+
   it('keeps loopback provider probes off the proxy when user NO_PROXY omits localhost', async () => {
     const providerServer = http.createServer((req, res) => {
       if (req.url === '/v1/models') {
@@ -1572,7 +1582,7 @@ describe('POST /api/test/connection provider mode', () => {
     }
 
     const originalNoProxy = process.env.NO_PROXY;
-    const proxySpy = vi.spyOn(platform, 'resolveSystemProxyEnv').mockReturnValue({
+    const proxySpy = vi.spyOn(platform, 'resolveSystemProxyEnvCached').mockReturnValue({
       HTTP_PROXY: 'http://127.0.0.1:9',
       NO_PROXY: 'localhost,127.0.0.1,[::1]',
       NODE_USE_ENV_PROXY: '1',
@@ -1625,7 +1635,7 @@ describe('POST /api/test/connection provider mode', () => {
     const originalHttpProxy = process.env.HTTP_PROXY;
     const originalHttpsProxy = process.env.HTTPS_PROXY;
     const originalNoProxy = process.env.NO_PROXY;
-    const proxySpy = vi.spyOn(platform, 'resolveSystemProxyEnv').mockReturnValue({});
+    const proxySpy = vi.spyOn(platform, 'resolveSystemProxyEnvCached').mockReturnValue({});
     process.env.HTTP_PROXY = 'http://127.0.0.1:9';
     process.env.HTTPS_PROXY = 'http://127.0.0.1:9';
     delete process.env.NO_PROXY;

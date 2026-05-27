@@ -31,7 +31,7 @@ import {
 import {
   createCommandInvocation,
   mergeProxyAwareEnv,
-  resolveSystemProxyEnv,
+  resolveSystemProxyEnvCached,
 } from '@open-design/platform';
 import { attachAcpSession } from './acp.js';
 import { attachPiRpcSession } from './pi-rpc.js';
@@ -236,9 +236,11 @@ export function mergeNoProxyWithLoopbackDefaults(noProxy: string | undefined): s
 function buildConnectionTestProxyDispatcher(
   env: NodeJS.ProcessEnv = process.env,
 ): EnvHttpProxyAgent | null {
-  const proxyEnv = mergeProxyAwareEnv(process.platform, resolveSystemProxyEnv(), env);
-  const httpProxy = proxyEnv.HTTP_PROXY ?? proxyEnv.http_proxy ?? proxyEnv.ALL_PROXY ?? proxyEnv.all_proxy;
-  const httpsProxy = proxyEnv.HTTPS_PROXY ?? proxyEnv.https_proxy ?? proxyEnv.ALL_PROXY ?? proxyEnv.all_proxy;
+  const proxyEnv = mergeProxyAwareEnv(process.platform, resolveSystemProxyEnvCached(), env);
+  const allProxy = proxyEnv.ALL_PROXY ?? proxyEnv.all_proxy;
+  const httpProxyFromAll = isHttpOrHttpsProxy(allProxy);
+  const httpProxy = proxyEnv.HTTP_PROXY ?? proxyEnv.http_proxy ?? httpProxyFromAll;
+  const httpsProxy = proxyEnv.HTTPS_PROXY ?? proxyEnv.https_proxy ?? httpProxyFromAll;
   const noProxy = mergeNoProxyWithLoopbackDefaults(proxyEnv.NO_PROXY ?? proxyEnv.no_proxy);
   if (!httpProxy && !httpsProxy) return null;
   return new EnvHttpProxyAgent({
@@ -246,6 +248,17 @@ function buildConnectionTestProxyDispatcher(
     ...(httpsProxy ? { httpsProxy } : {}),
     ...(noProxy ? { noProxy } : {}),
   });
+}
+
+function isHttpOrHttpsProxy(proxyUrl: string | undefined): string | undefined {
+  const trimmed = proxyUrl?.trim();
+  if (!trimmed) return undefined;
+  try {
+    const { protocol } = new URL(trimmed);
+    return protocol === 'http:' || protocol === 'https:' ? trimmed : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function proxyDispatcherRequestInit(
