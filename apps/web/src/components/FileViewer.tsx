@@ -6236,7 +6236,7 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
   };
   const boardAvailable = mode === 'preview' && source !== null;
   const showPreviewToolbarControls = mode === 'preview';
-  const manualEditPanel = manualEditMode ? (
+  const manualEditPanel = manualEditMode && selectedManualEditTarget ? (
     <ManualEditPanel
       targets={manualEditTargets}
       selectedTarget={selectedManualEditTarget}
