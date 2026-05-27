@@ -20,6 +20,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { attachAcpSession, detectAcpModels } from '../src/acp.js';
+import { classifyAmrAccountFailure } from '../src/integrations/vela-errors.js';
 import {
   amrAgentDef,
   normalizeVelaModelId,
@@ -367,6 +368,42 @@ describe('AMR ACP transport — end-to-end against fake vela stub', () => {
     };
     expect(String(payload?.message ?? '')).toContain('Model not found');
     expect(payload?.error?.code).toBe('AMR_MODEL_UNAVAILABLE');
+  });
+
+  it('keeps ACP insufficient-balance prompt errors classifiable as AMR recharge failures', async () => {
+    const child = spawnFakeVela({
+      FAKE_VELA_PROMPT_ERROR:
+        'HTTP 429: {"error":{"code":"insufficient_balance","message":"insufficient wallet balance"}}',
+    });
+    const errors: Array<{ event: string; payload: unknown }> = [];
+    try {
+      const session = attachAcpSession({
+        child: child as never,
+        prompt: 'Say hello',
+        cwd: process.cwd(),
+        model: 'claude-opus-4-6',
+        mcpServers: [],
+        send: (event, payload) => {
+          if (event === 'error') errors.push({ event, payload });
+        },
+      });
+
+      await waitForExit(child);
+      expect(session.hasFatalError()).toBe(true);
+      expect(session.completedSuccessfully()).toBe(false);
+    } finally {
+      if (child.exitCode === null) child.kill('SIGTERM');
+    }
+
+    const message = String(
+      (errors[0]?.payload as { message?: unknown })?.message ?? '',
+    );
+    expect(message).toContain('insufficient_balance');
+    expect(classifyAmrAccountFailure(message)).toMatchObject({
+      code: 'AMR_INSUFFICIENT_BALANCE',
+      action: 'recharge',
+      actionUrl: 'https://open-design.ai/amr/wallet',
+    });
   });
 
   it('allows non-AMR ACP completions that produce no assistant text', async () => {
