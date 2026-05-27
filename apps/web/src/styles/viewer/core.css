@@ -1127,31 +1127,6 @@
   background: var(--bg-panel);
   box-shadow: var(--shadow-lg);
 }
-.comment-popover.is-target-offscreen {
-  opacity: 0.42;
-}
-.comment-return-anchor {
-  position: absolute;
-  left: 50%;
-  bottom: 16px;
-  z-index: 45;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  transform: translateX(-50%);
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  background: var(--bg-panel);
-  color: var(--text);
-  box-shadow: var(--shadow-lg);
-  font-size: 13px;
-  font-weight: 650;
-}
-.comment-return-anchor:hover {
-  border-color: var(--accent-soft);
-  color: var(--accent-strong);
-}
 .comment-popover-section {
   min-width: 0;
 }

@@ -2107,7 +2107,7 @@ describe('FileViewer tweaks toolbar', () => {
     expect(screen.queryByTestId('annotation-hover-style-summary')).toBeNull();
     expect(screen.queryByTestId('annotation-hover-popover')).toBeNull();
     expect(screen.queryByTestId('inspect-panel')).toBeNull();
-    expect(screen.queryByTestId('comment-target-overlay')).toBeNull();
+    expect(await screen.findByTestId('comment-target-overlay')).toBeTruthy();
     expect(screen.queryByTestId('comment-popover-input')).toBeNull();
 
     window.dispatchEvent(new MessageEvent('message', {

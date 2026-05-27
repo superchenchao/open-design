@@ -2987,7 +2987,7 @@ function CommentPreviewOverlays({
     .filter((item): item is { comment: PreviewComment; index: number; snapshot: PreviewCommentSnapshot } =>
       Boolean(item.snapshot),
     );
-  const targetOverlay = activeTarget;
+  const targetOverlay = activeTarget ?? hoveredTarget;
   return (
     <div className="comment-overlay-layer" aria-hidden={false}>
       {visibleComments.map(({ comment, index, snapshot }) => {
@@ -6055,16 +6055,6 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
     void exitManualEditModeAfterFlush();
   }
 
-  function returnToActiveCommentTarget() {
-    if (!activeCommentTarget) return;
-    iframeRef.current?.contentWindow?.postMessage({
-      type: 'od:comment-scroll-to-target',
-      elementId: activeCommentTarget.elementId,
-      selector: activeCommentTarget.selector,
-    }, '*');
-    setHoveredCommentTarget(activeCommentTarget);
-  }
-
   function queueCurrentDraft() {
     const note = commentDraft.trim();
     if (!note) return;
@@ -6346,7 +6336,7 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
       }}
     />
   ) : null;
-  const commentComposer = boardMode && activeCommentTarget ? (
+  const commentComposer = boardMode && activeCommentTarget && activeCommentTargetVisible ? (
     <BoardComposerPopover
       target={activeCommentTarget}
       existing={visibleSideComments.find((comment) => comment.elementId === activeCommentTarget.elementId) ?? null}
@@ -6386,7 +6376,6 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
       offset={{ x: overlayPreviewTransform.offsetX, y: overlayPreviewTransform.offsetY }}
       bounds={previewBodySize}
       docked={false}
-      targetVisible={activeCommentTargetVisible}
       commenting
     />
   ) : null;
@@ -7079,17 +7068,6 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
               </div>
             ) : null}
             {commentComposer}
-            {boardMode && activeCommentTarget && !activeCommentTargetVisible ? (
-              <button
-                type="button"
-                className="comment-return-anchor"
-                data-testid="comment-return-anchor"
-                onClick={returnToActiveCommentTarget}
-              >
-                <span aria-hidden="true">📍</span>
-                <span>Return to element</span>
-              </button>
-            ) : null}
             {commentPortalHost && commentSidePanel
               ? createPortal(commentSidePanel, commentPortalHost)
               : commentSidePanel}
