@@ -43,6 +43,7 @@ function compactFontFamily(value: string | undefined): string | null {
 }
 
 type AnnotationStyleRow = { label: string; value: string; swatch?: string };
+type PopoverBounds = { width: number; height: number };
 
 function annotationStyleRows(target: PreviewCommentSnapshot): AnnotationStyleRow[] {
   const rows: AnnotationStyleRow[] = [];
@@ -73,15 +74,36 @@ function clampPopoverCoordinate(value: number, min: number): number {
   return Math.max(min, Math.round(value));
 }
 
-function popoverAnchorStyle(target: PreviewCommentSnapshot, scale: number): CSSProperties {
+function popoverAnchorStyle(
+  target: PreviewCommentSnapshot,
+  scale: number,
+  bounds?: PopoverBounds,
+): CSSProperties {
   const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
   const anchor = target.hoverPoint ?? {
     x: target.position.x + Math.min(target.position.width, 24),
     y: target.position.y + Math.min(target.position.height, 24),
   };
+  const pad = 14;
+  const width = 320;
+  const estimatedHeight = 172;
+  const preferredLeft = clampPopoverCoordinate(anchor.x * safeScale + pad, pad);
+  const preferredTop = clampPopoverCoordinate(anchor.y * safeScale + pad, pad);
+  if (bounds?.width && bounds.width > 0) {
+    const anchorX = anchor.x * safeScale;
+    const anchorY = anchor.y * safeScale;
+    const maxLeft = Math.max(pad, bounds.width - width - pad);
+    const left = preferredLeft > maxLeft
+      ? Math.max(pad, Math.min(maxLeft, anchorX - width - pad))
+      : preferredLeft;
+    const top = bounds.height && bounds.height > 0
+      ? Math.min(preferredTop, Math.max(pad, bounds.height - estimatedHeight - pad))
+      : preferredTop;
+    return { left, top };
+  }
   return {
-    left: clampPopoverCoordinate(anchor.x * safeScale + 14, 14),
-    top: clampPopoverCoordinate(anchor.y * safeScale + 14, 14),
+    left: preferredLeft,
+    top: preferredTop,
   };
 }
 
@@ -138,6 +160,7 @@ export function BoardComposerPopover({
   sending,
   t,
   scale = 1,
+  bounds,
   docked = false,
 }: {
   target: PreviewCommentSnapshot;
@@ -155,6 +178,7 @@ export function BoardComposerPopover({
   sending: boolean;
   t: TranslateFn;
   scale?: number;
+  bounds?: PopoverBounds;
   docked?: boolean;
 }) {
   const pendingCount = notes.length + (draft.trim() ? 1 : 0);
@@ -166,7 +190,7 @@ export function BoardComposerPopover({
       role="dialog"
       aria-modal="false"
       aria-label="Annotation"
-      style={docked ? undefined : popoverAnchorStyle(target, scale)}
+      style={docked ? undefined : popoverAnchorStyle(target, scale, bounds)}
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.preventDefault();

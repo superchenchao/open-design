@@ -83,4 +83,33 @@ describe('BoardComposerPopover captured-component removal', () => {
     expect(document.querySelectorAll('.board-pod-chip')).toHaveLength(10);
     expect(screen.queryByText('Member 9')).not.toBeNull();
   });
+
+  it('keeps the floating composer inside the preview bounds near the right edge', () => {
+    render(
+      <BoardComposerPopover
+        target={{
+          ...podTarget([]),
+          hoverPoint: { x: 612, y: 120 },
+          position: { x: 600, y: 110, width: 24, height: 24 },
+        }}
+        existing={null}
+        draft=""
+        notes={[]}
+        onDraft={() => {}}
+        onAddDraft={() => {}}
+        onRemoveQueuedNote={() => {}}
+        onClose={() => {}}
+        onSaveComment={() => {}}
+        onSendBatch={() => {}}
+        onRemoveMember={() => {}}
+        sending={false}
+        t={((key: string) => String(key)) as never}
+        bounds={{ width: 640, height: 420 }}
+      />,
+    );
+
+    const popover = screen.getByTestId('comment-popover');
+    expect(Number.parseFloat(popover.style.left)).toBeLessThanOrEqual(306);
+    expect(Number.parseFloat(popover.style.left)).toBeGreaterThanOrEqual(14);
+  });
 });

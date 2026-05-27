@@ -1129,6 +1129,8 @@
   top: 14px;
   z-index: 40;
   width: min(320px, calc(100% - 28px));
+  max-height: calc(100% - 28px);
+  overflow: auto;
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius);

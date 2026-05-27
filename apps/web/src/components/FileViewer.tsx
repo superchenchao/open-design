@@ -5103,11 +5103,18 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
     setManualEditError(null);
   }
 
+  function refreshSrcDocPreviewAfterManualEditExit() {
+    activatedSrcDocTransportHtmlRef.current = null;
+    setSrcDocShellReady(false);
+    setSrcDocTransportResetKey((key) => key + 1);
+  }
+
   async function exitManualEditModeAfterFlush(): Promise<boolean> {
     const ok = await flushManualEditStyleSave();
     if (!ok) return false;
     setManualEditPanelPosition(null);
     setManualEditMode(false);
+    refreshSrcDocPreviewAfterManualEditExit();
     return true;
   }
 
@@ -5119,6 +5126,7 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
     setManualEditDraft(emptyManualEditDraft(sourceRef.current ?? ''));
     setManualEditError(null);
     setManualEditMode(false);
+    refreshSrcDocPreviewAfterManualEditExit();
     postSelectedManualEditTargetToIframe(null);
   }
 
@@ -6215,6 +6223,7 @@ const [manualEditTargets, setManualEditTargets] = useState<ManualEditTarget[]>([
       sending={sendingBoardBatch || streaming}
       t={t}
       scale={overlayPreviewScale}
+      bounds={previewBodySize}
       docked={false}
     />
   ) : null;
