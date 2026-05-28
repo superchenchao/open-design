@@ -180,6 +180,7 @@ export type WinInstallResult = {
   desktopShortcutExists: boolean;
   desktopShortcutPath: string;
   installDir: string;
+  lifecycleTimings: WinLifecycleTiming[];
   installerPath: string;
   installPayload: WinInstallPayloadReport;
   markerPath: string;
@@ -202,6 +203,11 @@ export type WinInstallPayloadReport = {
   }>;
 };
 
+export type WinLifecycleTiming = {
+  durationMs: number;
+  step: string;
+};
+
 export type WinStartResult = {
   executablePath: string;
   logPath: string;
@@ -220,6 +226,7 @@ export type WinStopResult = {
 };
 
 export type WinUninstallResult = {
+  lifecycleTimings: WinLifecycleTiming[];
   markerPath: string;
   namespace: string;
   nsisLogPath: string;

@@ -123,6 +123,7 @@ type WinInstallResult = {
     }>;
   };
   installerPath: string;
+  lifecycleTimings?: SmokeTiming[];
   namespace: string;
   registryEntries: unknown[];
   startMenuShortcutExists: boolean;
@@ -160,6 +161,7 @@ type WinCleanupResult = {
 };
 
 type WinUninstallResult = {
+  lifecycleTimings?: SmokeTiming[];
   namespace: string;
   residueObservation?: WinCleanupResult['residueObservation'];
 };
@@ -588,6 +590,7 @@ winDescribe('packaged windows runtime smoke', () => {
           installDir: install.installDir,
           installPayload: install.installPayload,
           installerPath: install.installerPath,
+          lifecycleTimings: install.lifecycleTimings,
           registryEntryCount: install.registryEntries.length,
           startMenuShortcutExists: install.startMenuShortcutExists,
           timingPath: install.timingPath,
@@ -617,6 +620,8 @@ winDescribe('packaged windows runtime smoke', () => {
           violent: violentUpdater,
         },
       });
+      printLifecycleTimings('install lifecycle timings', install.lifecycleTimings);
+      printLifecycleTimings('uninstall lifecycle timings', uninstall.lifecycleTimings);
       passed = true;
     } finally {
       restoreUpdateEnv(updateEnv);
@@ -664,6 +669,16 @@ function printSmokeTimings(timings: SmokeTiming[]): void {
       '[windows smoke timings]',
       ...timings.map((timing) => `${timing.step}: ${Math.round(timing.durationMs / 100) / 10}s`),
       `measured total: ${Math.round(totalMs / 100) / 10}s`,
+    ].join('\n'),
+  );
+}
+
+function printLifecycleTimings(title: string, timings: SmokeTiming[] | undefined): void {
+  if (timings == null || timings.length === 0) return;
+  console.info(
+    [
+      `[windows ${title}]`,
+      ...timings.map((timing) => `${timing.step}: ${Math.round(timing.durationMs / 100) / 10}s`),
     ].join('\n'),
   );
 }
