@@ -21,7 +21,8 @@ import { promises as dnsPromises } from 'node:dns';
 import { promises as fsp } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { EnvHttpProxyAgent, Socks5ProxyAgent } from 'undici';
+import { Agent, EnvHttpProxyAgent, Socks5ProxyAgent } from 'undici';
+import type { Dispatcher } from 'undici';
 import {
   applyAgentLaunchEnv,
   getAgentDef,
@@ -233,10 +234,103 @@ export function mergeNoProxyWithLoopbackDefaults(noProxy: string | undefined): s
   return values.length > 0 ? values.join(',') : null;
 }
 
+function defaultPortForProtocol(protocol: string): string {
+  if (protocol === 'http:') return '80';
+  if (protocol === 'https:') return '443';
+  return '';
+}
+
+function splitNoProxyHostAndPort(token: string): { host: string; port: string } {
+  const trimmed = token.trim();
+  if (!trimmed) return { host: '', port: '' };
+  if (trimmed.startsWith('[')) {
+    const closingBracket = trimmed.indexOf(']');
+    if (closingBracket === -1) return { host: trimmed.toLowerCase(), port: '' };
+    const host = trimmed.slice(0, closingBracket + 1).toLowerCase();
+    const port = trimmed.slice(closingBracket + 1).replace(/^:/, '');
+    return { host, port };
+  }
+  const firstColon = trimmed.indexOf(':');
+  const lastColon = trimmed.lastIndexOf(':');
+  if (firstColon !== -1 && firstColon === lastColon) {
+    return {
+      host: trimmed.slice(0, firstColon).toLowerCase(),
+      port: trimmed.slice(firstColon + 1),
+    };
+  }
+  return { host: trimmed.toLowerCase(), port: '' };
+}
+
+function noProxyTokenMatchesUrl(token: string, url: URL): boolean {
+  const trimmed = token.trim();
+  if (!trimmed) return false;
+  if (trimmed === '*') return true;
+  const { host, port } = splitNoProxyHostAndPort(trimmed.replace(/^\*\./, '.'));
+  if (!host) return false;
+  const normalizedHost = host === '::1' ? '[::1]' : host;
+  const hostname = url.hostname.toLowerCase();
+  const matchesHost = normalizedHost.startsWith('.')
+    ? hostname === normalizedHost.slice(1) || hostname.endsWith(normalizedHost)
+    : hostname === normalizedHost || hostname.endsWith(`.${normalizedHost}`);
+  if (!matchesHost) return false;
+  if (!port) return true;
+  return (url.port || defaultPortForProtocol(url.protocol)) === port;
+}
+
+function shouldBypassProxyForUrl(target: string | URL, noProxy: string | null): boolean {
+  if (!noProxy) return false;
+  let url: URL;
+  try {
+    url = target instanceof URL ? target : new URL(target);
+  } catch {
+    return false;
+  }
+  return noProxy.split(/[\s,]+/).some((token) => noProxyTokenMatchesUrl(token, url));
+}
+
+class NoProxyAwareSocksProxyAgent {
+  private readonly directAgent: Agent;
+
+  private readonly socksAgent: Socks5ProxyAgent;
+
+  constructor(
+    private readonly noProxy: string | null,
+    socksProxy: string,
+    options: ConstructorParameters<typeof EnvHttpProxyAgent>[0],
+  ) {
+    this.directAgent = new Agent(options as ConstructorParameters<typeof Agent>[0]);
+    this.socksAgent = new Socks5ProxyAgent(socksProxy);
+  }
+
+  dispatch(options: Dispatcher.DispatchOptions, handler: Dispatcher.DispatchHandler): boolean {
+    const origin = options.origin;
+    const targetUrl =
+      typeof origin === 'string' || origin instanceof URL
+        ? new URL(options.path, origin)
+        : null;
+    const dispatcher =
+      targetUrl && shouldBypassProxyForUrl(targetUrl, this.noProxy)
+        ? this.directAgent
+        : this.socksAgent;
+    return dispatcher.dispatch(options, handler);
+  }
+
+  async close(): Promise<void> {
+    await Promise.all([this.directAgent.close(), this.socksAgent.close()]);
+  }
+
+  async destroy(error?: Error | null): Promise<void> {
+    await Promise.all([
+      this.directAgent.destroy(error ?? null),
+      this.socksAgent.destroy(error ?? null),
+    ]);
+  }
+}
+
 function buildConnectionTestProxyDispatcher(
   env: NodeJS.ProcessEnv = process.env,
   options: ConstructorParameters<typeof EnvHttpProxyAgent>[0] = {},
-): EnvHttpProxyAgent | Socks5ProxyAgent | null {
+): EnvHttpProxyAgent | NoProxyAwareSocksProxyAgent | null {
   const proxyEnv = mergeProxyAwareEnv(
     process.platform,
     resolveSystemProxyEnv(),
@@ -249,7 +343,7 @@ function buildConnectionTestProxyDispatcher(
   const httpsProxy = proxyEnv.HTTPS_PROXY ?? proxyEnv.https_proxy ?? httpProxyFromAll;
   const noProxy = mergeNoProxyWithLoopbackDefaults(proxyEnv.NO_PROXY ?? proxyEnv.no_proxy);
   if (!httpProxy && !httpsProxy && socksProxy) {
-    return new Socks5ProxyAgent(socksProxy);
+    return new NoProxyAwareSocksProxyAgent(noProxy, socksProxy, options);
   }
   if (!httpProxy && !httpsProxy) return null;
   return new EnvHttpProxyAgent({

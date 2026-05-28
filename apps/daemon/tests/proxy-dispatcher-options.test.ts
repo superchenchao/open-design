@@ -2,7 +2,10 @@ import * as platform from '@open-design/platform';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const envHttpProxyAgentConstructor = vi.fn();
+const directAgentConstructor = vi.fn();
 const socks5ProxyAgentConstructor = vi.fn();
+const directAgentDispatch = vi.fn();
+const socks5ProxyAgentDispatch = vi.fn();
 
 vi.mock('undici', async () => {
   const actual = await vi.importActual<typeof import('undici')>('undici');
@@ -14,16 +17,39 @@ vi.mock('undici', async () => {
     async close() {}
   }
 
+  class MockAgent {
+    constructor(options?: unknown) {
+      directAgentConstructor(options);
+    }
+
+    dispatch(options: unknown, handler: unknown) {
+      directAgentDispatch(options, handler);
+      return true;
+    }
+
+    async close() {}
+
+    async destroy() {}
+  }
+
   class MockSocks5ProxyAgent {
     constructor(proxyUrl: string) {
       socks5ProxyAgentConstructor(proxyUrl);
     }
 
+    dispatch(options: unknown, handler: unknown) {
+      socks5ProxyAgentDispatch(options, handler);
+      return true;
+    }
+
     async close() {}
+
+    async destroy() {}
   }
 
   return {
     ...actual,
+    Agent: MockAgent,
     EnvHttpProxyAgent: MockEnvHttpProxyAgent,
     Socks5ProxyAgent: MockSocks5ProxyAgent,
   };
@@ -31,7 +57,10 @@ vi.mock('undici', async () => {
 
 describe('proxyDispatcherRequestInit', () => {
   afterEach(() => {
+    directAgentConstructor.mockReset();
+    directAgentDispatch.mockReset();
     envHttpProxyAgentConstructor.mockReset();
+    socks5ProxyAgentDispatch.mockReset();
     socks5ProxyAgentConstructor.mockReset();
     vi.resetModules();
   });
@@ -76,6 +105,100 @@ describe('proxyDispatcherRequestInit', () => {
       expect(requestInit.dispatcher).toBeTruthy();
       expect(socks5ProxyAgentConstructor).toHaveBeenCalledWith('socks5://proxy.example.test:1080');
       expect(envHttpProxyAgentConstructor).not.toHaveBeenCalled();
+      await expect(close()).resolves.toBeUndefined();
+    } finally {
+      proxySpy.mockRestore();
+    }
+  });
+
+  it('bypasses SOCKS proxy dispatch for loopback targets from NO_PROXY defaults', async () => {
+    const proxySpy = vi.spyOn(platform, 'resolveSystemProxyEnv').mockReturnValue({});
+    const { proxyDispatcherRequestInit } = await import('../src/connectionTest.js');
+
+    try {
+      const { close, requestInit } = proxyDispatcherRequestInit({
+        ALL_PROXY: 'socks5://proxy.example.test:1080',
+      });
+
+      expect(requestInit.dispatcher).toBeTruthy();
+      const dispatcher = requestInit.dispatcher as {
+        dispatch(options: { origin: string; path: string }, handler: unknown): boolean;
+      };
+      expect(
+        dispatcher.dispatch(
+          {
+            origin: 'http://localhost:11434',
+            path: '/v1/chat/completions',
+          },
+          {},
+        ),
+      ).toBe(true);
+      expect(directAgentDispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          origin: 'http://localhost:11434',
+          path: '/v1/chat/completions',
+        }),
+        {},
+      );
+      expect(socks5ProxyAgentDispatch).not.toHaveBeenCalled();
+      await expect(close()).resolves.toBeUndefined();
+    } finally {
+      proxySpy.mockRestore();
+    }
+  });
+
+  it('bypasses SOCKS proxy dispatch for explicit NO_PROXY hosts', async () => {
+    const proxySpy = vi.spyOn(platform, 'resolveSystemProxyEnv').mockReturnValue({});
+    const { proxyDispatcherRequestInit } = await import('../src/connectionTest.js');
+
+    try {
+      const { close, requestInit } = proxyDispatcherRequestInit({
+        ALL_PROXY: 'socks5://proxy.example.test:1080',
+        NO_PROXY: '.corp.test',
+      });
+
+      expect(requestInit.dispatcher).toBeTruthy();
+      const dispatcher = requestInit.dispatcher as {
+        dispatch(options: { origin: string; path: string }, handler: unknown): boolean;
+      };
+      dispatcher.dispatch(
+        {
+          origin: 'https://api.corp.test',
+          path: '/v1/models',
+        },
+        {},
+      );
+      expect(directAgentDispatch).toHaveBeenCalled();
+      expect(socks5ProxyAgentDispatch).not.toHaveBeenCalled();
+      await expect(close()).resolves.toBeUndefined();
+    } finally {
+      proxySpy.mockRestore();
+    }
+  });
+
+  it('keeps SOCKS proxy dispatch for hosts outside NO_PROXY', async () => {
+    const proxySpy = vi.spyOn(platform, 'resolveSystemProxyEnv').mockReturnValue({});
+    const { proxyDispatcherRequestInit } = await import('../src/connectionTest.js');
+
+    try {
+      const { close, requestInit } = proxyDispatcherRequestInit({
+        ALL_PROXY: 'socks5://proxy.example.test:1080',
+        NO_PROXY: '.corp.test',
+      });
+
+      expect(requestInit.dispatcher).toBeTruthy();
+      const dispatcher = requestInit.dispatcher as {
+        dispatch(options: { origin: string; path: string }, handler: unknown): boolean;
+      };
+      dispatcher.dispatch(
+        {
+          origin: 'https://api.openai.com',
+          path: '/v1/chat/completions',
+        },
+        {},
+      );
+      expect(socks5ProxyAgentDispatch).toHaveBeenCalled();
+      expect(directAgentDispatch).not.toHaveBeenCalled();
       await expect(close()).resolves.toBeUndefined();
     } finally {
       proxySpy.mockRestore();
