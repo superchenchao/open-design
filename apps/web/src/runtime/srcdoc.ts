@@ -1723,6 +1723,7 @@ function injectDeckBridge(doc: string, initialSlideIndex = 0): string {
       var list = slides();
       var i = activeIndex(list);
       var count = list.length;
+      var progressWidth = count ? ((i + 1) / count * 100) + '%' : '0';
       window.parent.postMessage({
         type: 'od:slide-state',
         active: i,
@@ -1731,8 +1732,12 @@ function injectDeckBridge(doc: string, initialSlideIndex = 0): string {
       document.querySelectorAll('.slide-number').forEach(function(el){
         el.setAttribute('data-current',i+1); el.setAttribute('data-total',count);
       });
-      document.querySelectorAll('.progress-bar>span').forEach(function(el){
-        el.style.width=(count?((i+1)/count*100)+'%':'0');
+      document.querySelectorAll('.progress-bar>span,.deck-progress>span,.deck-progress .bar').forEach(function(el){
+        el.style.width=progressWidth;
+      });
+      document.querySelectorAll('.deck-progress').forEach(function(el){
+        if (el.querySelector('span,.bar')) return;
+        el.style.width=progressWidth;
       });
     } catch (e) {}
   }

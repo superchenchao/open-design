@@ -164,4 +164,38 @@ describe('deck bridge — nested slide markup (#1530)', () => {
     expect(htmlScrollTo).toHaveBeenCalledWith({ left: 1000, behavior: 'smooth' });
     expect(lastSlideState(parentPostMessage)).toMatchObject({ active: 1, count: 3 });
   });
+
+  it('updates Simple Deck direct progress fill when host navigation drives the slide', async () => {
+    const { win } = setupDeckBridge(`
+      <style>
+        html, body { margin: 0; height: 100%; }
+        body { display: flex; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; }
+        .slide { flex: 0 0 100vw; width: 100vw; height: 100vh; scroll-snap-align: start; }
+        .deck-progress { position: fixed; top: 0; left: 0; height: 3px; width: 0; }
+      </style>
+      <section class="slide">One</section>
+      <section class="slide">Two</section>
+      <section class="slide">Three</section>
+      <div class="deck-progress" id="deck-progress" aria-hidden></div>
+    `);
+    Object.defineProperty(win, 'innerWidth', { configurable: true, value: 1000 });
+    Object.defineProperties(win.document.body, {
+      scrollWidth: { configurable: true, value: 3000 },
+      clientWidth: { configurable: true, value: 1000 },
+    });
+    Object.defineProperties(win.document.documentElement, {
+      scrollWidth: { configurable: true, value: 3000 },
+      clientWidth: { configurable: true, value: 1000 },
+    });
+    win.document.body.scrollTo = vi.fn();
+    win.document.documentElement.scrollTo = vi.fn((options?: ScrollToOptions | number) => {
+      const left = typeof options === 'number' ? options : Number(options?.left || 0);
+      win.document.documentElement.scrollLeft = left;
+    });
+
+    postSlide(win, 'next');
+    await new Promise<void>((resolve) => win.setTimeout(resolve, 450));
+
+    expect((win.document.getElementById('deck-progress') as HTMLElement).style.width).toBe('66.66666666666666%');
+  });
 });
