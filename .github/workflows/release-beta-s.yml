@@ -36,24 +36,32 @@ jobs:
           lfs: true
 
       - name: Verify preinstalled toolchain
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
+          $fnm = "C:\Users\runner\.cargo\bin\fnm.exe"
+          $cargo = "C:\Users\runner\.cargo\bin\cargo.exe"
+          $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
           where.exe git
           where.exe git-lfs
-          where.exe node
-          where.exe pnpm
-          where.exe cargo
-          where.exe makensis
+          if (-not (Test-Path -LiteralPath $fnm)) {
+            throw "fnm is required at $fnm"
+          }
+          if (-not (Test-Path -LiteralPath $cargo)) {
+            throw "cargo is required at $cargo"
+          }
+          if (-not (Test-Path -LiteralPath $makensis)) {
+            throw "makensis is required at $makensis"
+          }
           git --version
           git lfs version
-          node --version
-          pnpm --version
-          cargo --version
-          makensis /VERSION
+          & $fnm exec --using=24 -- node --version
+          & $fnm exec --using=24 -- pnpm.cmd --version
+          & $cargo --version
+          & $makensis /VERSION
 
       - name: Confirm workflow boundary
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
           "workspace=$env:GITHUB_WORKSPACE"
