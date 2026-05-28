@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 
-import { hashJson, hashPath, ToolPackCache } from "../cache.js";
+import { hashJson, hashPath, type CacheNode, ToolPackCache } from "../cache.js";
 import type { ToolPackConfig } from "../config.js";
 import { winResources } from "../resources.js";
 import { electronBuilderVersionForAppVersion } from "../versions.js";
@@ -48,6 +48,7 @@ import type {
 } from "./types.js";
 
 const execFileAsync = promisify(execFile);
+const WIN_ARCHIVE_CACHE_VERSION = 1;
 
 async function assertWebStandaloneOutput(config: ToolPackConfig): Promise<void> {
   const webRoot = join(config.workspaceRoot, "apps", "web");
@@ -391,11 +392,67 @@ export async function runElectronBuilder(
       }
       return materializeCachedUnpackedForInstaller(paths, packagedVersion);
     });
-    if (shouldBuildWinNsisInstaller(config.to)) {
-      segments.push(...await buildCustomWinNsisInstaller(config, paths, materialized));
-    }
     if (shouldBuildWinPortableZip(config.to)) {
-      segments.push(...await buildWinPortableZip(config, paths, materialized));
+      const archiveSegments: WinPackTiming[] = [];
+      await runSegment("portable-zip:cache", async () => {
+        const node: CacheNode<{ createdAt: string; portableZipPath: string }> = {
+          build: async ({ entryRoot }) => {
+            archiveSegments.push(...await buildWinPortableZip(config, paths, materialized));
+            await cp(paths.setupZipPath, join(entryRoot, "portable.zip"));
+            return { createdAt: new Date().toISOString(), portableZipPath: paths.setupZipPath };
+          },
+          id: "win.portable-zip",
+          invalidate: async () => null,
+          key: hashJson({
+            archiveCacheVersion: WIN_ARCHIVE_CACHE_VERSION,
+            namespace: config.namespace,
+            packagedAppKey,
+            packagedVersion,
+            target: "portable-zip",
+          }),
+          outputs: ["portable.zip"],
+        };
+        await cache.acquire({
+          materialize: [{ from: "portable.zip", reuse: true, to: paths.setupZipPath }],
+          node,
+        });
+      });
+      segments.push(...archiveSegments);
+    }
+    if (shouldBuildWinNsisInstaller(config.to)) {
+      const archiveSegments: WinPackTiming[] = [];
+      await runSegment("nsis-installer:cache", async () => {
+        const node: CacheNode<{ createdAt: string; installerPath: string; payloadPath: string }> = {
+          build: async ({ entryRoot }) => {
+            archiveSegments.push(...await buildCustomWinNsisInstaller(config, paths, materialized));
+            await cp(paths.setupPath, join(entryRoot, "setup.exe"));
+            await cp(paths.installerPayloadPath, join(entryRoot, "payload.7z"));
+            return {
+              createdAt: new Date().toISOString(),
+              installerPath: paths.setupPath,
+              payloadPath: paths.installerPayloadPath,
+            };
+          },
+          id: "win.nsis-installer",
+          invalidate: async () => null,
+          key: hashJson({
+            archiveCacheVersion: WIN_ARCHIVE_CACHE_VERSION,
+            namespace: config.namespace,
+            packagedAppKey,
+            packagedVersion,
+            target: "nsis-installer",
+          }),
+          outputs: ["setup.exe", "payload.7z"],
+        };
+        await cache.acquire({
+          materialize: [
+            { from: "setup.exe", reuse: true, to: paths.setupPath },
+            { from: "payload.7z", reuse: true, to: paths.installerPayloadPath },
+          ],
+          node,
+        });
+      });
+      segments.push(...archiveSegments);
     }
   }
   return segments;

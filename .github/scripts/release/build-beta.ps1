@@ -8,7 +8,9 @@ param(
   [string]$ReleaseVersion = "",
   [string]$MetadataUrl = "https://releases.open-design.ai/beta/latest/metadata.json",
   [ValidateSet("full", "fast")]
-  [string]$SmokeMode = "full"
+  [string]$SmokeMode = "full",
+  [ValidateSet("all", "dir", "nsis", "zip")]
+  [string]$Target = "all"
 )
 
 $ErrorActionPreference = "Stop"
@@ -214,6 +216,7 @@ function Write-IndexAndSummary([string]$Status) {
     lane = $Lane
     namespace = $Namespace
     platform = $Platform
+    target = $Target
     releaseVersion = $ReleaseVersion
     status = $Status
     failure = $script:failureMessage
@@ -242,6 +245,7 @@ function Write-IndexAndSummary([string]$Status) {
     "",
     "- status: ``$Status``",
     "- platform: ``$Platform``",
+    "- target: ``$Target``",
     "- lane: ``$Lane``",
     "- namespace: ``$Namespace``",
     "- releaseVersion: ``$ReleaseVersion``",
@@ -396,7 +400,7 @@ try {
     "--namespace", $Namespace,
     "--portable",
     "--app-version", $ReleaseVersion,
-    "--to", "all",
+    "--to", $Target,
     "--json"
   )
 
