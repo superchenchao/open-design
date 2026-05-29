@@ -282,7 +282,6 @@ child.on('exit', (code, signal) => {
   });
 
   it('does not report plugin authoring as succeeded when the agent only emits planning text without artifacts', async () => {
-    const conversationId = `conv-plugin-authoring-${randomUUID()}`;
     const projectId = `proj-plugin-authoring-${randomUUID()}`;
 
     const createProjectResponse = await fetch(`${baseUrl}/api/projects`, {
@@ -296,6 +295,13 @@ child.on('exit', (code, signal) => {
       }),
     });
     expect(createProjectResponse.status).toBe(200);
+    const conversationsResponse = await fetch(`${baseUrl}/api/projects/${projectId}/conversations`);
+    expect(conversationsResponse.status).toBe(200);
+    const conversationsBody = await conversationsResponse.json() as {
+      conversations: Array<{ id: string }>;
+    };
+    const conversationId = conversationsBody.conversations[0]?.id;
+    expect(conversationId).toBeTruthy();
 
     await withFakeAgent(
       'opencode',
