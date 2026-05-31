@@ -931,28 +931,39 @@ export function FileWorkspace({
             </span>
             <span className="ws-tab-label">{t('workspace.designFiles')}</span>
           </button>
-          <div className="ws-add-tab" ref={addMenuRef}>
+          <div className="ws-add-tab">
             <button
+              ref={addButtonRef}
               type="button"
               className={`ws-tab-add ${addMenuOpen ? 'active' : ''}`}
               aria-label="Add workspace module"
+              aria-haspopup="menu"
+              aria-expanded={addMenuOpen}
               title="Add"
               onClick={() => setAddMenuOpen((open) => !open)}
             >
               <Icon name="plus" size={15} />
             </button>
-            {addMenuOpen ? (
-              <div className="ws-add-menu" role="menu">
-                <button type="button" role="menuitem" onClick={openBrowserTab}>
-                  <Icon name="globe" size={15} />
-                  <span>
-                    <strong>Browser</strong>
-                    <small>Reference sites and browser-harness tasks</small>
-                  </span>
-                </button>
-              </div>
-            ) : null}
           </div>
+          {addMenuOpen && addMenuPos
+            ? createPortal(
+                <div
+                  ref={addMenuRef}
+                  className="ws-add-menu"
+                  role="menu"
+                  style={{ top: addMenuPos.top, left: addMenuPos.left }}
+                >
+                  <button type="button" role="menuitem" onClick={openBrowserTab}>
+                    <Icon name="globe" size={15} />
+                    <span>
+                      <strong>Browser</strong>
+                      <small>Reference sites and browser-harness tasks</small>
+                    </span>
+                  </button>
+                </div>,
+                document.body,
+              )
+            : null}
           {browserTabOpen ? (
             <Tab
               key={BROWSER_TAB}

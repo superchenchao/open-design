@@ -1527,16 +1527,16 @@
   outline-offset: 2px;
 }
 .ws-add-menu {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
+  /* Portaled to <body> and positioned from the + button via inline top/left.
+     Fixed (not absolute) so the tab strip's overflow clipping cannot hide it. */
+  position: fixed;
   width: 260px;
   padding: 6px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-panel);
   box-shadow: var(--shadow-lg);
-  z-index: 180;
+  z-index: 200;
 }
 .ws-add-menu button {
   width: 100%;
