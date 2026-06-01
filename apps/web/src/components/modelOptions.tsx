@@ -65,6 +65,7 @@ interface SearchableModelSelectProps
   popoverTestId?: string;
   additionalOptions?: Array<{ value: string; label: string }>;
   minSearchableOptions?: number;
+  popoverMinWidth?: number;
 }
 
 export const SearchableModelSelect = forwardRef<
@@ -80,6 +81,7 @@ export const SearchableModelSelect = forwardRef<
     popoverTestId,
     additionalOptions,
     minSearchableOptions = 8,
+    popoverMinWidth,
     className,
     ...buttonProps
   },
@@ -87,7 +89,7 @@ export const SearchableModelSelect = forwardRef<
 ) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [popoverStyle, setPopoverStyle] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [popoverStyle, setPopoverStyle] = useState<({ left: number; width: number; maxHeight: number } & ({ top: number; bottom?: never } | { bottom: number; top?: never })) | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -144,10 +146,33 @@ export const SearchableModelSelect = forwardRef<
     const updatePosition = () => {
       const rect = wrapRef.current?.getBoundingClientRect();
       if (!rect) return;
+      const viewportWidth = typeof window === 'undefined' ? rect.width : window.innerWidth;
+      const viewportHeight = typeof window === 'undefined' ? rect.height : window.innerHeight;
+      const desiredWidth = Math.max(rect.width, popoverMinWidth ?? 0);
+      const maxWidth = Math.max(160, viewportWidth - 16);
+      const width = Math.min(desiredWidth, maxWidth);
+      const left = Math.min(
+        Math.max(8, rect.left),
+        Math.max(8, viewportWidth - width - 8),
+      );
+      const availableBelow = Math.max(140, viewportHeight - rect.bottom - 12);
+      const availableAbove = Math.max(140, rect.top - 12);
+      const shouldOpenUpward = availableBelow < 260 && availableAbove > availableBelow;
+      const maxHeight = Math.min(360, shouldOpenUpward ? availableAbove : availableBelow);
+      if (shouldOpenUpward) {
+        setPopoverStyle({
+          bottom: Math.max(8, viewportHeight - rect.top + 6),
+          left,
+          width,
+          maxHeight,
+        });
+        return;
+      }
       setPopoverStyle({
         top: rect.bottom + 6,
-        left: rect.left,
-        width: rect.width,
+        left,
+        width,
+        maxHeight,
       });
     };
     updatePosition();
@@ -195,9 +220,11 @@ export const SearchableModelSelect = forwardRef<
               data-testid={popoverTestId}
               style={{
                 position: 'fixed',
-                top: `${popoverStyle.top}px`,
+                top: popoverStyle.top != null ? `${popoverStyle.top}px` : 'auto',
+                bottom: popoverStyle.bottom != null ? `${popoverStyle.bottom}px` : 'auto',
                 left: `${popoverStyle.left}px`,
                 width: `${popoverStyle.width}px`,
+                maxHeight: `${popoverStyle.maxHeight}px`,
               }}
             >
               {shouldShowSearch ? (
@@ -214,7 +241,14 @@ export const SearchableModelSelect = forwardRef<
                   />
                 </div>
               ) : null}
-              <div className="model-select-searchable__list" id={listboxId} role="listbox">
+              <div
+                className="model-select-searchable__list"
+                id={listboxId}
+                role="listbox"
+                style={{
+                  maxHeight: `${Math.max(96, popoverStyle.maxHeight - (shouldShowSearch ? 52 : 12))}px`,
+                }}
+              >
                 {filteredOptions.map((option) => {
                   const active = option.id === value;
                   return (

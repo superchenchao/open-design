@@ -1470,6 +1470,8 @@ function AppInner() {
         onModeChange={handleModeChange}
         onAgentChange={handleAgentChange}
         onAgentModelChange={handleAgentModelChange}
+        onApiModelChange={handleApiModelChange}
+        providerModelsCache={providerModelsCache}
         onRefreshAgents={refreshAgents}
         onOpenSettings={openSettings}
         onOpenAmrSettings={openAmrSettings}

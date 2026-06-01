@@ -1308,8 +1308,8 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: /Local CLI.*2 installed/i }));
 
-    const memoryModel = await screen.findByRole('combobox', { name: 'Memory model' }) as HTMLSelectElement;
-    expect(memoryModel.options[memoryModel.selectedIndex]?.textContent).toBe('Same as chat (Claude Code)');
+    const memoryModel = await screen.findByRole('combobox', { name: 'Memory model' });
+    expect(memoryModel.textContent?.trim()).toBe('Same as chat (Claude Code)');
     expect(screen.getByText(/anthropic is only the fallback provider family/i)).toBeTruthy();
   });
 

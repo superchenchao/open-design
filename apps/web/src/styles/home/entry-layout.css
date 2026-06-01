@@ -1104,6 +1104,7 @@
     no-repeat right 10px center;
   font-size: 12px;
   color: var(--text);
+  text-align: left;
   cursor: pointer;
 }
 .inline-switcher__select:focus-visible {

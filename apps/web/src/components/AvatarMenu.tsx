@@ -2,8 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from '../i18n';
 import { AgentIcon } from './AgentIcon';
 import { RemixIcon } from './RemixIcon';
-import { renderModelOptions } from './modelOptions';
-import type { AgentInfo, AppConfig, ExecMode } from '../types';
+import { SearchableModelSelect } from './modelOptions';
+import type { AgentInfo, AppConfig, ExecMode, ProviderModelOption } from '../types';
+import { SUGGESTED_MODELS_BY_PROTOCOL } from '../state/apiProtocols';
+import { KNOWN_PROVIDERS } from '../state/config';
+import { mergeProviderModelOptions, providerModelsCacheKey } from './SettingsDialog';
 import { apiProtocolLabel } from '../utils/apiProtocol';
 import { isMacPlatform } from '../utils/platform';
 
@@ -17,6 +20,8 @@ interface Props {
     id: string,
     choice: { model?: string; reasoning?: string },
   ) => void;
+  onApiModelChange: (model: string) => void;
+  providerModelsCache?: Record<string, ProviderModelOption[]>;
   onOpenSettings: () => void;
   onRefreshAgents: () => void;
   onBack?: () => void;
@@ -38,6 +43,8 @@ export function AvatarMenu({
   onModeChange,
   onAgentChange,
   onAgentModelChange,
+  onApiModelChange,
+  providerModelsCache,
   onOpenSettings,
   onRefreshAgents,
   onBack,
@@ -86,6 +93,19 @@ export function AvatarMenu({
   const currentModelLabel = currentAgent?.models?.find(
     (m) => m.id === currentModelId,
   )?.label;
+
+  const byokProvider = KNOWN_PROVIDERS.find((provider) => provider.protocol === config.apiProtocol);
+  const byokProviderModelsKey = providerModelsCacheKey(
+    config.apiProtocol,
+    config.baseUrl ?? '',
+    config.apiKey ?? '',
+    config.apiVersion ?? '',
+  );
+  const fetchedByokModels = providerModelsCache?.[byokProviderModelsKey] ?? [];
+  const byokModelOptions = mergeProviderModelOptions(
+    fetchedByokModels,
+    SUGGESTED_MODELS_BY_PROTOCOL[config.apiProtocol] ?? [],
+  );
 
   return (
     <div className="avatar-menu" ref={wrapRef}>
@@ -223,38 +243,36 @@ export function AvatarMenu({
                 (currentAgent.reasoningOptions &&
                   currentAgent.reasoningOptions.length > 0)) ? (
                 <div className="avatar-model-section">
-                  <div className="avatar-section-label">
-                    {t('avatar.modelSection')}
-                  </div>
                   {currentAgent.models && currentAgent.models.length > 0 ? (
                     <label className="avatar-select-row">
                       <span className="avatar-select-label">
                         {t('avatar.modelLabel')}
                       </span>
-                      <select
-                        className="avatar-select"
+                      <SearchableModelSelect
+                        className="inline-switcher__select avatar-select"
                         value={currentModelId ?? ''}
-                        onChange={(e) =>
+                        onChange={(value) =>
                           onAgentModelChange(currentAgent.id, {
-                            model: e.target.value,
+                            model: value,
                           })
                         }
-                      >
-                        {renderModelOptions(currentAgent.models)}
-                        {/* When the user has typed a custom id in
-                            Settings, surface it here too so the dropdown
-                            actually shows the active selection rather
-                            than collapsing to "Default". */}
-                        {currentModelId &&
-                        !currentAgent.models.some(
-                          (m) => m.id === currentModelId,
-                        ) ? (
-                          <option value={currentModelId}>
-                            {currentModelId}{' '}
-                            {t('avatar.customSuffix')}
-                          </option>
-                        ) : null}
-                      </select>
+                        models={currentAgent.models}
+                        additionalOptions={
+                          currentModelId &&
+                          !currentAgent.models.some((m) => m.id === currentModelId)
+                            ? [
+                                {
+                                  value: currentModelId,
+                                  label: `${currentModelId} ${t('avatar.customSuffix')}` ,
+                                },
+                              ]
+                            : undefined
+                        }
+                        searchPlaceholder={t('newproj.modelSearch')}
+                        searchInputTestId="avatar-model-search"
+                        popoverTestId="avatar-model-popover"
+                        popoverMinWidth={280}
+                      />
                     </label>
                   ) : null}
                   {currentAgent.reasoningOptions &&
@@ -295,6 +313,38 @@ export function AvatarMenu({
                 <span>{t('avatar.rescan')}</span>
               </button>
             </>
+          ) : null}
+
+          {config.mode === 'api' ? (
+            <div className="avatar-model-section">
+              <label className="avatar-select-row">
+                <span className="avatar-select-label">
+                  {t('avatar.modelLabel')}
+                </span>
+                <SearchableModelSelect
+                  className="inline-switcher__select avatar-select"
+                  value={config.model ?? ''}
+                  onChange={(value) => onApiModelChange(value)}
+                  models={byokModelOptions.map((m) => ({ id: m.id, label: m.label }))}
+                  additionalOptions={
+                    config.model && !byokModelOptions.some((m) => m.id === config.model)
+                      ? [
+                          {
+                            value: config.model,
+                            label: byokProvider && byokProvider.models.includes(config.model)
+                              ? config.model
+                              : `${config.model} ${t('avatar.customSuffix')}`,
+                          },
+                        ]
+                      : undefined
+                  }
+                  searchPlaceholder={t('newproj.modelSearch')}
+                  searchInputTestId="avatar-byok-model-search"
+                  popoverTestId="avatar-byok-model-popover"
+                  popoverMinWidth={280}
+                />
+              </label>
+            </div>
           ) : null}
 
           <div style={{ height: 1, background: 'var(--border-soft)', margin: '4px 6px' }} />

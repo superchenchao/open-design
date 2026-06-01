@@ -1180,17 +1180,18 @@ a.avatar-item:visited {
 }
 .avatar-select-row {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
   font-size: 12px;
   color: var(--text-muted);
 }
 .avatar-select-label {
   flex-shrink: 0;
-  min-width: 64px;
+  min-width: 0;
 }
 .avatar-select {
-  flex: 1;
+  width: 100%;
   min-width: 0;
   font-size: 12px;
   padding: 4px 6px;

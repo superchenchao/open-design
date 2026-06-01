@@ -40,11 +40,11 @@ import type {
   MemoryExtractionProvider,
   MemoryListResponse,
 } from '@open-design/contracts';
-import type { ApiProtocol, ExecMode } from '../types';
+import type { AgentModelOption, ApiProtocol, ExecMode } from '../types';
 import {
   SUGGESTED_MODELS_BY_PROTOCOL,
 } from '../state/apiProtocols';
-import { CUSTOM_MODEL_SENTINEL } from './modelOptions';
+import { CUSTOM_MODEL_SENTINEL, SearchableModelSelect } from './modelOptions';
 
 interface Props {
   mode: ExecMode;
@@ -224,6 +224,9 @@ export function MemoryModelInline({
     if (mode === 'api') return SUGGESTED_MODELS_BY_PROTOCOL[apiProtocol];
     return cliModelOptions ?? [];
   }, [mode, apiProtocol, cliModelOptions]);
+  const searchableModelOptions = useMemo<AgentModelOption[]>(() => (
+    modelOptions.map((modelId) => ({ id: modelId, label: modelId }))
+  ), [modelOptions]);
 
   const savedModel = config?.model ?? '';
   const savedInOptions =
@@ -419,38 +422,39 @@ export function MemoryModelInline({
           {flash}
         </span>
       ) : null}
-      <select
+      <SearchableModelSelect
         aria-labelledby={labelId}
+        className="inline-switcher__select memory-model-inline__select"
         value={selectValue}
         disabled={busy}
-        onChange={(e) => void onSelectChange(e.target.value)}
-      >
-        <option value={SAME_AS_CHAT_SENTINEL}>
-          {sameAsChatCliLabel
-            ? t('settings.memoryModelInlineSameAsChatWithModel', {
-                model: sameAsChatCliLabel,
-              })
-            : effectiveChatProtocol
-            ? t('settings.memoryModelInlineSameAsChatWithProvider', {
-                provider: effectiveChatProtocol,
-              })
-            : chatModel
+        onChange={(nextValue) => void onSelectChange(nextValue)}
+        models={showSuggestedOptions ? searchableModelOptions : []}
+        additionalOptions={[
+          {
+            value: SAME_AS_CHAT_SENTINEL,
+            label: sameAsChatCliLabel
               ? t('settings.memoryModelInlineSameAsChatWithModel', {
-                  model: chatModel,
+                  model: sameAsChatCliLabel,
                 })
-              : t('settings.memoryModelInlineSameAsChat')}
-        </option>
-        {showSuggestedOptions
-          ? modelOptions.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))
-          : null}
-        <option value={CUSTOM_MODEL_SENTINEL}>
-          {t('settings.modelCustom')}
-        </option>
-      </select>
+              : effectiveChatProtocol
+              ? t('settings.memoryModelInlineSameAsChatWithProvider', {
+                  provider: effectiveChatProtocol,
+                })
+              : chatModel
+                ? t('settings.memoryModelInlineSameAsChatWithModel', {
+                    model: chatModel,
+                  })
+                : t('settings.memoryModelInlineSameAsChat'),
+          },
+          {
+            value: CUSTOM_MODEL_SENTINEL,
+            label: t('settings.modelCustom'),
+          },
+        ]}
+        searchPlaceholder={t('newproj.modelSearch')}
+        searchInputTestId="memory-model-inline-search"
+        popoverTestId="memory-model-inline-popover"
+      />
       {customActive ? (
         <div
           className="field-row"
