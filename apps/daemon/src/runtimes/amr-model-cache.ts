@@ -11,6 +11,12 @@ type Fetchers = {
   fetchRemote: () => Promise<RuntimeModelOption[]>;
 };
 
+type CacheState = {
+  remote: RemoteCacheEntry | null;
+  inFlight: Promise<void> | null;
+  lastRemoteError: string | null;
+};
+
 const DEFAULT_REMOTE_REFRESH_INTERVAL_MS = 60_000;
 
 function errorMessage(error: unknown): string {
@@ -18,60 +24,69 @@ function errorMessage(error: unknown): string {
 }
 
 export class AmrModelLoadingCache {
-  private remote: RemoteCacheEntry | null = null;
-  private inFlight: Promise<void> | null = null;
-  private lastRemoteError: string | null = null;
+  private readonly states = new Map<string, CacheState>();
 
   constructor(private readonly refreshIntervalMs = DEFAULT_REMOTE_REFRESH_INTERVAL_MS) {}
 
-  async get(fetchers: Fetchers): Promise<AmrModelsResponse> {
+  async get(cacheKey: string, fetchers: Fetchers): Promise<AmrModelsResponse> {
+    const state = this.stateFor(cacheKey);
     const now = Date.now();
-    if (this.remote) {
-      const staleByAge = now - this.remote.fetchedAt >= this.refreshIntervalMs;
-      if (staleByAge) this.startRefresh(fetchers.fetchRemote);
+    if (state.remote) {
+      const staleByAge = now - state.remote.fetchedAt >= this.refreshIntervalMs;
+      if (staleByAge) this.startRefresh(state, fetchers.fetchRemote);
       return {
         source: 'remote',
-        models: this.remote.models,
-        refreshing: this.inFlight !== null,
-        ...(this.inFlight || this.lastRemoteError ? { stale: true } : {}),
-        ...(this.lastRemoteError ? { remoteError: this.lastRemoteError } : {}),
+        models: state.remote.models,
+        refreshing: state.inFlight !== null,
+        ...(state.inFlight || state.lastRemoteError ? { stale: true } : {}),
+        ...(state.lastRemoteError ? { remoteError: state.lastRemoteError } : {}),
       };
     }
 
     const preset = await fetchers.fetchPreset();
-    this.startRefresh(fetchers.fetchRemote);
+    this.startRefresh(state, fetchers.fetchRemote);
     return {
       source: 'preset',
       models: preset,
-      refreshing: this.inFlight !== null,
-      ...(this.lastRemoteError ? { remoteError: this.lastRemoteError } : {}),
+      refreshing: state.inFlight !== null,
+      ...(state.lastRemoteError ? { remoteError: state.lastRemoteError } : {}),
     };
   }
 
-  warm(fetchRemote: () => Promise<RuntimeModelOption[]>): void {
-    this.startRefresh(fetchRemote);
+  warm(cacheKey: string, fetchRemote: () => Promise<RuntimeModelOption[]>): void {
+    this.startRefresh(this.stateFor(cacheKey), fetchRemote);
   }
 
   resetForTests(): void {
-    this.remote = null;
-    this.inFlight = null;
-    this.lastRemoteError = null;
+    this.states.clear();
   }
 
-  private startRefresh(fetchRemote: () => Promise<RuntimeModelOption[]>): void {
-    if (this.inFlight) return;
-    this.inFlight = (async () => {
+  private stateFor(cacheKey: string): CacheState {
+    const existing = this.states.get(cacheKey);
+    if (existing) return existing;
+    const created: CacheState = {
+      remote: null,
+      inFlight: null,
+      lastRemoteError: null,
+    };
+    this.states.set(cacheKey, created);
+    return created;
+  }
+
+  private startRefresh(state: CacheState, fetchRemote: () => Promise<RuntimeModelOption[]>): void {
+    if (state.inFlight) return;
+    state.inFlight = (async () => {
       try {
         const models = await fetchRemote();
         if (models.length === 0) {
           throw new Error('AMR remote model list returned no chat models');
         }
-        this.remote = { models, fetchedAt: Date.now() };
-        this.lastRemoteError = null;
+        state.remote = { models, fetchedAt: Date.now() };
+        state.lastRemoteError = null;
       } catch (error) {
-        this.lastRemoteError = errorMessage(error);
+        state.lastRemoteError = errorMessage(error);
       } finally {
-        this.inFlight = null;
+        state.inFlight = null;
       }
     })();
   }

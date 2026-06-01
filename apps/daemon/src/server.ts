@@ -6096,13 +6096,22 @@ export async function startServer({
       ),
       agentLaunch,
     );
-    return { launchPath, env, configuredEnv };
+    const cacheKey = JSON.stringify({
+      launchPath,
+      home: env.HOME ?? env.USERPROFILE ?? '',
+      openDesignAmrProfile: env.OPEN_DESIGN_AMR_PROFILE ?? '',
+      velaProfile: env.VELA_PROFILE ?? '',
+      velaLinkUrl: env.VELA_LINK_URL ?? '',
+      velaRuntimeKey: env.VELA_RUNTIME_KEY ?? '',
+      velaOpencodeBin: env.VELA_OPENCODE_BIN ?? '',
+    });
+    return { launchPath, env, configuredEnv, cacheKey };
   }
 
   app.get('/api/amr/models', async (_req, res) => {
     try {
       const probe = await resolveAmrModelProbe();
-      const response = await amrModelLoadingCache.get({
+      const response = await amrModelLoadingCache.get(probe.cacheKey, {
         fetchPreset: () => fetchVelaPresetModels(probe.launchPath, probe.env),
         fetchRemote: () => fetchVelaRemoteModelsWithRetry(probe.launchPath, probe.env),
       });
@@ -6120,7 +6129,7 @@ export async function startServer({
       if (status.loggedIn) {
         void resolveAmrModelProbe()
           .then((probe) => {
-            amrModelLoadingCache.warm(() =>
+            amrModelLoadingCache.warm(probe.cacheKey, () =>
               fetchVelaRemoteModelsWithRetry(probe.launchPath, probe.env),
             );
           })
