@@ -215,13 +215,13 @@ test('simple deck keeps the active slide stable across preview mode switches', a
   const viewModeTabs = page.getByRole('tablist', { name: 'View mode' });
 
   await expect(frame.getByText('Slide One')).toBeVisible();
+  await page.getByLabel('Next slide').click();
+  await expect(frame.getByText('Slide Two')).toBeVisible();
 
   await viewModeTabs.getByRole('tab', { name: 'Code' }).click();
   await expect(page.locator('.viewer-source')).toContainText('Slide Three');
   await viewModeTabs.getByRole('tab', { name: 'Preview' }).click();
 
-  await expect(frame.getByText('Slide One')).toBeVisible();
-  await page.getByLabel('Next slide').click();
   await expect(frame.getByText('Slide Two')).toBeVisible();
   await page.getByLabel('Next slide').click();
   await expect(frame.getByText('Slide Three')).toBeVisible();
