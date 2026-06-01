@@ -103,6 +103,39 @@ describe('scanRunEventsForUsageAnalytics', () => {
     expect(result.uncached_input_tokens).toBeUndefined();
     expect(result.cache_hit_ratio).toBeUndefined();
   });
+
+  it('reads normalized cached_read_tokens / cached_write_tokens aliases', () => {
+    const result = scanRunEventsForUsageAnalytics(
+      [
+        {
+          event: 'agent',
+          data: {
+            type: 'usage',
+            usage: {
+              input_tokens: 400,
+              output_tokens: 20,
+              cached_read_tokens: 120,
+              cached_write_tokens: 30,
+            },
+          },
+        },
+      ],
+      'gpt-5',
+      0,
+    );
+
+    expect(result).toMatchObject({
+      input_tokens_provider: 400,
+      input_tokens_effective: 550,
+      output_tokens: 20,
+      total_tokens: 570,
+      cache_read_input_tokens: 120,
+      cache_creation_input_tokens: 30,
+      uncached_input_tokens: 400,
+      cache_token_source: 'anthropic',
+    });
+    expect(result.cache_hit_ratio).toBeCloseTo(120 / 550);
+  });
 });
 
 describe('summarizeRunTimingAnalytics', () => {

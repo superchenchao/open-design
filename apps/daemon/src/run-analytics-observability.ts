@@ -128,6 +128,7 @@ export function scanRunEventsForUsageAnalytics(
             'cache_read_input_tokens',
             'cached_input_tokens',
             'cache_read_tokens',
+            'cached_read_tokens',
           ],
         );
         const openAiCachedInputTokens = readNestedNumber(
@@ -142,6 +143,7 @@ export function scanRunEventsForUsageAnalytics(
             'cache_creation_input_tokens',
             'cache_write_input_tokens',
             'cache_creation_tokens',
+            'cached_write_tokens',
           ],
           [['cache_creation', 'input_tokens']],
         );
