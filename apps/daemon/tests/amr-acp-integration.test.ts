@@ -254,11 +254,11 @@ describe('AMR model loading cache', () => {
       return [{ id: 'deepseek-v4-flash', label: 'deepseek-v4-flash' }];
     };
 
-    const first = await cache.get({
+    const first = await cache.get('vela:local', {
       fetchPreset: async () => [{ id: 'preset-a', label: 'preset-a' }],
       fetchRemote,
     });
-    const second = await cache.get({
+    const second = await cache.get('vela:local', {
       fetchPreset: async () => [{ id: 'preset-b', label: 'preset-b' }],
       fetchRemote,
     });
@@ -269,7 +269,7 @@ describe('AMR model loading cache', () => {
     releaseRemote[0]?.();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const remote = await cache.get({
+    const remote = await cache.get('vela:local', {
       fetchPreset: async () => {
         throw new Error('preset should not be required after remote cache exists');
       },
@@ -284,17 +284,17 @@ describe('AMR model loading cache', () => {
 
   it('keeps stale remote rows when a later refresh fails', async () => {
     const cache = new AmrModelLoadingCache(0);
-    cache.warm(async () => [{ id: 'deepseek-v3.2', label: 'deepseek-v3.2' }]);
+    cache.warm('vela:local', async () => [{ id: 'deepseek-v3.2', label: 'deepseek-v3.2' }]);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const stale = await cache.get({
+    const stale = await cache.get('vela:local', {
       fetchPreset: async () => [{ id: 'preset-a', label: 'preset-a' }],
       fetchRemote: async () => {
         throw new Error('remote unavailable');
       },
     });
     await new Promise((resolve) => setTimeout(resolve, 0));
-    const afterFailure = await cache.get({
+    const afterFailure = await cache.get('vela:local', {
       fetchPreset: async () => [{ id: 'preset-a', label: 'preset-a' }],
       fetchRemote: async () => {
         throw new Error('remote unavailable');
@@ -306,6 +306,23 @@ describe('AMR model loading cache', () => {
       stale: true,
       remoteError: 'remote unavailable',
       models: [{ id: 'deepseek-v3.2', label: 'deepseek-v3.2' }],
+    });
+  });
+
+  it('keeps remote catalogs isolated per resolved Vela environment', async () => {
+    const cache = new AmrModelLoadingCache(60_000);
+    cache.warm('vela:local', async () => [{ id: 'remote-local', label: 'remote-local' }]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const otherEnv = await cache.get('vela:prod', {
+      fetchPreset: async () => [{ id: 'preset-prod', label: 'preset-prod' }],
+      fetchRemote: async () => [{ id: 'remote-prod', label: 'remote-prod' }],
+    });
+
+    expect(otherEnv).toMatchObject({
+      source: 'preset',
+      models: [{ id: 'preset-prod', label: 'preset-prod' }],
+      refreshing: true,
     });
   });
 });

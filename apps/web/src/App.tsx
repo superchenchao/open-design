@@ -386,9 +386,7 @@ function AppInner() {
   useEffect(() => {
     if (!daemonLive || !amrAgentAvailable) return;
     let cancelled = false;
-    let attempts = 0;
     let timer: number | null = null;
-    const maxPresetPolls = 8;
     const pollDelayMs = 1_000;
 
     const applyAmrModels = async () => {
@@ -399,8 +397,7 @@ function AppInner() {
           ? { ...agent, models: result.models, modelsSource: 'live' }
           : agent,
       ));
-      if (result.source === 'preset' && attempts < maxPresetPolls) {
-        attempts += 1;
+      if (result.source === 'preset' || result.refreshing) {
         timer = window.setTimeout(() => {
           void applyAmrModels();
         }, pollDelayMs);
