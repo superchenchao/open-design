@@ -159,6 +159,7 @@ export function InlineModelSwitcher({
         stopAmrPolling();
         amrLoginStartedAtRef.current = null;
         setAmrLoginPending(false);
+        notifyAmrLoginStatusChanged('status-changed');
         return;
       }
       if (outcome === 'stopped' || outcome === 'timed-out') {

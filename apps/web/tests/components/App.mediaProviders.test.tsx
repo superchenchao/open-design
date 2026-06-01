@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from '../../src/App';
+import { notifyAmrLoginStatusChanged } from '../../src/components/amrLoginPolling';
 import type { AppConfig } from '../../src/types';
 import {
   fetchComposioConfigFromDaemon,
@@ -268,5 +269,19 @@ describe('App media provider sync flows', () => {
         },
       }),
     );
+  });
+
+  it('refreshes the agent catalog after AMR auth state settles', async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(mockedFetchAgents).toHaveBeenCalledTimes(1);
+    });
+
+    notifyAmrLoginStatusChanged('status-changed');
+
+    await waitFor(() => {
+      expect(mockedFetchAgents).toHaveBeenCalledTimes(2);
+    });
   });
 });

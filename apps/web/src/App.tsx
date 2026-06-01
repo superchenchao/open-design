@@ -18,6 +18,10 @@ import { MarketplaceView } from './components/MarketplaceView';
 import { PluginDetailView } from './components/PluginDetailView';
 import type { CreateInput, ImportClaudeDesignOutcome } from './components/NewProjectPanel';
 import { MemoryToast } from './components/MemoryToast';
+import {
+  AMR_LOGIN_STATUS_EVENT,
+  amrLoginStatusEventReason,
+} from './components/amrLoginPolling';
 import { PetOverlay, type PetTaskCenter } from './components/pet/PetOverlay';
 import { buildPetTaskCenter } from './components/pet/taskCenter';
 import { migrateCustomPetAtlas } from './components/pet/pets';
@@ -198,6 +202,7 @@ export function App() {
   const [integrationInitialTab, setIntegrationInitialTab] = useState<IntegrationTab>('mcp');
   const [daemonLive, setDaemonLive] = useState(false);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
+  const amrAuthAgentRefreshRunningRef = useRef(false);
   // Functional skills (capabilities the agent invokes mid-task) — stays
   // small and lives under the Settings → Skills surface.
   const [skills, setSkills] = useState<SkillSummary[]>([]);
@@ -804,6 +809,23 @@ export function App() {
     },
     [config],
   );
+
+  useEffect(() => {
+    const refreshAfterAmrAuthChange = (event: Event) => {
+      if (amrLoginStatusEventReason(event) !== 'status-changed') return;
+      if (amrAuthAgentRefreshRunningRef.current) return;
+      amrAuthAgentRefreshRunningRef.current = true;
+      void refreshAgents()
+        .catch(() => undefined)
+        .finally(() => {
+          amrAuthAgentRefreshRunningRef.current = false;
+        });
+    };
+    window.addEventListener(AMR_LOGIN_STATUS_EVENT, refreshAfterAmrAuthChange);
+    return () => {
+      window.removeEventListener(AMR_LOGIN_STATUS_EVENT, refreshAfterAmrAuthChange);
+    };
+  }, [refreshAgents]);
 
   const handleCreateProject = useCallback(
     async (

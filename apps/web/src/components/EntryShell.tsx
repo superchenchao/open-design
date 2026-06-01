@@ -113,6 +113,7 @@ import { AmrAccountControl } from './AmrLoginPill';
 import {
   AMR_LOGIN_POLL_INTERVAL_MS,
   amrLoginPollOutcome,
+  notifyAmrLoginStatusChanged,
 } from './amrLoginPolling';
 
 // The topbar chips (GitHub star, model switcher, Use everywhere)
@@ -1338,6 +1339,7 @@ function OnboardingView({
         return;
       }
       if (await pollAmrLoginCompletion()) {
+        notifyAmrLoginStatusChanged('status-changed');
         setStep((current) => current + 1);
       }
     } finally {

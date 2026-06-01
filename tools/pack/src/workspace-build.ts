@@ -212,7 +212,12 @@ async function hoistStandaloneNextPeerDeps(standaloneRoot: string): Promise<void
     // from a previous build with different react/react-dom versions)
     // before recreating, so repeated invocations don't EEXIST.
     if (existing) await unlink(linkPath).catch(() => undefined);
-    await symlink(relativeTarget, linkPath);
+    try {
+      await symlink(relativeTarget, linkPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EPERM" || process.platform !== "win32") throw error;
+      await cp(target, linkPath, { recursive: true });
+    }
   }
 }
 

@@ -246,6 +246,7 @@ export function AmrLoginPill({
         loginStartedAtRef.current = null;
         loginPendingRef.current = false;
         setPending(null);
+        notifyAmrLoginStatusChanged('status-changed');
         return;
       }
       if (outcome === 'stopped' || outcome === 'timed-out') {

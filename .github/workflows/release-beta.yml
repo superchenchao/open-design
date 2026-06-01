@@ -463,6 +463,7 @@ jobs:
             "--cache-dir", $cacheDir,
             "--namespace", "release-beta-win",
             "--portable",
+            "--require-vela-cli",
             "--app-version", "${{ needs.metadata.outputs.beta_version }}",
             "--to", "all",
             "--json"
@@ -481,6 +482,7 @@ jobs:
               --dir $toolsPackDir `
               --namespace release-beta-win `
               --portable `
+              --require-vela-cli `
               --app-version "${{ needs.metadata.outputs.beta_version }}" `
               --to all `
               --json
