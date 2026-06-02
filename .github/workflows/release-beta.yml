@@ -74,6 +74,12 @@ on:
       version_metadata_url:
         description: "Public R2 URL of this build's version metadata.json."
         value: ${{ jobs.publish.outputs.version_metadata_url }}
+      mac_arm64_url:
+        description: "macOS arm64 dmg download URL."
+        value: ${{ jobs.publish.outputs.mac_arm64_url }}
+      win_url:
+        description: "Windows x64 installer download URL."
+        value: ${{ jobs.publish.outputs.win_url }}
 
 permissions:
   actions: write
@@ -787,6 +793,8 @@ jobs:
     outputs:
       version_metadata_url: ${{ steps.r2.outputs.version_metadata_url }}
       release_state: ${{ steps.r2.outputs.release_state }}
+      mac_arm64_url: ${{ steps.r2.outputs.mac_dmg_url }}
+      win_url: ${{ steps.r2.outputs.win_installer_url }}
     env:
       GH_TOKEN: ${{ github.token }}
       # Record the real built commit in metadata.json. Under workflow_call the
