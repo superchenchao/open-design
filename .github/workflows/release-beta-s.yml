@@ -113,6 +113,7 @@ jobs:
           clean: false
           fetch-depth: 1
           lfs: false
+          sparse-checkout-cone-mode: false
           sparse-checkout: |
             apps/packaged/package.json
             scripts/release-beta.ts
