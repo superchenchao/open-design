@@ -275,6 +275,18 @@ describe('classifyRunFailure', () => {
       retryable: true,
       user_action: 'retry',
     });
+    expect(
+      classify(
+        'AGENT_EXECUTION_FAILED',
+        'json-rpc id 4: Cannot connect to API: The socket connection was closed unexpectedly. For more information, pass `verbose: true` in the second argument to fetch()',
+      ),
+    ).toMatchObject({
+      failure_category: 'upstream_unavailable',
+      failure_detail: 'stream_disconnected',
+      failure_stage: 'first_token_wait',
+      retryable: true,
+      user_action: 'retry',
+    });
   });
 
   it('maps AMR insufficient balance to recharge guidance', () => {
