@@ -29,6 +29,10 @@ import type { Dict } from '../i18n/types';
 import { AgentIcon } from './AgentIcon';
 import { AmrLoginPill } from './AmrLoginPill';
 import {
+  AMR_LOGIN_STATUS_EVENT,
+  amrLoginStatusEventReason,
+} from './amrLoginPolling';
+import {
   fetchVelaLoginStatus,
   type VelaLoginStatus,
 } from '../providers/daemon';
@@ -903,31 +907,46 @@ export function SettingsDialog({
   });
   const [amrCardStatus, setAmrCardStatus] = useState<VelaLoginStatus | null>(null);
   const [amrCardStatusReady, setAmrCardStatusReady] = useState(false);
+  const amrCardStatusRequestRef = useRef(0);
   const [hoveredAgentCardId, setHoveredAgentCardId] = useState<string | null>(null);
   const [providerTestState, setProviderTestState] = useState<TestState>({
     status: 'idle',
   });
 
+  const refreshAmrCardStatus = useCallback((options?: { markPending?: boolean }) => {
+    const requestId = ++amrCardStatusRequestRef.current;
+    if (options?.markPending) setAmrCardStatusReady(false);
+    void fetchVelaLoginStatus().then((next) => {
+      if (requestId !== amrCardStatusRequestRef.current) return;
+      setAmrCardStatus(next);
+      setAmrCardStatusReady(true);
+    });
+  }, []);
+
   useEffect(() => {
     const hasAmrAgent = agents.some((agent) => agent.id === 'amr' && agent.available);
     if (!hasAmrAgent) {
+      amrCardStatusRequestRef.current += 1;
       setAmrCardStatus(null);
       setAmrCardStatusReady(false);
       setHoveredAgentCardId(null);
       return;
     }
-    let cancelled = false;
-    setAmrCardStatusReady(false);
-    void fetchVelaLoginStatus().then((next) => {
-      if (!cancelled) {
-        setAmrCardStatus(next);
-        setAmrCardStatusReady(true);
-      }
-    });
-    return () => {
-      cancelled = true;
+    refreshAmrCardStatus({ markPending: true });
+  }, [agents, refreshAmrCardStatus]);
+
+  useEffect(() => {
+    const hasAmrAgent = agents.some((agent) => agent.id === 'amr' && agent.available);
+    if (!hasAmrAgent) return;
+    const onAmrStatusChange = (event: Event) => {
+      if (amrLoginStatusEventReason(event) === 'login-canceled') return;
+      refreshAmrCardStatus();
     };
-  }, [agents]);
+    window.addEventListener(AMR_LOGIN_STATUS_EVENT, onAmrStatusChange);
+    return () => {
+      window.removeEventListener(AMR_LOGIN_STATUS_EVENT, onAmrStatusChange);
+    };
+  }, [agents, refreshAmrCardStatus]);
   const [byokPreconditionNotice, setByokPreconditionNotice] = useState<{
     action: ByokPreconditionAction;
     message: string;
