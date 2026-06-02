@@ -94,8 +94,9 @@ jobs:
   metadata:
     name: Prepare beta metadata
     if: ${{ inputs.enable_win || inputs.enable_mac }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, ARM64, nexu-mac, release-beta]
     env:
+      OPEN_DESIGN_RELEASE_PROFILE: /Users/runner/.profile
       OPEN_DESIGN_BETA_METADATA_URL: ${{ inputs.s3_public_origin }}/beta/latest/metadata.json
     outputs:
       asset_version_suffix: ${{ steps.beta.outputs.asset_version_suffix }}
@@ -109,7 +110,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6.0.2
         with:
+          clean: false
           fetch-depth: 0
+          lfs: false
 
       - name: Validate self-hosted beta inputs
         run: |
@@ -123,14 +126,13 @@ jobs:
             exit 1
           fi
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-
       - name: Prepare beta release metadata
         id: beta
-        run: node --experimental-strip-types ./scripts/release-beta.ts
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1090
+          source "$OPEN_DESIGN_RELEASE_PROFILE"
+          node --experimental-strip-types ./scripts/release-beta.ts
 
   build_win:
     name: Build Windows beta candidate
