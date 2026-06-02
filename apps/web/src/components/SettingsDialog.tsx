@@ -53,7 +53,6 @@ import {
 import type { KnownProvider } from '../state/config';
 import { navigate as navigateRoute, useRoute } from '../router';
 import {
-  API_KEY_PLACEHOLDERS,
   API_PROTOCOL_LABELS,
   API_PROTOCOL_TABS,
   SUGGESTED_MODELS_BY_PROTOCOL,
@@ -99,6 +98,10 @@ import { RoutinesSection } from './RoutinesSection';
 import { ConnectorsBrowser } from './ConnectorsBrowser';
 import { MemoryModelInline } from './MemoryModelInline';
 import { MemorySection } from './MemorySection';
+import { ByokKeyField } from './byok/ByokKeyField';
+import { ByokModelField } from './byok/ByokModelField';
+import { ByokProviderBaseUrl } from './byok/ByokProviderBaseUrl';
+import { ByokProviderPicker } from './byok/ByokProviderPicker';
 import {
   setCritiqueTheaterEnabled,
   useCritiqueTheaterEnabled,
@@ -1909,9 +1912,6 @@ export function SettingsDialog({
       apiModelIds,
       apiModelCustomEditing,
     );
-  const apiModelSelectValue = apiModelCustomActive
-    ? CUSTOM_MODEL_SENTINEL
-    : cfg.model;
   const baseUrlReadOnly =
     (apiProtocol === 'anthropic' || apiProtocol === 'google') &&
     cfg.apiProviderBaseUrl !== null &&
@@ -1923,76 +1923,6 @@ export function SettingsDialog({
       : apiProtocol === 'ollama'
         ? 'http://localhost:11434'
         : undefined;
-  const renderByokBaseUrlField = () => (
-    <label className={'field' + (baseUrlReadOnly ? ' settings-base-url-readonly' : '')}>
-      <span className="field-label">
-        {t('settings.baseUrl')}
-        <span className="field-required" aria-label={t('settings.required')}>
-          *
-        </span>
-      </span>
-      <div className="field-row">
-        <input
-          ref={baseUrlInputRef}
-          aria-label={t('settings.baseUrl')}
-          type="url"
-          inputMode="url"
-          value={cfg.baseUrl}
-          placeholder={baseUrlPlaceholder}
-          readOnly={baseUrlReadOnly || undefined}
-          aria-invalid={baseUrlInvalid || undefined}
-          aria-describedby={
-            baseUrlInvalid ? 'settings-base-url-error' : undefined
-          }
-          onFocus={() => {
-            const byokProviderId = byokProtocolToTracking(apiProtocol);
-            if (byokProviderId) {
-              trackSettingsByokFieldClick(analytics.track, {
-                page_name: 'settings',
-                area: 'configure_execution_mode_byok',
-                element: 'base_url',
-                provider_id: byokProviderId,
-                has_value: Boolean(cfg.baseUrl?.trim()),
-              });
-            }
-          }}
-          onBlur={commitProviderModelsInputs}
-          onChange={(e) => updateApiConfig({ baseUrl: e.target.value, apiProviderBaseUrl: null })}
-        />
-        {baseUrlReadOnly ? (
-          <button
-            type="button"
-            className="ghost icon-btn settings-base-url-customize"
-            onClick={() => {
-              updateApiConfig({ apiProviderBaseUrl: null });
-              window.setTimeout(() => baseUrlInputRef.current?.focus(), 0);
-            }}
-          >
-            {t('settings.baseUrlCustomize')}
-          </button>
-        ) : null}
-      </div>
-      {baseUrlInvalid ? (
-        <span
-          id="settings-base-url-error"
-          className="settings-field-error"
-          role="alert"
-        >
-          {t('settings.baseUrlInvalid')}
-        </span>
-      ) : null}
-      {baseUrlReadOnly ? (
-        <span className="field-inline-status">
-          {t('settings.baseUrlDefaultHint')}
-        </span>
-      ) : null}
-      {apiProtocol === 'azure' ? (
-        <span className="field-inline-status">
-          {t('settings.azureBaseUrlHint')}
-        </span>
-      ) : null}
-    </label>
-  );
   useEffect(() => {
     if (!focusByokRequiredFieldAfterProtocolSwitchRef.current) return;
     focusByokRequiredFieldAfterProtocolSwitchRef.current = false;
@@ -3235,255 +3165,169 @@ export function SettingsDialog({
                 </p>
               ) : null}
               {showQuickFillProvider ? (
-                <label className="field">
-                  <span className="field-label">{t('settings.quickFillProvider')}</span>
-                  <select
-                    value={selectedProviderIndex >= 0 ? String(selectedProviderIndex) : ''}
-                    onChange={(e) => {
-                      if (e.target.value === '') {
-                        setApiModelCustomEditing(false);
-                        updateApiConfig({
-                          baseUrl: '',
-                          model: '',
-                          apiProviderBaseUrl: null,
-                        });
-                        return;
-                      }
-                      const idx = Number(e.target.value);
-                      if (!isNaN(idx) && protocolProviders[idx]) {
-                        const p = protocolProviders[idx]!;
-                        setApiModelCustomEditing(false);
-                        updateApiConfig({
-                          baseUrl: p.baseUrl,
-                          model: p.model,
-                          apiProviderBaseUrl: p.baseUrl,
-                        });
-                      }
-                    }}
-                  >
-                    <option value="">{t('settings.customProvider')}</option>
-                    {protocolProviders.map((p, i) => (
-                      <option key={p.label} value={i}>{p.label}</option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
-              <label className="field">
-                <span className="field-label-row">
-                  <span className="field-label">
-                    {t('settings.apiKey')}
-                    {byokRequiresApiKey ? (
-                      <span className="field-required" aria-label={t('settings.required')}>
-                        *
-                      </span>
-                    ) : null}
-                  </span>
-                  {byokRequiresApiKey ? (
-                    <a
-                      className="field-label-link"
-                      href={apiKeyConsoleLink.url}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      {t('settings.apiKeyGetLink', {
-                        host: apiKeyConsoleLink.host,
-                      })}
-                    </a>
-                  ) : null}
-                </span>
-                <div className="field-row">
-                  <input
-                    ref={apiKeyInputRef}
-                    aria-label={t('settings.apiKey')}
-                    type={showApiKey ? 'text' : 'password'}
-                    placeholder={API_KEY_PLACEHOLDERS[apiProtocol]}
-                    value={cfg.apiKey}
-                    onChange={(e) => updateApiConfig({ apiKey: e.target.value })}
-                    onBlur={() => {
-                      commitProviderModelsInputs();
-                      handleAutoTestProvider();
-                    }}
-                    onFocus={() => {
-                      const byokProviderId = byokProtocolToTracking(apiProtocol);
-                      if (byokProviderId) {
-                        trackSettingsByokFieldClick(analytics.track, {
-                          page_name: 'settings',
-                          area: 'configure_execution_mode_byok',
-                          element: 'api_key',
-                          provider_id: byokProviderId,
-                          has_value: Boolean(cfg.apiKey?.trim()),
-                        });
-                      }
-                    }}
-                    autoFocus
-                  />
-                  <button
-                    type="button"
-                    className="ghost icon-btn"
-                    onClick={() => setShowApiKey((v) => !v)}
-                    title={
-                      showApiKey ? t('settings.hideKey') : t('settings.showKey')
-                    }
-                  >
-                    {showApiKey ? t('settings.hide') : t('settings.show')}
-                  </button>
-                </div>
-                {apiKeyAuthFailed && providerTestState.status === 'idle' ? (
-                  <span className="field-error" role="alert">
-                    {t('settings.apiKeyInvalid')}
-                  </span>
-                ) : null}
-                {providerTestState.status === 'running' ? (
-                  <span
-                    className="field-inline-status running"
-                    role="status"
-                    aria-live="polite"
-                  >
-                    {t('settings.testRunning')}
-                  </span>
-                ) : providerTestState.status === 'done' ? (
-                  <span
-                    className={
-                      providerTestState.result.ok
-                        ? 'field-inline-status success'
-                        : 'field-error'
-                    }
-                    role={providerTestState.result.ok ? 'status' : 'alert'}
-                  >
-                    {renderTestMessage(providerTestState.result, 'api')}
-                  </span>
-                ) : null}
-                <span className="field-inline-status">
-                  {t('settings.apiHint')}
-                </span>
-                {canRunProviderConnectionTest(cfg, {
-                  requiresApiKey: byokRequiresApiKey,
-                }) && baseUrlValid ? (
-                  <button
-                    type="button"
-                    className={
-                      'ghost icon-btn settings-test-btn' +
-                      (providerTestState.status === 'running' ? ' loading' : '')
-                    }
-                    onClick={() => void handleTestProvider()}
-                    disabled={providerTestState.status === 'running'}
-                    title={t('settings.testTitle')}
-                  >
-                    {providerTestState.status === 'running' ? (
-                      <>
-                        <Icon
-                          name="spinner"
-                          size={13}
-                          className="icon-spin"
-                        />
-                        <span>{t('settings.test')}</span>
-                      </>
-                    ) : providerTestState.status === 'done' &&
-                      !providerTestState.result.ok ? (
-                      <>
-                        <Icon name="reload" size={13} />
-                        <span>{t('settings.testRetry')}</span>
-                      </>
-                    ) : (
-                      t('settings.test')
-                    )}
-                  </button>
-                ) : null}
-              </label>
-              <label className="field">
-                <span className="field-label">
-                  {apiProtocol === 'azure'
-                    ? t('settings.azureDeploymentModel')
-                    : t('settings.model')}
-                  <span className="field-required" aria-label={t('settings.required')}>
-                    *
-                  </span>
-                </span>
-                <SearchableModelSelect
-                  ref={modelSelectRef}
-                  className="inline-switcher__select settings-model-select settings-model-select--byok"
-                  aria-label={
-                    apiProtocol === 'azure'
-                      ? t('settings.azureDeploymentModel')
-                      : t('settings.model')
-                  }
-                  searchPlaceholder={t('designs.searchPlaceholder')}
-                  searchInputTestId="settings-byok-model-search"
-                  popoverTestId="settings-byok-model-popover"
-                  models={apiModelOptions.map((m) => ({
-                    id: m.id,
-                    label: apiModelOptionLabel(m),
-                  }))}
-                  value={apiModelSelectValue}
-                  onFocus={() => {
-                    const byokProviderId = byokProtocolToTracking(apiProtocol);
-                    if (byokProviderId) {
-                      trackSettingsByokFieldClick(analytics.track, {
-                        page_name: 'settings',
-                        area: 'configure_execution_mode_byok',
-                        element: 'model',
-                        provider_id: byokProviderId,
-                        has_value: Boolean(cfg.model?.trim()),
-                      });
-                    }
+                <ByokProviderPicker
+                  label={t('settings.quickFillProvider')}
+                  customProviderLabel={t('settings.customProvider')}
+                  providers={protocolProviders}
+                  selectedProviderIndex={selectedProviderIndex}
+                  onCustomProviderSelect={() => {
+                    setApiModelCustomEditing(false);
+                    updateApiConfig({
+                      baseUrl: '',
+                      model: '',
+                      apiProviderBaseUrl: null,
+                    });
                   }}
-                  onChange={(nextValue) => {
-                    if (nextValue === CUSTOM_MODEL_SENTINEL) {
-                      setApiModelCustomEditing(true);
-                      updateApiConfig({ model: '' });
-                    } else {
-                      setApiModelCustomEditing(false);
-                      updateApiConfig({ model: nextValue });
-                    }
+                  onProviderSelect={(p) => {
+                    setApiModelCustomEditing(false);
+                    updateApiConfig({
+                      baseUrl: p.baseUrl,
+                      model: p.model,
+                      apiProviderBaseUrl: p.baseUrl,
+                    });
                   }}
-                  additionalOptions={[
-                    {
-                      value: CUSTOM_MODEL_SENTINEL,
-                      label: t('settings.modelCustom'),
-                    },
-                  ]}
                 />
-                {loadedAccountModelCount > 0 ? (
-                  <span className="field-inline-status success" role="status">
-                    {t('settings.modelsLoadedFromAccount', {
-                      count: loadedAccountModelCount,
-                    })}
-                  </span>
-                ) : null}
-                {providerModelsFailureMessage ? (
-                  <span className="field-error" role="alert">
-                    {providerModelsFailureMessage}
-                  </span>
-                ) : null}
-              </label>
-              {!selectedProvider ? (
-                <p className="hint">{t('settings.suggestedModelsHint')}</p>
               ) : null}
-              {apiProtocol === 'azure' ? (
-                <p className="hint">{t('settings.azureModelFetchHint')}</p>
-              ) : null}
-              {apiProtocol === 'ollama' ? (
-                <p className="hint">{t('settings.fetchModelsUnsupported')}</p>
-              ) : null}
-              {apiModelCustomActive ? (
-                <label className="field">
-                  <span className="field-label">
-                    {t('settings.modelCustomLabel')}
-                    <span className="field-required" aria-label={t('settings.required')}>
-                      *
-                    </span>
-                  </span>
-                  <input
-                    ref={customModelInputRef}
-                    aria-label={t('settings.modelCustomLabel')}
-                    type="text"
-                    value={cfg.model}
-                    placeholder={t('settings.modelCustomPlaceholder')}
-                    onChange={(e) => updateApiConfig({ model: e.target.value.trim() })}
-                  />
-                </label>
-              ) : null}
-              {renderByokBaseUrlField()}
+              <ByokKeyField
+                apiKey={cfg.apiKey}
+                apiKeyAuthFailed={apiKeyAuthFailed}
+                apiKeyConsoleLink={apiKeyConsoleLink}
+                apiProtocol={apiProtocol}
+                baseUrlValid={baseUrlValid}
+                canRunConnectionTest={canRunProviderConnectionTest(cfg, {
+                  requiresApiKey: byokRequiresApiKey,
+                })}
+                inputRef={apiKeyInputRef}
+                labels={{
+                  apiHint: t('settings.apiHint'),
+                  apiKey: t('settings.apiKey'),
+                  apiKeyGetLink: t('settings.apiKeyGetLink', {
+                    host: apiKeyConsoleLink.host,
+                  }),
+                  apiKeyInvalid: t('settings.apiKeyInvalid'),
+                  hide: t('settings.hide'),
+                  hideKey: t('settings.hideKey'),
+                  required: t('settings.required'),
+                  show: t('settings.show'),
+                  showKey: t('settings.showKey'),
+                  test: t('settings.test'),
+                  testRetry: t('settings.testRetry'),
+                  testRunning: t('settings.testRunning'),
+                  testTitle: t('settings.testTitle'),
+                }}
+                providerTestState={providerTestState}
+                renderTestMessage={(result) => renderTestMessage(result, 'api')}
+                requiresApiKey={byokRequiresApiKey}
+                showApiKey={showApiKey}
+                onBlur={() => {
+                  commitProviderModelsInputs();
+                  handleAutoTestProvider();
+                }}
+                onChange={(value) => updateApiConfig({ apiKey: value })}
+                onFocus={() => {
+                  const byokProviderId = byokProtocolToTracking(apiProtocol);
+                  if (byokProviderId) {
+                    trackSettingsByokFieldClick(analytics.track, {
+                      page_name: 'settings',
+                      area: 'configure_execution_mode_byok',
+                      element: 'api_key',
+                      provider_id: byokProviderId,
+                      has_value: Boolean(cfg.apiKey?.trim()),
+                    });
+                  }
+                }}
+                onTestProvider={() => handleTestProvider()}
+                onToggleShowApiKey={() => setShowApiKey((v) => !v)}
+              />
+              <ByokModelField
+                customActive={apiModelCustomActive}
+                customInputRef={customModelInputRef}
+                labels={{
+                  customModel: t('settings.modelCustom'),
+                  customModelLabel: t('settings.modelCustomLabel'),
+                  customModelPlaceholder: t('settings.modelCustomPlaceholder'),
+                  fetchModelsUnsupported: t('settings.fetchModelsUnsupported'),
+                  model: apiProtocol === 'azure'
+                    ? t('settings.azureDeploymentModel')
+                    : t('settings.model'),
+                  required: t('settings.required'),
+                  searchPlaceholder: t('designs.searchPlaceholder'),
+                  suggestedModelsHint: t('settings.suggestedModelsHint'),
+                }}
+                model={cfg.model}
+                modelSelectRef={modelSelectRef}
+                models={apiModelOptions.map((m) => ({
+                  id: m.id,
+                  label: apiModelOptionLabel(m),
+                }))}
+                modelsLoadedFromAccountMessage={
+                  loadedAccountModelCount > 0
+                    ? t('settings.modelsLoadedFromAccount', {
+                        count: loadedAccountModelCount,
+                      })
+                    : null
+                }
+                providerModelsFailureMessage={providerModelsFailureMessage}
+                showAzureModelFetchHint={apiProtocol === 'azure'}
+                showFetchModelsUnsupportedHint={apiProtocol === 'ollama'}
+                showSuggestedModelsHint={!selectedProvider}
+                azureModelFetchHint={t('settings.azureModelFetchHint')}
+                onCustomModelChange={(value) => updateApiConfig({ model: value })}
+                onCustomModelSelect={() => {
+                  setApiModelCustomEditing(true);
+                  updateApiConfig({ model: '' });
+                }}
+                onFocus={() => {
+                  const byokProviderId = byokProtocolToTracking(apiProtocol);
+                  if (byokProviderId) {
+                    trackSettingsByokFieldClick(analytics.track, {
+                      page_name: 'settings',
+                      area: 'configure_execution_mode_byok',
+                      element: 'model',
+                      provider_id: byokProviderId,
+                      has_value: Boolean(cfg.model?.trim()),
+                    });
+                  }
+                }}
+                onModelSelect={(nextValue) => {
+                  setApiModelCustomEditing(false);
+                  updateApiConfig({ model: nextValue });
+                }}
+              />
+              <ByokProviderBaseUrl
+                apiProtocol={apiProtocol}
+                inputRef={baseUrlInputRef}
+                baseUrl={cfg.baseUrl}
+                baseUrlInvalid={baseUrlInvalid}
+                baseUrlPlaceholder={baseUrlPlaceholder}
+                baseUrlReadOnly={baseUrlReadOnly}
+                labels={{
+                  baseUrl: t('settings.baseUrl'),
+                  required: t('settings.required'),
+                  customize: t('settings.baseUrlCustomize'),
+                  invalid: t('settings.baseUrlInvalid'),
+                  defaultHint: t('settings.baseUrlDefaultHint'),
+                  azureHint: t('settings.azureBaseUrlHint'),
+                }}
+                onBlur={commitProviderModelsInputs}
+                onChange={(value) => updateApiConfig({ baseUrl: value, apiProviderBaseUrl: null })}
+                onCustomize={() => {
+                  updateApiConfig({ apiProviderBaseUrl: null });
+                  window.setTimeout(() => baseUrlInputRef.current?.focus(), 0);
+                }}
+                onFocus={() => {
+                  const byokProviderId = byokProtocolToTracking(apiProtocol);
+                  if (byokProviderId) {
+                    trackSettingsByokFieldClick(analytics.track, {
+                      page_name: 'settings',
+                      area: 'configure_execution_mode_byok',
+                      element: 'base_url',
+                      provider_id: byokProviderId,
+                      has_value: Boolean(cfg.baseUrl?.trim()),
+                    });
+                  }
+                }}
+              />
               <details className="agent-cli-env settings-memory-advanced">
                 <summary className="agent-cli-env-summary">
                   <span className="agent-cli-env-summary-title">
