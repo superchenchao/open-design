@@ -963,7 +963,7 @@ export function SettingsDialog({
   const providerTestRevisionRef = useRef(0);
   const providerModelsRevisionRef = useRef(0);
   const providerModelsFirstResetRef = useRef(true);
-  const recommitModelsAfterCleanRef = useRef(false);
+  const deferAfterKeyCleanRef = useRef(false);
   const providerAutoTestKeyRef = useRef<string | null>(null);
   const apiKeyInputRef = useRef<HTMLInputElement | null>(null);
   const baseUrlInputRef = useRef<HTMLInputElement | null>(null);
@@ -1906,26 +1906,33 @@ export function SettingsDialog({
     // non-blocking warning yet still go out malformed over the wire.
     const cleanedApiKey = cleanByokApiKey(cfg.apiKey);
     if (cleanedApiKey !== cfg.apiKey) {
-      // Writing the cleaned key changes cfg.apiKey, which re-runs the effect
-      // that nulls providerModelsCommittedKey on any apiKey change — so a
-      // commit here would be clobbered before the auto-fetch effect reads it.
-      // Defer the model commit until the cleaned value lands (recommit effect
-      // below), otherwise account models never auto-load after a dirty paste.
-      recommitModelsAfterCleanRef.current = true;
+      // Writing the cleaned key changes cfg.apiKey, which re-runs the reset
+      // effects above: one nulls providerModelsCommittedKey, the other bumps
+      // providerTestRevisionRef / clears providerAutoTestKeyRef. So committing
+      // the model key or starting the auto-test here would be clobbered — the
+      // model commit before the auto-fetch effect reads it, and the auto-test
+      // result dropped by the stale-revision guard. Defer both until the
+      // cleaned value has landed (effect below), otherwise account models
+      // never auto-load and the auto-test success/error never reaches the UI
+      // for the exact dirty-paste case this handles.
+      deferAfterKeyCleanRef.current = true;
       updateApiConfig({ apiKey: cleanedApiKey });
-    } else {
-      commitProviderModelsInputs();
+      return;
     }
+    commitProviderModelsInputs();
     handleAutoTestProvider();
   };
   useEffect(() => {
-    if (!recommitModelsAfterCleanRef.current) return;
-    recommitModelsAfterCleanRef.current = false;
+    if (!deferAfterKeyCleanRef.current) return;
+    deferAfterKeyCleanRef.current = false;
     if (blockingByokDraftIssues(byokModelFetchDraftValidation).length > 0) {
       setProviderModelsCommittedKey(null);
-      return;
+    } else {
+      setProviderModelsCommittedKey(providerModelsKey);
     }
-    setProviderModelsCommittedKey(providerModelsKey);
+    // Runs after the provider-test reset effect (declaration order) bumped the
+    // revision for the cleaned key, so this auto-test is not flagged stale.
+    handleAutoTestProvider();
   }, [cfg.apiKey, byokModelFetchDraftValidation, providerModelsKey]);
   useEffect(() => {
     if (cfg.mode !== 'api') return;

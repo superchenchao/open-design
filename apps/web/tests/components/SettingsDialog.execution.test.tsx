@@ -1125,12 +1125,16 @@ describe('SettingsDialog execution settings BYOK interactions', () => {
 
     fireEvent.blur(screen.getByLabelText('API key'));
 
+    // The auto-test must survive the apiKey-cleanup re-render: if it fired in
+    // the blur tick it would be dropped by the stale-revision guard and the
+    // success state would never reach the UI.
     await waitFor(() => {
-      const testConnectionCalls = fetchMock.mock.calls.filter(
-        ([input]) => input.toString() === '/api/test/connection',
-      );
-      expect(testConnectionCalls).toHaveLength(1);
+      expect(screen.getByText(/Connected\. Replied in 7 ms/)).toBeTruthy();
     });
+    const testConnectionCalls = fetchMock.mock.calls.filter(
+      ([input]) => input.toString() === '/api/test/connection',
+    );
+    expect(testConnectionCalls).toHaveLength(1);
     // The malformed value must never reach the wire.
     expect(sentApiKey).toBe('sk-ant-test-provider');
   });
