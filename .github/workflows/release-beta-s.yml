@@ -319,6 +319,7 @@ jobs:
           CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN: ${{ inputs.s3_public_origin }}
           CLOUDFLARE_R2_RELEASES_URL: ${{ secrets.NEXU_S3_ENDPOINT }}
           MAC_ARTIFACT_MODE: dmg-only
+          OPEN_DESIGN_RELEASE_PROFILE: /Users/runner/.profile
           RELEASE_CHANNEL: beta
           RELEASE_PLATFORM: mac
           RELEASE_ROOT: ${{ runner.temp }}/release-assets

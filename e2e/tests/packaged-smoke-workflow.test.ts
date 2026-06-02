@@ -142,6 +142,9 @@ describe("packaged smoke workflow", () => {
     expect(workflow).toContain("Publish beta mac candidate platform to Nexu S3");
     expect(workflow).toContain("RELEASE_PLATFORM: mac");
     expect(workflow).toContain("RELEASE_SIGNED: ${{ inputs.mac_sign_mode == 'on' && 'true' || 'false' }}");
+    expect(
+      workflow.match(/- name: Publish beta mac candidate platform to Nexu S3\n(?:.+\n)+?          node --experimental-strip-types \.github\/scripts\/release\/r2\/publish-platform\.ts/m)?.[0],
+    ).toContain("OPEN_DESIGN_RELEASE_PROFILE: /Users/runner/.profile");
     expect(workflow).toContain("Upload mac publish manifest");
     expect(workflow).toContain("open-design-beta-mac-publish-manifest");
     expect(workflow).toContain("name: Publish beta metadata to Nexu S3");
