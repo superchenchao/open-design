@@ -1,10 +1,10 @@
 name: notify-daily-feishu
 
-# Every morning (09:00 Asia/Shanghai) build a full beta ("nightly") package off
-# the currently active release branch (highest-semver release/vX.Y.Z) by reusing
-# release-beta, then post a Feishu card with download links and the changelog
-# since the previously published beta — to a separate Feishu group from the
-# per-push release stream.
+# Every morning (09:00 Asia/Shanghai) build a beta package off the currently
+# active release branch (highest-semver release/vX.Y.Z) by reusing release-beta,
+# then post a Feishu card with download links and the changelog since the
+# previously published beta — to a separate Feishu group from the per-push
+# release stream (which builds the heavier nightly channel).
 #
 # NOTE: schedule triggers only fire from the default branch (main), so this file
 # must live on main to run on its cron.
@@ -110,13 +110,15 @@ jobs:
         env:
           FEISHU_WEBHOOK: ${{ secrets.FEISHU_DAILY_WEBHOOK }}
           FEISHU_SIGN_SECRET: ${{ secrets.FEISHU_DAILY_SIGN_SECRET }}
-          VERSION_METADATA_URL: ${{ needs.build.outputs.version_metadata_url }}
-          BETA_VERSION: ${{ needs.build.outputs.beta_version }}
+          CHANNEL_LABEL: "Beta"
+          VERSION: ${{ needs.build.outputs.beta_version }}
           BRANCH: ${{ needs.build.outputs.branch }}
           COMMIT: ${{ needs.build.outputs.commit }}
           PREVIOUS_COMMIT: ${{ needs.build.outputs.previous_commit }}
           CHANGELOG_FILE: ${{ steps.changelog.outputs.file }}
-          RELEASE_STATE: ${{ needs.build.outputs.release_state }}
+          BUILD_STATE: ${{ needs.build.result }}
+          MAC_ARM64_URL: ${{ needs.build.outputs.mac_arm64_url }}
+          WIN_URL: ${{ needs.build.outputs.win_url }}
           STREAM_LABEL: "每日定时"
           REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

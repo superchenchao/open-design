@@ -1,20 +1,24 @@
-// Posts a beta ("nightly") build notification to a Feishu (Lark) custom-bot
-// webhook as an interactive card: version, branch, commit, per-platform download
-// buttons, and the changelog since the previously published beta.
+// Posts a packaged build notification to a Feishu (Lark) custom-bot webhook as
+// an interactive card: version, branch, commit, per-platform download buttons,
+// and the changelog since the previously published build of the same channel.
 //
 // Inputs (all via env):
 //   FEISHU_WEBHOOK        (required) custom-bot webhook URL
 //   FEISHU_SIGN_SECRET    (optional) signing secret when the bot enables 签名校验
-//   VERSION_METADATA_URL  (required) public R2 URL of this build's version metadata.json
-//   BETA_VERSION          (required) x.y.z-beta.N
+//   CHANNEL_LABEL         display channel name, e.g. "Nightly" (default "Nightly")
+//   VERSION               (required) build version, e.g. 0.9.0.nightly.1
 //   BRANCH                git branch that was built
 //   COMMIT                commit SHA that was built
-//   PREVIOUS_COMMIT       changelog baseline (last published beta); empty on cold start
+//   PREVIOUS_COMMIT       changelog baseline (last published build); empty on cold start
 //   CHANGELOG_FILE        path to a file holding `git log` output (one commit per line)
-//   RELEASE_STATE         complete | partial | failed
+//   BUILD_STATE           build result (success | ...) — drives header color
 //   STREAM_LABEL          human label for the trigger (e.g. "release 分支推送" / "每日定时")
 //   REPO                  owner/name
 //   RUN_URL               link back to the GitHub Actions run
+//   MAC_ARM64_URL         macOS arm64 download URL (optional)
+//   MAC_INTEL_URL         macOS x64 (Intel) download URL (optional)
+//   WIN_URL               Windows x64 download URL (optional)
+//   LINUX_URL             Linux x64 download URL (optional)
 
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -34,75 +38,45 @@ function optional(name, fallback = "") {
 
 const webhook = required("FEISHU_WEBHOOK");
 const signSecret = optional("FEISHU_SIGN_SECRET");
-const versionMetadataUrl = optional("VERSION_METADATA_URL");
-const betaVersion = required("BETA_VERSION");
+const channelLabel = optional("CHANNEL_LABEL", "Nightly");
+const version = required("VERSION");
 const branch = optional("BRANCH");
 const commit = optional("COMMIT");
 const previousCommit = optional("PREVIOUS_COMMIT");
 const changelogFile = optional("CHANGELOG_FILE");
-const releaseState = optional("RELEASE_STATE", "unknown");
+const buildState = optional("BUILD_STATE", "success");
 const streamLabel = optional("STREAM_LABEL", "构建");
 const repo = optional("REPO");
 const runUrl = optional("RUN_URL");
 
 const MAX_CHANGELOG_LINES = 30;
 
-// Primary downloadable artifact per platform key, in preference order.
-const PRIMARY_ARTIFACT = {
-  mac: ["dmg", "zip"],
-  win: ["installer"],
-  linux: ["appImage"],
-  macIntel: ["dmg", "zip"],
-};
+// Download buttons, in display order. Empty URLs are skipped, so the set of
+// buttons reflects exactly the platforms this build published.
+const DOWNLOADS = [
+  { label: "macOS (Apple Silicon)", url: optional("MAC_ARM64_URL") },
+  { label: "macOS (Intel)", url: optional("MAC_INTEL_URL") },
+  { label: "Windows", url: optional("WIN_URL") },
+  { label: "Linux", url: optional("LINUX_URL") },
+];
 
-async function fetchMetadata(url) {
-  if (url.length === 0) return null;
-  try {
-    const res = await fetch(url, { redirect: "follow" });
-    if (!res.ok) {
-      console.warn(`[feishu] metadata fetch ${url} returned HTTP ${res.status}`);
-      return null;
-    }
-    return await res.json();
-  } catch (error) {
-    console.warn(`[feishu] metadata fetch failed: ${error instanceof Error ? error.message : String(error)}`);
-    return null;
-  }
-}
-
-function downloadButtons(metadata) {
-  if (metadata == null || typeof metadata.platforms !== "object") return [];
-  const buttons = [];
-  for (const [key, platform] of Object.entries(metadata.platforms)) {
-    if (platform == null || platform.status !== "published") continue;
-    const artifacts = platform.artifacts ?? {};
-    const order = PRIMARY_ARTIFACT[key] ?? Object.keys(artifacts);
-    let chosen = null;
-    for (const name of order) {
-      if (artifacts[name]?.url) {
-        chosen = artifacts[name].url;
-        break;
-      }
-    }
-    if (chosen == null) continue;
-    const label = platform.label ?? key;
-    buttons.push({
-      tag: "button",
-      text: { tag: "plain_text", content: `下载 ${label}` },
-      type: buttons.length === 0 ? "primary" : "default",
-      url: chosen,
-    });
-  }
-  return buttons;
+function downloadButtons() {
+  const present = DOWNLOADS.filter((d) => d.url.length > 0);
+  return present.map((d, index) => ({
+    tag: "button",
+    text: { tag: "plain_text", content: `下载 ${d.label}` },
+    type: index === 0 ? "primary" : "default",
+    url: d.url,
+  }));
 }
 
 function readChangelog() {
-  if (changelogFile.length === 0) return { lines: [], truncated: false };
+  if (changelogFile.length === 0) return { lines: [], truncated: false, total: 0 };
   let raw = "";
   try {
     raw = readFileSync(changelogFile, "utf8");
   } catch {
-    return { lines: [], truncated: false };
+    return { lines: [], truncated: false, total: 0 };
   }
   const all = raw
     .split("\n")
@@ -115,10 +89,10 @@ function readChangelog() {
 function changelogMarkdown() {
   const { lines, truncated, total } = readChangelog();
   if (previousCommit.length === 0) {
-    return "首个 beta 包,无上个版本可对比。";
+    return `首个 ${channelLabel} 包,无上个版本可对比。`;
   }
   if (lines.length === 0) {
-    return "与上个 beta 包之间没有新增提交。";
+    return `与上个 ${channelLabel} 包之间没有新增提交。`;
   }
   const body = lines.map((line) => `- ${line}`).join("\n");
   if (truncated) {
@@ -128,9 +102,7 @@ function changelogMarkdown() {
 }
 
 function headerTemplate() {
-  if (releaseState === "complete") return "blue";
-  if (releaseState === "partial") return "orange";
-  return "red";
+  return buildState === "success" ? "blue" : "red";
 }
 
 function buildCard() {
@@ -143,16 +115,16 @@ function buildCard() {
     const link = repo.length > 0 ? `[\`${shortCommit}\`](https://github.com/${repo}/commit/${commit})` : `\`${shortCommit}\``;
     fields.push({ is_short: true, text: { tag: "lark_md", content: `**提交**\n${link}` } });
   }
-  fields.push({ is_short: true, text: { tag: "lark_md", content: `**状态**\n${releaseState}` } });
+  fields.push({ is_short: true, text: { tag: "lark_md", content: `**渠道**\n${channelLabel}` } });
   fields.push({ is_short: true, text: { tag: "lark_md", content: `**触发**\n${streamLabel}` } });
 
   const elements = [{ tag: "div", fields }];
   elements.push({
     tag: "div",
-    text: { tag: "lark_md", content: `**自上个 beta 新增提交**\n${changelogMarkdown()}` },
+    text: { tag: "lark_md", content: `**自上个 ${channelLabel} 新增提交**\n${changelogMarkdown()}` },
   });
 
-  const buttons = downloadButtons(currentMetadata);
+  const buttons = downloadButtons();
   if (buttons.length > 0) {
     elements.push({ tag: "hr" });
     elements.push({ tag: "action", actions: buttons });
@@ -169,7 +141,7 @@ function buildCard() {
     config: { wide_screen_mode: true },
     header: {
       template: headerTemplate(),
-      title: { tag: "plain_text", content: `🚀 Open Design Beta ${betaVersion}` },
+      title: { tag: "plain_text", content: `🚀 Open Design ${channelLabel} ${version}` },
     },
     elements,
   };
@@ -183,6 +155,11 @@ function signedEnvelope(card) {
   const stringToSign = `${timestamp}\n${signSecret}`;
   const sign = createHmac("sha256", stringToSign).update("").digest("base64");
   return { timestamp, sign, ...body };
+}
+
+function sleep(attempt) {
+  const ms = Math.min(1000 * 2 ** (attempt - 1), 15000);
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function post(body) {
@@ -223,11 +200,4 @@ async function post(body) {
   }
 }
 
-function sleep(attempt) {
-  const ms = Math.min(1000 * 2 ** (attempt - 1), 15000);
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-const currentMetadata = await fetchMetadata(versionMetadataUrl);
-const card = buildCard();
-await post(signedEnvelope(card));
+await post(signedEnvelope(buildCard()));
