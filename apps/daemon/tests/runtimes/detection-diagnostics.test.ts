@@ -27,6 +27,18 @@ function writeCursorAgent(dir: string, statusOutput: string): void {
   chmodSync(bin, 0o755);
 }
 
+function writeNonExecutableCursorAgent(dir: string): string {
+  const bin = join(dir, 'cursor-agent');
+  writeFileSync(
+    bin,
+    `#!/bin/sh\n` +
+      `if [ "$1" = "--version" ]; then echo "2026.05.07-test"; exit 0; fi\n` +
+      `exit 0\n`,
+  );
+  chmodSync(bin, 0o644);
+  return bin;
+}
+
 posixTest('detectAgents emits a not-on-path diagnostic with searched dirs + fix intents', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'od-diag-notpath-'));
   try {
@@ -51,6 +63,37 @@ posixTest('detectAgents emits a not-on-path diagnostic with searched dirs + fix 
       const intents = (diagnostic?.fixActions ?? []).map((a) => a.kind);
       assert.ok(intents.includes('openInstall'), 'expected openInstall fix intent');
       assert.ok(intents.includes('rescan'), 'expected rescan fix intent');
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+posixTest('detectAgents emits a not-executable diagnostic for a PATH match without execute permission', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'od-diag-notexec-'));
+  try {
+    await withEnvSnapshot(['PATH', 'OD_AGENT_HOME'], async () => {
+      const bin = writeNonExecutableCursorAgent(dir);
+      process.env.PATH = dir;
+      process.env.OD_AGENT_HOME = dir;
+
+      const agents = await detectAgents();
+      const cursor = agents.find((agent) => agent.id === 'cursor-agent');
+
+      assert.equal(cursor?.available, false);
+      const diagnostic = cursor?.diagnostics?.[0];
+      assert.ok(diagnostic, 'expected a diagnostic on the unavailable agent');
+      assert.equal(diagnostic?.reason, 'not-executable');
+      assert.equal(diagnostic?.severity, 'error');
+      assert.equal(diagnostic?.detail, bin);
+      assert.match(diagnostic?.message ?? '', /not executable/i);
+      const intents = (diagnostic?.fixActions ?? []).map((a) => a.kind);
+      assert.ok(intents.includes('rescan'), 'expected rescan fix intent');
+      assert.equal(
+        intents.includes('openDocs'),
+        false,
+        'permission diagnostics should not use shim repair advice',
+      );
     });
   } finally {
     rmSync(dir, { recursive: true, force: true });

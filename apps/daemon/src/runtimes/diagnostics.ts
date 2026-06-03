@@ -51,13 +51,26 @@ export function buildExecutableDiagnostic(
   };
 }
 
-// A file matched but `--version` could not spawn it (exit 126/127, EACCES,
-// ENOENT on the resolved path) — almost always a leftover npm/nvm/mise shim
-// whose underlying target was uninstalled.
+export type NotInvocableCause = 'not-executable' | 'missing-target';
+
+// A file matched but `--version` could not spawn it. Permission failures are
+// real binaries that need their executable bit restored; missing-target
+// failures are usually leftover npm/nvm/mise shims whose underlying target was
+// uninstalled.
 export function buildNotInvocableDiagnostic(
   def: Pick<RuntimeAgentDef, 'id' | 'name'>,
   launch: Pick<AgentLaunchResolution, 'selectedPath' | 'launchPath'>,
+  cause: NotInvocableCause,
 ): AgentDiagnostic {
+  if (cause === 'not-executable') {
+    return {
+      reason: 'not-executable',
+      severity: 'error',
+      message: `${def.name} was found but is not executable. Restore its execute permission or choose a different binary, then rescan.`,
+      ...(launch.launchPath ? { detail: launch.launchPath } : {}),
+      fixActions: [...setEnvIntent(def.id), { kind: 'rescan' }],
+    };
+  }
   return {
     reason: 'shim-broken',
     severity: 'error',
