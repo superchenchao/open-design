@@ -77,6 +77,27 @@ describe('prompt telemetry builder', () => {
     expect(first.sections[0]!.fingerprint).toBe(second.sections[0]!.fingerprint);
   });
 
+  it('normalizes dev-container workspace roots before fingerprinting', () => {
+    const first = buildPromptStackTelemetry({
+      composedPrompt: 'open /workspace/open-design/src/App.tsx',
+      sections: [
+        { kind: 'userRequest', content: 'open /workspace/open-design/src/App.tsx' },
+      ],
+    });
+    const second = buildPromptStackTelemetry({
+      composedPrompt: 'open /workspaces/open-design/src/App.tsx',
+      sections: [
+        { kind: 'userRequest', content: 'open /workspaces/open-design/src/App.tsx' },
+      ],
+    });
+
+    expect(first.sections[0]!.redactedContent).toBe(`open ${PROMPT_STACK_PATH_MARKER}`);
+    expect(second.sections[0]!.redactedContent).toBe(`open ${PROMPT_STACK_PATH_MARKER}`);
+    expect(second.sections[0]!.redactedContent).not.toContain('/workspaces');
+    expect(first.promptFingerprint).toBe(second.promptFingerprint);
+    expect(first.sections[0]!.fingerprint).toBe(second.sections[0]!.fingerprint);
+  });
+
   it('strips runtime tool token-bearing lines before capture', () => {
     const telemetry = buildPromptStackTelemetry({
       composedPrompt: 'tools',
