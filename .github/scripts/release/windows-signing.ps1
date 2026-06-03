@@ -44,7 +44,7 @@ function ConvertTo-Boolean([string]$Value, [bool]$Default = $false) {
 
 function Get-WindowsSigningProbe {
   param(
-    [ValidateSet("auto", "off", "on")]
+    [ValidateSet("off", "on")]
     [string]$SignMode = "off",
     [string]$Thumbprint = "8617C437D6CCE5A61758C27E684BF5CADC5AC0A7",
     [string]$SignToolPath = ""

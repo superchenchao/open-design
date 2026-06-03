@@ -97,8 +97,6 @@ inspect_electron_framework_symlinks() {
 prepare_mac_signing() {
   required APPLE_SIGNING_CERTIFICATE_BASE64
   required APPLE_SIGNING_CERTIFICATE_PASSWORD
-  required APPLE_ID
-  required APPLE_TEAM_ID
 
   local cert_path="$RUNNER_TEMP/open-design-signing.p12"
   if ! printf '%s' "$APPLE_SIGNING_CERTIFICATE_BASE64" | base64 --decode > "$cert_path" 2>/dev/null; then
@@ -106,6 +104,12 @@ prepare_mac_signing() {
   fi
   export CSC_LINK="$cert_path"
   export CSC_KEY_PASSWORD="$APPLE_SIGNING_CERTIFICATE_PASSWORD"
+}
+
+prepare_mac_notarization() {
+  required APPLE_ID
+  required APPLE_TEAM_ID
+  required APPLE_NOTARY_KEYCHAIN_PROFILE
 }
 
 install_mac_signing_keychain() {
@@ -232,13 +236,13 @@ cache_dir="${TOOLS_PACK_CACHE_DIR:-$RUNNER_TEMP/tools-pack-cache}"
 build_json_path="${BUILD_JSON_PATH:-$RUNNER_TEMP/mac-tools-pack-build.json}"
 build_log_path="${BUILD_LOG_PATH:-$RUNNER_TEMP/mac-tools-pack-build.log}"
 namespace="${TOOLS_PACK_NAMESPACE:-release-beta}"
-sign_mode="${MAC_SIGN_MODE:-on}"
+sign_mode="${MAC_SIGN_MODE:-sign-only}"
 target="${MAC_BUILD_TARGET:-dmg}"
 compression="${MAC_COMPRESSION:-normal}"
 require_vela_cli="${REQUIRE_VELA_CLI:-true}"
 
 case "$sign_mode" in
-  off | on) ;;
+  no | sign-only | notarize) ;;
   *)
     echo "unsupported MAC_SIGN_MODE: $sign_mode" >&2
     exit 1
@@ -267,12 +271,16 @@ mkdir -p "$cache_dir" "$(dirname "$build_json_path")" "$(dirname "$build_log_pat
 measure_step "pnpm install" pnpm install --frozen-lockfile
 measure_step "electron framework symlink inspection" inspect_electron_framework_symlinks
 
-if [ "$sign_mode" = "on" ]; then
+if [ "$sign_mode" != "no" ]; then
   measure_step "prepare mac signing" prepare_mac_signing
   if [ -n "${OPEN_DESIGN_MAC_SIGNING_HELPER:-}" ]; then
     measure_step "install mac signing keychain" install_mac_signing_keychain "$CSC_LINK"
   fi
   measure_step "select mac signing identity" select_mac_signing_identity
+fi
+
+if [ "$sign_mode" = "notarize" ]; then
+  measure_step "prepare mac notarization" prepare_mac_notarization
 fi
 
 rm -rf "$tools_pack_dir"
@@ -291,8 +299,11 @@ build_args=(
 if [ "$require_vela_cli" = "true" ]; then
   build_args+=(--require-vela-cli)
 fi
-if [ "$sign_mode" = "on" ]; then
+if [ "$sign_mode" != "no" ]; then
   build_args+=(--signed)
+fi
+if [ "$sign_mode" = "notarize" ]; then
+  build_args+=(--notarize)
 fi
 
 if build_output="$(pnpm "${build_args[@]}" 2> >(tee -a "$build_log_path" >&2))"; then

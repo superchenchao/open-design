@@ -1,5 +1,5 @@
 param(
-  [ValidateSet("auto", "off", "on")]
+  [ValidateSet("off", "on")]
   [string]$SignMode = "off"
 )
 

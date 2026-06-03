@@ -59,22 +59,22 @@ on:
           - dir
         default: nsis
       win_sign_mode:
-        description: "Windows signing mode. Defaults to unsigned; use auto/on only for explicit signing validation."
+        description: "Windows signing mode. on requires signing capability and fails fast when unavailable."
         required: true
         type: choice
         options:
-          - "auto"
           - "off"
           - "on"
         default: "off"
       mac_sign_mode:
-        description: "mac arm64 signing mode. Keep off for cold-start validation."
+        description: "mac arm64 signing mode. sign-only signs without notarization; notarize signs and submits to Apple."
         required: true
         type: choice
         options:
-          - "off"
-          - "on"
-        default: "off"
+          - "no"
+          - "sign-only"
+          - "notarize"
+        default: "sign-only"
       mac_smoke_mode:
         description: "mac arm64 smoke coverage. Skip only builds; core gates install/start/cleanup; full adds updater checks."
         required: true
@@ -331,12 +331,12 @@ jobs:
         if: ${{ inputs.publish }}
         working-directory: _release-build
         env:
-          ASSET_VERSION_SUFFIX: ${{ inputs.mac_sign_mode == 'on' && '.signed' || '.unsigned' }}
+          ASSET_VERSION_SUFFIX: ${{ inputs.mac_sign_mode != 'no' && '.signed' || '.unsigned' }}
           CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN: ${{ inputs.s3_public_origin }}
           MAC_ARTIFACT_MODE: dmg-only
           OPEN_DESIGN_RELEASE_PROFILE: /Users/runner/.profile
           RELEASE_CHANNEL: beta
-          RELEASE_NOTES: Open Design beta ${{ inputs.release_version || needs.metadata.outputs.beta_version }}${{ inputs.mac_sign_mode == 'on' && '.signed' || '.unsigned' }}
+          RELEASE_NOTES: Open Design beta ${{ inputs.release_version || needs.metadata.outputs.beta_version }}${{ inputs.mac_sign_mode != 'no' && '.signed' || '.unsigned' }}
           RELEASE_VERSION: ${{ inputs.release_version || needs.metadata.outputs.beta_version }}
           TOOLS_PACK_DIR: ${{ env.MAC_TOOLS_PACK_DIR }}
           TOOLS_PACK_NAMESPACE: release-beta
@@ -350,7 +350,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.NEXU_S3_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ secrets.NEXU_S3_REGION }}
           AWS_EC2_METADATA_DISABLED: "true"
-          ASSET_VERSION_SUFFIX: ${{ inputs.mac_sign_mode == 'on' && '.signed' || '.unsigned' }}
+          ASSET_VERSION_SUFFIX: ${{ inputs.mac_sign_mode != 'no' && '.signed' || '.unsigned' }}
           CLOUDFLARE_R2_RELEASES_BUCKET: ${{ secrets.NEXU_S3_BUCKET }}
           CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN: ${{ inputs.s3_public_origin }}
           CLOUDFLARE_R2_RELEASES_URL: ${{ secrets.NEXU_S3_ENDPOINT }}
@@ -359,7 +359,7 @@ jobs:
           RELEASE_CHANNEL: beta
           RELEASE_PLATFORM: mac
           RELEASE_ROOT: ${{ runner.temp }}/release-assets
-          RELEASE_SIGNED: ${{ inputs.mac_sign_mode == 'on' && 'true' || 'false' }}
+          RELEASE_SIGNED: ${{ inputs.mac_sign_mode != 'no' && 'true' || 'false' }}
           RELEASE_VERSION: ${{ inputs.release_version || needs.metadata.outputs.beta_version }}
           REPORT_ROOT: ${{ runner.temp }}/release-report/mac
         run: |

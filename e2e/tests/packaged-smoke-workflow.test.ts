@@ -126,8 +126,9 @@ describe("packaged smoke workflow", () => {
     expect(workflow).toContain("mac_smoke_mode:");
     expect(workflow).toMatch(/win_smoke_mode:[\s\S]*?options:[\s\S]*?- skip[\s\S]*?- core[\s\S]*?- full[\s\S]*?default: core/);
     expect(workflow).toMatch(/mac_smoke_mode:[\s\S]*?options:[\s\S]*?- skip[\s\S]*?- core[\s\S]*?- full[\s\S]*?default: core/);
-    expect(workflow).toContain('default: "off"');
-    expect(workflow).toMatch(/win_sign_mode:[\s\S]*?description: "Windows signing mode\. Defaults to unsigned; use auto\/on only for explicit signing validation\."[\s\S]*?default: "off"/);
+    expect(workflow).toMatch(/win_sign_mode:[\s\S]*?options:[\s\S]*?- "off"[\s\S]*?- "on"[\s\S]*?default: "off"/);
+    expect(workflow).not.toMatch(/win_sign_mode:[\s\S]*?- "auto"/);
+    expect(workflow).toMatch(/mac_sign_mode:[\s\S]*?options:[\s\S]*?- "no"[\s\S]*?- "sign-only"[\s\S]*?- "notarize"[\s\S]*?default: "sign-only"/);
     expect(workflow).not.toMatch(/^      enable_win:/m);
     expect(workflow).not.toMatch(/^      enable_mac:/m);
     expect(workflow).not.toMatch(/^      sign_mode:/m);
@@ -173,12 +174,12 @@ describe("packaged smoke workflow", () => {
     expect(workflow).toContain("bash .github/scripts/release/cache/mac.sh");
     expect(workflow).toContain("MAC_SIGN_MODE: ${{ inputs.mac_sign_mode }}");
     expect(workflow).toContain("OPEN_DESIGN_RELEASE_PROFILE: /Users/runner/.profile");
-    expect(workflow).toContain("ASSET_VERSION_SUFFIX: ${{ inputs.mac_sign_mode == 'on' && '.signed' || '.unsigned' }}");
+    expect(workflow).toContain("ASSET_VERSION_SUFFIX: ${{ inputs.mac_sign_mode != 'no' && '.signed' || '.unsigned' }}");
     expect(macAssetsScript).toContain('tools_pack_dir="${TOOLS_PACK_DIR:-$RUNNER_TEMP/tools-pack}"');
     expect(macAssetsScript).toContain('source_dmg="$tools_pack_dir/out/mac/namespaces/$TOOLS_PACK_NAMESPACE/dmg/Open Design-$TOOLS_PACK_NAMESPACE.dmg"');
     expect(workflow).toContain("Publish beta mac candidate platform to Nexu S3");
     expect(workflow).toContain("RELEASE_PLATFORM: mac");
-    expect(workflow).toContain("RELEASE_SIGNED: ${{ inputs.mac_sign_mode == 'on' && 'true' || 'false' }}");
+    expect(workflow).toContain("RELEASE_SIGNED: ${{ inputs.mac_sign_mode != 'no' && 'true' || 'false' }}");
     expect(
       workflow.match(/- name: Publish beta mac candidate platform to Nexu S3\n(?:.+\n)+?          node --experimental-strip-types \.github\/scripts\/release\/r2\/publish-platform\.ts/m)?.[0],
     ).toContain("OPEN_DESIGN_RELEASE_PROFILE: /Users/runner/.profile");
