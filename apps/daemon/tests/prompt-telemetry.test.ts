@@ -125,6 +125,39 @@ describe('prompt telemetry builder', () => {
     expect(first.sections[0]!.fingerprint).toBe(second.sections[0]!.fingerprint);
   });
 
+  it('redacts non-home Linux project and attachment roots before fingerprinting', () => {
+    const first = buildPromptStackTelemetry({
+      composedPrompt:
+        'cwd /media/william/disk/project, service /srv/open-design, image @/media/william/disk/screenshot.png',
+      sections: [
+        {
+          kind: 'daemonSystemPrompt',
+          content:
+            'cwd /media/william/disk/project, service /srv/open-design, image @/media/william/disk/screenshot.png',
+        },
+      ],
+    });
+    const second = buildPromptStackTelemetry({
+      composedPrompt:
+        'cwd /media/other/disk/project, service /srv/other-design, image @/media/other/disk/screenshot.png',
+      sections: [
+        {
+          kind: 'daemonSystemPrompt',
+          content:
+            'cwd /media/other/disk/project, service /srv/other-design, image @/media/other/disk/screenshot.png',
+        },
+      ],
+    });
+
+    expect(first.sections[0]!.redactedContent).toBe(
+      `cwd ${PROMPT_STACK_PATH_MARKER}, service ${PROMPT_STACK_PATH_MARKER}, image @${PROMPT_STACK_PATH_MARKER}`,
+    );
+    expect(first.sections[0]!.redactedContent).not.toContain('/media/william');
+    expect(first.sections[0]!.redactedContent).not.toContain('/srv/open-design');
+    expect(first.promptFingerprint).toBe(second.promptFingerprint);
+    expect(first.sections[0]!.fingerprint).toBe(second.sections[0]!.fingerprint);
+  });
+
   it('preserves semantic slash-prefixed prompt tokens', () => {
     const telemetry = buildPromptStackTelemetry({
       composedPrompt:
