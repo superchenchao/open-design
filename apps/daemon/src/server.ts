@@ -11091,19 +11091,14 @@ export async function startServer({
       composedPrompt: composed,
       sections: [
         { kind: 'formOverride', content: formOverride },
-        {
-          kind: 'daemonSystemPrompt',
-          content: daemonSystemPrompt,
-          captureContent: false,
-        },
+        // Phase 1 explicitly needs redactedContent for these aggregate prompts:
+        // they are the quickest way to inspect the system context sent to the
+        // model when diagnosing Langfuse traces.
+        { kind: 'daemonSystemPrompt', content: daemonSystemPrompt },
         { kind: 'runtimeToolPrompt', content: runtimeToolPrompt },
         { kind: 'researchCommandContract', content: researchCommandContract },
         { kind: 'runContextPrompt', content: runContextPrompt },
-        {
-          kind: 'clientSystemPrompt',
-          content: clientInstructionPrompt,
-          captureContent: false,
-        },
+        { kind: 'clientSystemPrompt', content: clientInstructionPrompt },
         { kind: 'echoGuard', content: ECHO_GUARD },
         { kind: 'userRequest', content: userRequestPrompt },
         { kind: 'skillPrompt', content: promptTelemetryParts?.skillPrompt },
