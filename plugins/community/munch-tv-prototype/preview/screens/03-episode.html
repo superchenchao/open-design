@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>S1 E04 — Fiduciary Duties</title>
+<style>
+  :root {
+    --bg:      oklch(97% 0.004 150);
+    --surface: oklch(100% 0 0);
+    --fg:      oklch(18% 0.012 150);
+    --muted:   oklch(50% 0.012 150);
+    --border:  oklch(90% 0.006 150);
+    --accent:  oklch(68% 0.18 145);
+    --accent-ink: oklch(28% 0.10 145);
+    --hl:      oklch(94% 0.06 145);
+    --font-display: 'Iowan Old Style', 'Charter', Georgia, serif;
+    --font-body:    -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+    --font-mono:    'JetBrains Mono', 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.45 var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+  body { padding: 14px 20px 100px; }
+  a { color: inherit; text-decoration: none; }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    font: 11px/1 var(--font-mono);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .topbar .back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--fg);
+  }
+  .topbar .back::before { content: '←'; font-size: 14px; }
+
+  .ep-head {
+    border-top: 1px solid var(--fg);
+    padding: 14px 0 16px;
+    margin-bottom: 12px;
+  }
+  .ep-head .kicker {
+    font: 11px/1 var(--font-mono);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .ep-head h1 {
+    font: 500 26px/1.1 var(--font-display);
+    letter-spacing: -0.015em;
+    margin-bottom: 8px;
+  }
+  .ep-head .arc {
+    font: italic 14px/1.5 var(--font-display);
+    color: var(--muted);
+  }
+
+  .progress-strip {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0 14px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 6px;
+  }
+  .progress-strip .num {
+    font: 600 13px/1 var(--font-mono);
+    color: var(--fg);
+    letter-spacing: 0.04em;
+  }
+  .progress-strip .num em {
+    font-style: normal;
+    color: var(--accent-ink);
+  }
+  .progress-strip .bar {
+    flex: 1;
+    height: 3px;
+    background: var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .progress-strip .bar > i {
+    display: block;
+    width: 32%;
+    height: 100%;
+    background: var(--accent);
+  }
+  .progress-strip .label {
+    font: 11px/1 var(--font-mono);
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* Filter chips */
+  .chips {
+    display: flex;
+    gap: 6px;
+    margin: 14px 0 8px;
+  }
+  .chip {
+    font: 11px/1 var(--font-mono);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--muted);
+    background: transparent;
+    cursor: pointer;
+  }
+  .chip.active {
+    color: var(--fg);
+    border-color: var(--fg);
+  }
+  .chip .dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    margin-right: 5px;
+    vertical-align: 1px;
+  }
+  .chip.s-new .dot      { background: var(--muted); }
+  .chip.s-learning .dot { background: var(--accent); }
+  .chip.s-known .dot    { background: var(--accent-ink); }
+
+  /* Word list */
+  .words {
+    display: flex;
+    flex-direction: column;
+  }
+  .word {
+    display: grid;
+    grid-template-columns: 16px 1fr auto;
+    align-items: start;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .word:last-child { border-bottom: 0; }
+  .word .status {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    border: 1.5px solid var(--muted);
+    margin-top: 4px;
+    background: var(--bg);
+    flex: 0 0 auto;
+  }
+  .word.learning .status {
+    border-color: var(--accent);
+    background: linear-gradient(to right, var(--accent) 50%, var(--bg) 50%);
+  }
+  .word.known .status {
+    background: var(--accent-ink);
+    border-color: var(--accent-ink);
+  }
+  .word .term {
+    font: 500 17px/1.2 var(--font-display);
+    letter-spacing: -0.005em;
+  }
+  .word .term .pos {
+    font: 10px/1 var(--font-mono);
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    margin-left: 6px;
+    text-transform: uppercase;
+    vertical-align: 2px;
+    font-weight: 400;
+    font-family: var(--font-mono);
+  }
+  .word .gloss {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 3px;
+    line-height: 1.4;
+  }
+  .word.known .term { color: var(--muted); }
+  .word .timecode {
+    font: 11px/1 var(--font-mono);
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    margin-top: 5px;
+  }
+
+  /* Bottom CTA */
+  .study-cta {
+    position: fixed;
+    left: 16px; right: 16px;
+    bottom: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--fg);
+    color: var(--bg);
+    padding: 14px 18px;
+    border-radius: 12px;
+    box-shadow: 0 4px 18px -8px rgba(0,0,0,0.25);
+  }
+  .study-cta .lhs { display: flex; flex-direction: column; gap: 3px; }
+  .study-cta .lhs .head {
+    font: 600 14px/1 var(--font-body);
+    letter-spacing: -0.005em;
+  }
+  .study-cta .lhs .sub {
+    font: 11px/1 var(--font-mono);
+    color: oklch(70% 0.012 150);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .study-cta .go {
+    background: var(--accent);
+    color: oklch(15% 0.04 150);
+    padding: 9px 14px;
+    border-radius: 8px;
+    font: 600 13px/1 var(--font-body);
+  }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <a class="back" href="02-show.html">Silicon Valley</a>
+    <span>S1 · E04</span>
+  </div>
+
+  <header class="ep-head">
+    <div class="kicker">Episode 04</div>
+    <h1>Fiduciary Duties</h1>
+    <div class="arc">Richard meets the board. The math of burn rate, runway, and saying yes.</div>
+  </header>
+
+  <div class="progress-strip">
+    <span class="num"><em>14</em> / 44</span>
+    <div class="bar"><i></i></div>
+    <span class="label">32%</span>
+  </div>
+
+  <div class="chips">
+    <button class="chip active">All · 44</button>
+    <button class="chip s-new"><span class="dot"></span>New 18</button>
+    <button class="chip s-learning"><span class="dot"></span>Learning 12</button>
+    <button class="chip s-known"><span class="dot"></span>Known 14</button>
+  </div>
+
+  <ol class="words">
+    <li class="word learning">
+      <span class="status"></span>
+      <div>
+        <div class="term">burn rate <span class="pos">n.</span></div>
+        <div class="gloss">公司每月烧掉多少现金,决定能撑几个月。</div>
+      </div>
+      <div class="timecode">04:12</div>
+    </li>
+    <li class="word learning">
+      <span class="status"></span>
+      <div>
+        <div class="term">runway <span class="pos">n.</span></div>
+        <div class="gloss">现有现金还能让公司活多久(几个月)。</div>
+      </div>
+      <div class="timecode">04:38</div>
+    </li>
+    <li class="word known">
+      <span class="status"></span>
+      <div>
+        <div class="term">term sheet <span class="pos">n.</span></div>
+        <div class="gloss">投资条款清单,正式合同前的概要。</div>
+      </div>
+      <div class="timecode">07:02</div>
+    </li>
+    <li class="word">
+      <span class="status"></span>
+      <div>
+        <div class="term">fiduciary <span class="pos">adj.</span></div>
+        <div class="gloss">受托的; 对股东有法律义务的(董事会成员的标准称谓)。</div>
+      </div>
+      <div class="timecode">11:24</div>
+    </li>
+    <li class="word">
+      <span class="status"></span>
+      <div>
+        <div class="term">vesting cliff <span class="pos">n.</span></div>
+        <div class="gloss">股权"悬崖期",通常一年 — 满了才开始解锁。</div>
+      </div>
+      <div class="timecode">14:50</div>
+    </li>
+    <li class="word learning">
+      <span class="status"></span>
+      <div>
+        <div class="term">ramen profitable <span class="pos">adj.</span></div>
+        <div class="gloss">公司赚的钱够团队吃泡面,但仅此而已 — Paul Graham 词。</div>
+      </div>
+      <div class="timecode">18:08</div>
+    </li>
+    <li class="word known">
+      <span class="status"></span>
+      <div>
+        <div class="term">pivot <span class="pos">v.</span></div>
+        <div class="gloss">改方向; 在不放弃团队的前提下转型。</div>
+      </div>
+      <div class="timecode">22:31</div>
+    </li>
+    <li class="word">
+      <span class="status"></span>
+      <div>
+        <div class="term">stack rank <span class="pos">v.</span></div>
+        <div class="gloss">把员工按好坏排序的考核法 — 多用作贬义。</div>
+      </div>
+      <div class="timecode">26:14</div>
+    </li>
+  </ol>
+
+  <a class="study-cta" href="04-word.html">
+    <div class="lhs">
+      <span class="head">Study 14 cards</span>
+      <span class="sub">Today's session · ~6 min</span>
+    </div>
+    <span class="go">Begin →</span>
+  </a>
+</body>
+</html>

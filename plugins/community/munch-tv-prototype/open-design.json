@@ -1,0 +1,129 @@
+{
+  "$schema": "https://open-design.ai/schemas/plugin.v1.json",
+  "specVersion": "1.0.0",
+  "name": "munch-tv-prototype",
+  "title": "munch.tv — Silicon Valley vocab prototype",
+  "version": "0.1.0",
+  "description": "Build a high-contrast, card-based Silicon Valley vocabulary learning prototype with bilingual flashcards and keyboard-friendly interactions.",
+  "license": "MIT",
+  "tags": [
+    "create",
+    "live-artifact"
+  ],
+  "compat": {
+    "agentSkills": [
+      {
+        "path": "./SKILL.md"
+      }
+    ]
+  },
+  "od": {
+    "kind": "skill",
+    "taskKind": "new-generation",
+    "mode": "live-artifact",
+    "scenario": "general",
+    "useCase": {
+      "query": "Create {{artifact}} for {{audience}} about {{topic}}."
+    },
+    "context": {
+      "skills": [
+        {
+          "path": "./SKILL.md"
+        }
+      ],
+      "atoms": [
+        "discovery-question-form",
+        "todo-write",
+        "file-write",
+        "critique-theater"
+      ],
+      "assets": [
+        {
+          "path": "./preview/munch-tv-prototype.html"
+        },
+        {
+          "path": "./assets/silicon-valley-vocab.md"
+        },
+        {
+          "path": "./preview/index.html"
+        },
+        {
+          "path": "./preview/screens/01-home.html"
+        },
+        {
+          "path": "./preview/screens/03-episode.html"
+        },
+        {
+          "path": "./preview/screens/02-show.html"
+        },
+        {
+          "path": "./preview/screens/04-word.html"
+        },
+        {
+          "path": "./assets/brand-spec.md"
+        }
+      ]
+    },
+    "pipeline": {
+      "stages": [
+        {
+          "id": "discovery",
+          "atoms": [
+            "discovery-question-form"
+          ]
+        },
+        {
+          "id": "plan",
+          "atoms": [
+            "todo-write"
+          ]
+        },
+        {
+          "id": "generate",
+          "atoms": [
+            "file-write"
+          ]
+        },
+        {
+          "id": "critique",
+          "atoms": [
+            "critique-theater"
+          ],
+          "repeat": true,
+          "until": "critique.score>=4 || iterations>=3"
+        }
+      ]
+    },
+    "inputs": [
+      {
+        "name": "artifact",
+        "type": "string",
+        "required": true,
+        "label": "Artifact"
+      },
+      {
+        "name": "audience",
+        "type": "string",
+        "required": true,
+        "label": "Audience"
+      },
+      {
+        "name": "topic",
+        "type": "string",
+        "required": true,
+        "label": "Topic"
+      }
+    ],
+    "capabilities": [
+      "prompt:inject",
+      "fs:write"
+    ],
+    "preview": {
+      "type": "html",
+      "entry": "./preview/munch-tv-prototype.html"
+    }
+  },
+  "author": {
+    "name": "Open Design Community"
+  }
+}

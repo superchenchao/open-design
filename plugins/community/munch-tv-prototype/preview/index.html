@@ -1,0 +1,726 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>munch.tv — Silicon Valley · Season 1</title>
+<style>
+  :root {
+    --bg:      oklch(97% 0.004 150);
+    --surface: oklch(100% 0 0);
+    --fg:      oklch(18% 0.012 150);
+    --muted:   oklch(50% 0.012 150);
+    --border:  oklch(90% 0.006 150);
+    --accent:  oklch(68% 0.18 145);
+    --accent-ink: oklch(28% 0.10 145);
+    --hl:      oklch(94% 0.06 145);
+    --shell:   oklch(94% 0.005 150);
+    --font-display: 'Iowan Old Style', 'Charter', Georgia, serif;
+    --font-body:    -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+    --font-mono:    'JetBrains Mono', 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--shell);
+    color: var(--fg);
+    font: 15px/1.45 var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100%;
+  }
+  body {
+    display: grid;
+    place-items: center;
+    padding: 24px 16px;
+  }
+  a, button { color: inherit; text-decoration: none; font: inherit; }
+  button { background: none; border: 0; cursor: pointer; padding: 0; }
+
+  .stage {
+    width: 100%;
+    max-width: 440px;
+    min-height: min(820px, calc(100vh - 48px));
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 16px 20px 20px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 24px 60px -30px rgba(20, 28, 32, 0.35);
+  }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .brand {
+    font: 600 15px/1 var(--font-display);
+    letter-spacing: -0.01em;
+  }
+  .brand .dot { color: var(--accent); }
+  .topbar .pos {
+    font: 11px/1 var(--font-mono);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .topbar .pos em {
+    font-style: normal;
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .topbar .skip {
+    font: 11px/1 var(--font-mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 4px 6px;
+  }
+
+  .progress-rail {
+    display: flex;
+    gap: 3px;
+    margin-bottom: 16px;
+  }
+  .progress-rail span {
+    flex: 1;
+    height: 2px;
+    background: var(--border);
+    border-radius: 999px;
+    transition: background 0.2s;
+  }
+  .progress-rail span.done   { background: var(--accent-ink); }
+  .progress-rail span.active { background: var(--accent); }
+
+  .card {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 20px 24px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+  }
+  .card-head .src {
+    font: 11px/1 var(--font-mono);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .card-head .src .show {
+    color: var(--accent-ink);
+    font-weight: 600;
+  }
+  .card-head .tag {
+    font: 10px/1 var(--font-mono);
+    color: var(--muted);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    padding: 4px 7px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+
+  .term-block { margin-bottom: 18px; }
+  .term {
+    font: 500 38px/1.05 var(--font-display);
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+  }
+  .ipa-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .ipa { font: italic 14px/1 var(--font-display); }
+  .pos {
+    font: 10px/1 var(--font-mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 3px 6px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+  .audio {
+    width: 32px; height: 32px;
+    display: grid; place-items: center;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    margin-left: auto;
+    color: var(--accent-ink);
+    background: var(--surface);
+    transition: background 0.15s, transform 0.08s, border-color 0.15s;
+    font-size: 12px;
+  }
+  .audio:active { transform: scale(0.92); }
+  .audio.playing {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: oklch(15% 0.04 150);
+  }
+  .audio.unsupported { opacity: 0.35; cursor: not-allowed; }
+
+  .reveal-trigger {
+    margin-top: auto;
+    padding: 14px 0 8px;
+    border-top: 1px dashed var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--muted);
+    font: 12px/1 var(--font-mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .reveal-trigger::before { content: '↓'; font-size: 14px; }
+
+  .body { display: none; flex-direction: column; gap: 16px; overflow: auto; }
+  .card.revealed .body { display: flex; }
+  .card.revealed .reveal-trigger { display: none; }
+
+  .gloss-block .label {
+    font: 10px/1 var(--font-mono);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .gloss-block .zh {
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--fg);
+  }
+  .gloss-block .en {
+    font: italic 13px/1.5 var(--font-display);
+    color: var(--muted);
+    margin-top: 5px;
+  }
+
+  .ep-line {
+    font: 11px/1.4 var(--font-mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 10px 0 0;
+    margin-top: auto;
+    border-top: 1px solid var(--border);
+  }
+  .ep-line .ep-label { color: var(--accent-ink); font-weight: 600; }
+
+  .srs {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .srs button {
+    padding: 12px 0 10px;
+    border-radius: 10px;
+    font: 600 13px/1 var(--font-body);
+    letter-spacing: -0.005em;
+    text-align: center;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    transition: transform 0.08s, opacity 0.15s;
+  }
+  .srs button:active { transform: scale(0.97); }
+  .srs button .interval {
+    display: block;
+    font: 10px/1 var(--font-mono);
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    margin-top: 4px;
+    text-transform: uppercase;
+  }
+  .srs button.again { color: oklch(45% 0.13 25); }
+  .srs button.hard  { color: var(--fg); }
+  .srs button.good {
+    background: var(--accent);
+    color: oklch(15% 0.04 150);
+    border-color: var(--accent);
+  }
+  .srs button.good .interval { color: var(--accent-ink); }
+  .srs.hidden { visibility: hidden; }
+
+  .done-screen {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    padding: 0 12px;
+  }
+  body.session-done .card,
+  body.session-done .srs,
+  body.session-done .progress-rail,
+  body.session-done .topbar .skip,
+  body.session-done .topbar .pos { display: none; }
+  body.session-done .done-screen { display: flex; }
+  .done-screen .kicker {
+    font: 11px/1 var(--font-mono);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+    margin-bottom: 14px;
+  }
+  .done-screen .headline {
+    font: 500 36px/1.1 var(--font-display);
+    letter-spacing: -0.02em;
+    margin-bottom: 22px;
+  }
+  .done-screen .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 28px;
+    text-align: left;
+  }
+  .done-screen .stats .cell {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    background: var(--surface);
+  }
+  .done-screen .stats .num {
+    font: 500 24px/1 var(--font-display);
+    margin-bottom: 4px;
+  }
+  .done-screen .stats .lbl {
+    font: 10px/1 var(--font-mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .done-screen .cta {
+    display: inline-block;
+    background: var(--fg);
+    color: var(--bg);
+    padding: 14px 22px;
+    border-radius: 999px;
+    font: 600 14px/1 var(--font-body);
+    letter-spacing: -0.005em;
+    cursor: pointer;
+    border: 0;
+  }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="topbar">
+      <div class="brand">munch<span class="dot">.</span>tv</div>
+      <div class="pos"><em id="cur">1</em> / <span id="tot">6</span> · <span id="se-now">S1</span></div>
+      <button class="skip" id="skip" type="button">Skip</button>
+    </div>
+
+    <div class="progress-rail" id="rail"></div>
+
+    <article class="card" id="card"></article>
+
+    <div class="srs hidden" id="srs">
+      <button class="again" data-rate="again" type="button">Again<span class="interval">&lt; 10m</span></button>
+      <button class="hard"  data-rate="hard"  type="button">Hard<span class="interval">2 days</span></button>
+      <button class="good"  data-rate="good"  type="button">Got it<span class="interval">5 days</span></button>
+    </div>
+
+    <div class="done-screen">
+      <div class="kicker">Session complete · Silicon Valley · Season 1</div>
+      <h1 class="headline">Nice. <em id="s-total">0</em> words reviewed.</h1>
+      <div class="stats">
+        <div class="cell"><div class="num" id="s-good">0</div><div class="lbl">Got it</div></div>
+        <div class="cell"><div class="num" id="s-hard">0</div><div class="lbl">Hard</div></div>
+        <div class="cell"><div class="num" id="s-again">0</div><div class="lbl">Again</div></div>
+      </div>
+      <button class="cta" id="restart" type="button">Start over</button>
+    </div>
+  </div>
+
+  <script src="data/silicon-valley-s1.js"></script>
+  <script>
+    var DECK = (window.SV_S1_DECK || []).slice();
+    var __OLD_DECK_UNUSED = [
+      // ─── Season 1 — formation, seed, TechCrunch Disrupt ─────────────
+      { term: 'pre-money valuation', pos: 'N.', ipa: '/priːˈmʌn.i ˌvæl.juˈeɪ.ʃən/', se: 'S1 E01', tag: 'VC',
+        zh: '投前估值 — 投资人打钱进来「之前」,公司值多少。投后估值 = 投前 + 本轮融资额。',
+        en: 'A company’s value before new investment money is added.',
+        scene: 'Peter Gregory’s office · the offer',
+        lines: [{ who: 'Peter', text: 'I’ll give you two hundred thousand for five percent — a four-million <mark>pre-money valuation</mark>.' }] },
+      { term: 'burn rate', pos: 'N.', ipa: '/bɜːrn reɪt/', se: 'S1 E04', tag: 'VC',
+        zh: '烧钱速度 — 每月净流出现金。配合现金余额就能算出 runway。',
+        en: 'How fast a startup spends its cash on hand each month.',
+        scene: 'Pied Piper office · the math conversation',
+        lines: [
+          { who: 'Jared',   text: 'At our current <mark>burn rate</mark>, with the seed money, we have about ten months of runway.' },
+          { who: 'Richard', text: 'So we’re broke in nine months.' }
+        ] },
+      { term: 'runway', pos: 'N.', ipa: '/ˈrʌn.weɪ/', se: 'S1 E04', tag: 'VC',
+        zh: '现金跑道 — 按当前烧钱速度还能撑几个月。跑道越长,谈判越从容。',
+        en: 'How many months you can keep operating before running out of cash.',
+        scene: 'Pied Piper office · planning hires',
+        lines: [{ who: 'Jared', text: 'That gives us roughly nine months of <mark>runway</mark> — not enough to hire two engineers.' }] },
+      { term: 'term sheet', pos: 'N.', ipa: '/tɜːrm ʃiːt/', se: 'S1 E04', tag: 'VC',
+        zh: '投资条款书 — 还没签字的草案,但估值、股权、清算优先权这些关键条款都已敲定。',
+        en: 'A non-binding draft of the headline terms of an investment.',
+        scene: 'Hooli boardroom · acquisition pitch',
+        lines: [{ who: 'Gavin', text: 'You sign this <mark>term sheet</mark>, ten million hits your account by Friday.' }] },
+      { term: 'fiduciary duty', pos: 'N.', ipa: '/fɪˈduː.ʃi.ɛr.i ˈduː.ti/', se: 'S1 E04', tag: 'VC',
+        zh: '受托责任 — 拿了投资人的钱后,在法律上必须为股东利益做决定,不能凭个人好恶。',
+        en: 'A legal obligation to act in the best interest of another party (here, shareholders).',
+        scene: 'Pied Piper office · Peter explains the rules',
+        lines: [{ who: 'Peter', text: 'Once you take my money, you have a <mark>fiduciary duty</mark> to the shareholders — not to your principles.' }],
+        note: 'This episode is literally titled “Fiduciary Duties.”' },
+      { term: 'vesting cliff', pos: 'N.', ipa: '/ˈvɛs.tɪŋ klɪf/', se: 'S1 E04', tag: 'VC',
+        zh: '股权悬崖 — 必须干满一定时间(通常一年)才解锁第一批股权,提前走就什么都没有。',
+        en: 'A minimum tenure before any stock vests — usually one year.',
+        scene: 'Investor call · negotiating the cap table',
+        lines: [{ who: 'Lawyer', text: 'Standard four-year vest with a one-year <mark>cliff</mark>. He walks before twelve months, he gets nothing.' }] },
+      { term: 'third comma', pos: 'N.', ipa: '/θɜːrd ˈkɑː.mə/', se: 'S1 E05', tag: 'show coinage',
+        zh: '第三个逗号 — Russ Hanneman 的金句:数字写到「亿」要写两个逗号,「十亿」才有第三个逗号。即「亿万富翁」的隐语。',
+        en: 'Russ Hanneman’s shorthand for being a billionaire — three commas in your net worth.',
+        scene: 'Russ Hanneman’s parking lot · the Maclaren scene',
+        lines: [{ who: 'Russ', text: 'I had three commas, bro. <mark>Three commas</mark>. Now I’ve got two — but I’m gonna get the <mark>third comma</mark> back.' }] },
+      { term: 'this guy fucks', pos: 'phrase', ipa: '/ðɪs ɡaɪ fʌks/', se: 'S1 E04', tag: 'show coinage',
+        zh: 'Russ Hanneman 的最高肯定 — 大致等于「这哥们儿是个狠人 / 是个真男人」。粗口,职场慎用。',
+        en: 'Russ Hanneman’s highest praise — roughly “this guy gets laid / this guy is the real deal.”',
+        scene: 'Russ meets the team',
+        lines: [{ who: 'Russ', text: 'Look at this dude. Erlich Bachman. <mark>This guy fucks</mark>. Am I right?' }] },
+      { term: 'middle-out', pos: 'ADJ.', ipa: '/ˈmɪd.l aʊt/', se: 'S1 E08', tag: 'show coinage',
+        zh: '中间向外 — 剧中虚构的压缩算法核心思想:不像传统算法那样从一头扫到另一头,而是从数据中段同时往两边推。',
+        en: 'Pied Piper’s fictional compression breakthrough — process from the middle outwards, not start-to-end.',
+        scene: 'TechCrunch Disrupt · the live algorithm pitch',
+        lines: [{ who: 'Richard', text: 'It’s called <mark>middle-out</mark> compression. We work from the middle outwards on both ends simultaneously.' }] },
+      { term: 'Weissman score', pos: 'N.', ipa: '/ˈwaɪs.mən skɔːr/', se: 'S1 E08', tag: 'show coinage',
+        zh: 'Weissman 评分 — 剧组真请了斯坦福教授 Tsachy Weissman 帮忙编出来的压缩算法基准。压缩比 + 速度的综合分。',
+        en: 'A fictional benchmark for compression algorithms (actually co-designed by a real Stanford professor for the show).',
+        scene: 'TechCrunch Disrupt · the leaderboard reveal',
+        lines: [{ who: 'Host', text: 'Pied Piper’s <mark>Weissman score</mark> is 5.2 — the highest ever recorded.' }] },
+      { term: 'tip-to-tip efficiency', pos: 'N.', ipa: '/tɪp tə tɪp ɪˈfɪʃ.ən.si/', se: 'S1 E08', tag: 'show coinage',
+        zh: 'Erlich 在后台用一个不可描述的「同时给全场观众撸管」思想实验推导出的效率公式 — 也是 middle-out 灵感来源。剧情笑点,慎用于正经场合。',
+        en: 'Erlich’s infamous backstage thought experiment about maximum throughput — origin of the middle-out idea.',
+        scene: 'TechCrunch Disrupt · backstage whiteboard',
+        lines: [{ who: 'Erlich', text: 'If we apply <mark>tip-to-tip efficiency</mark>, we can do every guy in the room in under ten minutes. Mathematically.' }] },
+      { term: 'TechCrunch Disrupt', pos: 'N. (proper)', ipa: '/tɛkˌkrʌntʃ dɪsˈrʌpt/', se: 'S1 E08', tag: 'tech',
+        zh: 'TechCrunch 主办的年度创业大赛/展会 — 创业公司发布会和秀肌肉的舞台,剧中 Pied Piper 在这里赢了第一名。',
+        en: 'A real annual startup competition run by TechCrunch — the show’s S1 finale takes place at one.',
+        scene: 'Conference floor · arrival',
+        lines: [{ who: 'Erlich', text: 'Boys, this is <mark>TechCrunch Disrupt</mark>. Win this and we are made men.' }] },
+
+      // ─── Season 2 — funding, lawsuit, Russ pulls a down round ──────
+      { term: 'bridge round', pos: 'N.', ipa: '/brɪdʒ raʊnd/', se: 'S2', tag: 'VC',
+        zh: '过桥融资 — 在两轮正式融资之间,先借一笔小钱「过桥」,等下一轮估值起来再正式融。',
+        en: 'A short-term funding round to keep a startup alive between two larger rounds.',
+        scene: 'Pied Piper office · cash crunch',
+        lines: [{ who: 'Jared', text: 'If we don’t close a <mark>bridge round</mark> this week, payroll bounces.' }] },
+      { term: 'down round', pos: 'N.', ipa: '/daʊn raʊnd/', se: 'S2', tag: 'VC',
+        zh: '估值下跌的融资轮 — 新一轮估值比上一轮还低。对老股东是稀释暴击,信号也很差。',
+        en: 'A funding round priced lower than the previous one — bad for morale and the cap table.',
+        scene: 'Pied Piper office · investor update',
+        lines: [{ who: 'Monica', text: 'Russ valued you at fifty million pre-money — but the new offer is twenty-five. That’s a <mark>down round</mark>.' }] },
+      { term: 'liquidation preference', pos: 'N.', ipa: '/ˌlɪk.wɪˈdeɪ.ʃən ˈprɛf.ər.əns/', se: 'S2 E03', tag: 'VC',
+        zh: '清算优先权 — 公司被卖掉时,有这条款的投资人先拿回本金(甚至倍数),剩下的才轮到普通股东。',
+        en: 'A clause that lets investors get their money back first if the company is sold or wound down.',
+        scene: 'Russ’s mansion · explaining his term sheet',
+        lines: [{ who: 'Russ', text: 'I get 4× <mark>liquidation preference</mark>. You sell for less than that, I get all the money. You get nothing.' }] },
+      { term: 'cap table', pos: 'N.', ipa: '/kæp ˈteɪ.bəl/', se: 'S2', tag: 'VC',
+        zh: '股权结构表 — 一张电子表,列着谁持有多少股、什么类型、行权价是多少。',
+        en: 'A spreadsheet showing every shareholder, share count, and class.',
+        scene: 'Lawyer’s office · diligence',
+        lines: [{ who: 'Lawyer', text: 'Send me the <mark>cap table</mark>. I want to see exactly who owns what before we sign anything.' }] },
+      { term: 'dilution', pos: 'N.', ipa: '/daɪˈluː.ʃən/', se: 'S2', tag: 'VC',
+        zh: '股权稀释 — 公司发新股(融资、行权、ESOP),你原有的百分比就被摊薄了。',
+        en: 'The drop in your ownership percentage when new shares are issued.',
+        scene: 'Erlich rants in the kitchen',
+        lines: [{ who: 'Erlich', text: 'If we take this round, my ten percent becomes seven. That’s called <mark>dilution</mark>, Richard.' }] },
+      { term: 'NDA', pos: 'N. (abbr)', ipa: '/ˌɛn.diːˈeɪ/', se: 'S2', tag: 'office speak',
+        zh: '保密协议 (Non-Disclosure Agreement) — 你跟我说的我不外传,违约赔钱。',
+        en: 'Non-Disclosure Agreement — a contract not to share confidential info.',
+        scene: 'Hooli legal · Big Head signs papers',
+        lines: [{ who: 'Lawyer', text: 'Sign the <mark>NDA</mark>. You don’t talk about Nucleus to anyone — not even your roommates.' }] },
+
+      // ─── Season 3 — Action Jack, the box, tabs vs spaces ───────────
+      { term: 'conjoined triangles of success', pos: 'N. (phrase)', ipa: '/kənˈdʒɔɪnd ˈtraɪ.æŋ.ɡəlz/', se: 'S3 E01', tag: 'show coinage',
+        zh: 'Action Jack Barker 的玄学经营哲学 — 两个相连的三角形,一个是「compromise」,一个是「stability」,合在一起叫「success」。剧中嘲讽 MBA 式管理。',
+        en: 'Action Jack Barker’s nonsense management framework — two interlocking triangles labelled compromise + stability = success.',
+        scene: 'Pied Piper office · Jack’s onboarding speech',
+        lines: [{ who: 'Jack',    text: 'This is the <mark>conjoined triangles of success</mark>. Memorize it. Live it.' }, { who: 'Dinesh', text: '...what does it mean.' }] },
+      { term: 'the box', pos: 'N.', ipa: '/ðə bɑːks/', se: 'S3 E03', tag: 'show coinage',
+        zh: 'Jack 的转型方案 — 不做面向消费者的应用,而是做一个企业级压缩硬件「盒子」卖给数据中心。Richard 视为背叛。',
+        en: 'Action Jack’s pivot — abandon the consumer app and ship enterprise compression hardware (a literal box).',
+        scene: 'Boardroom · Jack’s strategy reveal',
+        lines: [{ who: 'Jack', text: 'We are not building an app. We are building <mark>the box</mark>. The box is the future.' }] },
+      { term: 'tabs vs spaces', pos: 'N. (phrase)', ipa: '/tæbz vɝːsəs ˈspeɪs.ɪz/', se: 'S3 E06', tag: 'tech',
+        zh: '程序员经典圣战 — 缩进用 Tab 还是 Space?剧中 Dinesh 和 Gilfoyle 因为这个差点决裂。',
+        en: 'The eternal programmer holy war over code indentation. The show milks it for relationship comedy.',
+        scene: 'Pied Piper office · Dinesh & Gilfoyle’s argument',
+        lines: [{ who: 'Gilfoyle', text: 'You use <mark>spaces</mark>. We are no longer friends.' }, { who: 'Dinesh',   text: 'Tabs are objectively superior. They’re smaller in the file.' }] },
+      { term: 'enterprise', pos: 'ADJ. / N.', ipa: '/ˈɛn.tɚ.praɪz/', se: 'S3', tag: 'tech',
+        zh: '面向大公司的产品 — 客户是公司而不是个人,合同大、销售周期长、要求稳定性。',
+        en: 'Aimed at big-company customers — large contracts, long sales cycles, stability over flash.',
+        scene: 'Strategy meeting',
+        lines: [{ who: 'Jack', text: 'Consumers are fickle. <mark>Enterprise</mark> is where the recurring revenue lives.' }] },
+      { term: 'SaaS', pos: 'N. (abbr)', ipa: '/sæs/', se: 'S3', tag: 'tech',
+        zh: 'Software as a Service — 软件按月订阅,部署在云上。区别于一次性买断的盒装软件。',
+        en: 'Software as a Service — software delivered as a monthly cloud subscription.',
+        scene: 'Investor pitch deck',
+        lines: [{ who: 'Richard', text: 'We move from a one-time license to <mark>SaaS</mark> — recurring monthly revenue, predictable margins.' }] },
+
+      // ─── Season 4 — engagement, Not Hotdog, video chat ─────────────
+      { term: 'not hotdog', pos: 'N. (phrase)', ipa: '/nɑːt ˈhɑːt.dɔːɡ/', se: 'S4 E04', tag: 'show coinage',
+        zh: 'Jian-Yang 做的「See Food」app — 拍照 AI 只能识别两种东西:hotdog / not hotdog。剧组真的发布过这个 app 上 App Store。',
+        en: 'Jian-Yang’s “SeeFood” AI app — recognizes exactly two things: hot dog, or not hot dog. (The show actually shipped a real version.)',
+        scene: 'Erlich’s incubator · the demo',
+        lines: [{ who: 'Jian-Yang', text: 'This is hotdog. This is <mark>not hotdog</mark>. The app — it works.' }] },
+      { term: 'ramen profitable', pos: 'ADJ. (phrase)', ipa: '/ˈrɑː.mɛn ˈprɑː.fɪ.tə.bəl/', se: 'S4', tag: 'VC',
+        zh: '泡面级盈利 — 公司赚的钱刚好够创始人天天吃泡面活下去。Paul Graham 发明的术语,剧里用来吐槽。',
+        en: 'Earning just enough to feed the founders instant noodles — coined by Paul Graham, used dryly in the show.',
+        scene: 'Office · revenue review',
+        lines: [{ who: 'Jared', text: 'If our growth holds, we’ll be <mark>ramen profitable</mark> by the end of Q3.' }] },
+      { term: 'moat', pos: 'N.', ipa: '/moʊt/', se: 'S4', tag: 'VC',
+        zh: '护城河 — 公司难以被竞争对手复制的壁垒(技术、网络效应、品牌)。VC 最爱问的词。',
+        en: 'A defensible advantage that keeps competitors out — Warren Buffett’s favourite metaphor.',
+        scene: 'VC pitch',
+        lines: [{ who: 'VC', text: 'Compression is impressive. But what’s the <mark>moat</mark>? What stops Google from cloning this in six months?' }] },
+      { term: '10x engineer', pos: 'N. (phrase)', ipa: '/tɛn ɛks ˌɛn.dʒɪˈnɪɚ/', se: 'S4', tag: 'show coinage',
+        zh: '十倍工程师 — 工业界争议性术语,指生产力是普通工程师 10 倍的程序员。剧中常被 Erlich 自封。',
+        en: 'A controversial industry term for a programmer claimed to be 10× as productive as average. Erlich self-identifies, of course.',
+        scene: 'Office · hiring debate',
+        lines: [{ who: 'Erlich', text: 'You don’t need ten engineers. You need one <mark>10x engineer</mark>. Me. I am that engineer.' }] },
+      { term: 'brogrammer', pos: 'N.', ipa: '/ˈbroʊ.ɡræm.ɚ/', se: 'S4', tag: 'office speak',
+        zh: 'Bro + programmer — 健身房 + 兄弟会 + 写代码型工程师。带贬义,讽刺硅谷男性气质。',
+        en: 'A programmer who acts like a frat-bro — pejorative, mocks Silicon Valley macho culture.',
+        scene: 'Coffee shop · meeting other founders',
+        lines: [{ who: 'Dinesh', text: 'These guys aren’t engineers. They’re <mark>brogrammers</mark> with protein shakes.' }] },
+      { term: 'DAU', pos: 'N. (abbr)', ipa: '/ˌdiː.eɪˈjuː/', se: 'S4', tag: 'tech',
+        zh: 'Daily Active Users — 日活用户。增长团队最常盯的指标之一。',
+        en: 'Daily Active Users — a core engagement metric for consumer apps.',
+        scene: 'Growth meeting',
+        lines: [{ who: 'Richard', text: 'We added a million users this month, but <mark>DAU</mark> is flat. Nobody is coming back.' }] },
+      { term: 'virality coefficient', pos: 'N.', ipa: '/vaɪˈræl.ə.ti ˌkoʊ.ɪˈfɪʃ.ənt/', se: 'S4', tag: 'tech',
+        zh: '病毒系数 (k) — 平均每个用户能拉来多少新用户。k > 1 就是指数增长,k < 1 增长会衰减。',
+        en: 'How many new users each existing user brings. k > 1 = exponential growth; k < 1 = decay.',
+        scene: 'Growth dashboard review',
+        lines: [{ who: 'Jared', text: 'Our <mark>virality coefficient</mark> is 0.4. We need it above 1 or we’re dead in the water.' }] },
+
+      // ─── Season 5 — decentralized internet ─────────────────────────
+      { term: 'decentralized internet', pos: 'N. (phrase)', ipa: '/diːˈsɛn.trə.laɪzd ˈɪn.tɚ.nɛt/', se: 'S5 E01', tag: 'tech',
+        zh: '去中心化互联网 — 不依赖大公司服务器,数据分散存在用户设备上。S5 整季的主线愿景。',
+        en: 'A peer-to-peer internet that doesn’t rely on centralized corporate servers — the season 5 dream.',
+        scene: 'Whiteboard pitch',
+        lines: [{ who: 'Richard', text: 'Imagine an internet that nobody owns. A <mark>decentralized internet</mark>, built on every phone in the world.' }] },
+      { term: 'peer-to-peer', pos: 'ADJ. (also P2P)', ipa: '/pɪɚ tə pɪɚ/', se: 'S5', tag: 'tech',
+        zh: '点对点 — 节点之间直接通信,不经过中心服务器。BitTorrent、区块链都是 P2P。',
+        en: 'A network architecture where nodes talk directly to each other instead of through a central server.',
+        scene: 'Architecture review',
+        lines: [{ who: 'Gilfoyle', text: 'Your laptop is a node. Your phone is a node. It’s <mark>peer-to-peer</mark> — no Hooli in the middle.' }] },
+      { term: 'node', pos: 'N.', ipa: '/noʊd/', se: 'S5', tag: 'tech',
+        zh: '节点 — 网络里参与通信和存储的一台设备 / 一个进程。P2P 网络由无数节点组成。',
+        en: 'A single device or process participating in a network.',
+        scene: 'PiperNet onboarding',
+        lines: [{ who: 'Richard', text: 'Every phone that installs PiperNet becomes a <mark>node</mark>. The more nodes, the stronger the network.' }] },
+      { term: 'blockchain', pos: 'N.', ipa: '/ˈblɑːkˌtʃeɪn/', se: 'S5', tag: 'tech',
+        zh: '区块链 — 由密码学链接的分布式账本。剧中 Gilfoyle 一直把它当工具,而不是宗教。',
+        en: 'A cryptographically chained distributed ledger — Gilfoyle treats it as a tool, not a religion.',
+        scene: 'Late-night code session',
+        lines: [{ who: 'Gilfoyle', text: 'Stop calling it magic. <mark>Blockchain</mark> is just a linked list with a cryptographic hash. Calm down.' }] },
+      { term: 'protocol', pos: 'N.', ipa: '/ˈproʊ.tə.kɔːl/', se: 'S5', tag: 'tech',
+        zh: '协议 — 两台机器约定好怎么通信的规则。HTTP、TCP/IP、PiperNet 都是协议。',
+        en: 'The agreed-upon rules for how machines communicate (HTTP, TCP/IP, PiperNet itself).',
+        scene: 'Whiteboard',
+        lines: [{ who: 'Richard', text: 'PiperNet isn’t an app. It’s a <mark>protocol</mark>. Anyone can build on top of it.' }] },
+
+      // ─── Season 6 — AI ethics, end-game ────────────────────────────
+      { term: 'AI ethics', pos: 'N. (phrase)', ipa: '/ˌeɪˈaɪ ˈɛθ.ɪks/', se: 'S6', tag: 'tech',
+        zh: 'AI 伦理 — 大模型 / 自主系统该不该做、做错了谁负责。S6 主线之一。',
+        en: 'The moral questions around what AI systems should do and who is accountable when they don’t.',
+        scene: 'Late-night realization',
+        lines: [{ who: 'Richard', text: 'If our AI starts optimizing on its own, we have an <mark>AI ethics</mark> problem the size of a planet.' }] },
+      { term: 'end-to-end encryption', pos: 'N. (phrase)', ipa: '/ɛnd tu ɛnd ɪnˈkrɪp.ʃən/', se: 'S6', tag: 'tech',
+        zh: '端到端加密 — 只有发送方和接收方能解密,中间所有节点(包括服务商)都看不到内容。',
+        en: 'A scheme where only the sender and recipient can read a message — even the service provider can’t.',
+        scene: 'Press conference',
+        lines: [{ who: 'Richard', text: 'PiperNet uses <mark>end-to-end encryption</mark>. Not even we can read your data. That’s the point.' }] },
+      { term: 'acqui-hire', pos: 'N.', ipa: '/ˈæk.wiˌhaɪɚ/', se: 'S6', tag: 'VC',
+        zh: '收购 + 雇佣 — 大公司收购一家小公司,本质不是为了产品,而是为了拿到那群人。',
+        en: 'Buying a startup primarily for its team rather than its product.',
+        scene: 'Hooli boardroom',
+        lines: [{ who: 'Gavin', text: 'Forget the technology. This is an <mark>acqui-hire</mark>. We want the engineers, not the code.' }] },
+      { term: 'exit strategy', pos: 'N. (phrase)', ipa: '/ˈɛɡ.zɪt ˈstræt.ə.dʒi/', se: 'S6', tag: 'VC',
+        zh: '退出策略 — 投资人如何收回回报:IPO、被收购、或者卖二手股。VC 决定投资前就会想这个。',
+        en: 'How investors plan to cash out — IPO, acquisition, or secondary sale.',
+        scene: 'Board meeting · the future',
+        lines: [{ who: 'Monica', text: 'We need to talk about the <mark>exit strategy</mark>. IPO is one path. Selling to Amazon is another.' }] }
+    ];
+
+    var card  = document.getElementById('card');
+    var srs   = document.getElementById('srs');
+    var rail  = document.getElementById('rail');
+    var curEl = document.getElementById('cur');
+    var totEl = document.getElementById('tot');
+    var skip  = document.getElementById('skip');
+    var restart = document.getElementById('restart');
+    var idx = 0;
+    var stats = { good: 0, hard: 0, again: 0 };
+
+    totEl.textContent = DECK.length;
+
+    DECK.forEach(function () {
+      rail.appendChild(document.createElement('span'));
+    });
+
+    function paintRail() {
+      var spans = rail.children;
+      for (var i = 0; i < spans.length; i++) {
+        spans[i].className = '';
+        if (i < idx) spans[i].classList.add('done');
+        if (i === idx) spans[i].classList.add('active');
+      }
+    }
+
+    var seNowEl = document.getElementById('se-now');
+
+    function renderCard() {
+      var w = DECK[idx];
+      card.classList.remove('revealed');
+      srs.classList.add('hidden');
+      curEl.textContent = idx + 1;
+      seNowEl.textContent = w.se;
+      paintRail();
+
+      var epHtml = w.ep
+        ? '<div class="ep-line"><span class="ep-label">' + w.se + '</span> · ' + w.ep + '</div>'
+        : '<div class="ep-line"><span class="ep-label">' + w.se + '</span></div>';
+
+      card.innerHTML =
+        '<header class="card-head">' +
+          '<div class="src"><span class="show">Silicon Valley</span> · ' + w.se + '</div>' +
+          '<div class="tag">' + w.tag + '</div>' +
+        '</header>' +
+        '<div class="term-block">' +
+          '<h1 class="term">' + w.term + '</h1>' +
+          '<div class="ipa-row">' +
+            '<span class="pos">' + w.pos + '</span>' +
+            '<span class="ipa">' + w.ipa + '</span>' +
+            '<button class="audio" id="audio-btn" aria-label="Play pronunciation" type="button">▶</button>' +
+          '</div>' +
+        '</div>' +
+        '<button class="reveal-trigger" id="reveal" type="button">Tap to reveal</button>' +
+        '<div class="body">' +
+          '<div class="gloss-block">' +
+            '<div class="label">释义 · ZH</div>' +
+            '<div class="zh">' + w.zh + '</div>' +
+            '<div class="en">' + w.en + '</div>' +
+          '</div>' +
+          epHtml +
+        '</div>';
+
+      document.getElementById('reveal').addEventListener('click', function () {
+        card.classList.add('revealed');
+        srs.classList.remove('hidden');
+      });
+
+      wireAudio(w.term);
+    }
+
+    var ttsSupported = typeof window.speechSynthesis !== 'undefined' &&
+                       typeof window.SpeechSynthesisUtterance !== 'undefined';
+    var enVoice = null;
+    function pickVoice() {
+      if (!ttsSupported) return;
+      var voices = window.speechSynthesis.getVoices();
+      if (!voices || !voices.length) return;
+      enVoice =
+        voices.find(function (v) { return /en[-_]US/i.test(v.lang) && /Samantha|Ava|Alex|Karen|Daniel/i.test(v.name); }) ||
+        voices.find(function (v) { return /en[-_]US/i.test(v.lang); }) ||
+        voices.find(function (v) { return /^en/i.test(v.lang); }) ||
+        null;
+    }
+    if (ttsSupported) {
+      pickVoice();
+      window.speechSynthesis.onvoiceschanged = pickVoice;
+    }
+
+    function speak(text) {
+      if (!ttsSupported) return null;
+      try { window.speechSynthesis.cancel(); } catch (_) {}
+      var u = new SpeechSynthesisUtterance(text);
+      u.lang = 'en-US';
+      u.rate = 0.92;
+      u.pitch = 1;
+      if (enVoice) u.voice = enVoice;
+      window.speechSynthesis.speak(u);
+      return u;
+    }
+
+    function wireAudio(term) {
+      var btn = document.getElementById('audio-btn');
+      if (!btn) return;
+      if (!ttsSupported) {
+        btn.classList.add('unsupported');
+        btn.title = 'Pronunciation unavailable in this browser';
+        btn.setAttribute('aria-disabled', 'true');
+        return;
+      }
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (btn.classList.contains('playing')) {
+          try { window.speechSynthesis.cancel(); } catch (_) {}
+          btn.classList.remove('playing');
+          return;
+        }
+        var u = speak(term);
+        if (!u) return;
+        btn.classList.add('playing');
+        u.onend   = function () { btn.classList.remove('playing'); };
+        u.onerror = function () { btn.classList.remove('playing'); };
+      });
+    }
+
+    function advance(rate) {
+      if (rate && stats[rate] !== undefined) stats[rate]++;
+      idx++;
+      if (idx >= DECK.length) {
+        document.getElementById('s-good').textContent  = stats.good;
+        document.getElementById('s-hard').textContent  = stats.hard;
+        document.getElementById('s-again').textContent = stats.again;
+        document.getElementById('s-total').textContent = DECK.length;
+        document.body.classList.add('session-done');
+        return;
+      }
+      renderCard();
+    }
+
+    srs.addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-rate]');
+      if (!btn) return;
+      advance(btn.getAttribute('data-rate'));
+    });
+
+    skip.addEventListener('click', function () { advance(null); });
+
+    restart.addEventListener('click', function () {
+      idx = 0;
+      stats = { good: 0, hard: 0, again: 0 };
+      document.body.classList.remove('session-done');
+      renderCard();
+    });
+
+    renderCard();
+  </script>
+</body>
+</html>

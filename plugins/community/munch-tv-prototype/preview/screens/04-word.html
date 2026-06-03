@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>study session — S1 E04</title>
+<style>
+  :root {
+    --bg:      oklch(97% 0.004 150);
+    --surface: oklch(100% 0 0);
+    --fg:      oklch(18% 0.012 150);
+    --muted:   oklch(50% 0.012 150);
+    --border:  oklch(90% 0.006 150);
+    --accent:  oklch(68% 0.18 145);
+    --accent-ink: oklch(28% 0.10 145);
+    --hl:      oklch(94% 0.06 145);
+    --font-display: 'Iowan Old Style', 'Charter', Georgia, serif;
+    --font-body:    -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+    --font-mono:    'JetBrains Mono', 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.45 var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    height: 100%;
+  }
+  body {
+    padding: 14px 20px 18px;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+  }
+  a, button { color: inherit; text-decoration: none; font: inherit; }
+  button { background: none; border: 0; cursor: pointer; padding: 0; }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .topbar .close {
+    width: 32px; height: 32px;
+    display: grid; place-items: center;
+    border-radius: 50%;
+    color: var(--muted);
+    font-size: 18px;
+  }
+  .topbar .pos {
+    font: 11px/1 var(--font-mono);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .topbar .pos em {
+    font-style: normal;
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .topbar .skip {
+    font: 11px/1 var(--font-mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 4px 6px;
+  }
+
+  .progress-rail {
+    display: flex;
+    gap: 3px;
+    margin-bottom: 16px;
+  }
+  .progress-rail span {
+    flex: 1;
+    height: 2px;
+    background: var(--border);
+    border-radius: 999px;
+    transition: background 0.2s;
+  }
+  .progress-rail span.done   { background: var(--accent-ink); }
+  .progress-rail span.active { background: var(--accent); }
+
+  .card {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 20px 24px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+  }
+  .card-head .src {
+    font: 11px/1 var(--font-mono);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .card-head .src .show {
+    color: var(--accent-ink);
+    font-weight: 600;
+  }
+  .card-head .timecode {
+    font: 11px/1 var(--font-mono);
+    color: var(--muted);
+  }
+
+  .term-block { margin-bottom: 18px; }
+  .term {
+    font: 500 38px/1.05 var(--font-display);
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+  }
+  .ipa-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .ipa { font: italic 14px/1 var(--font-display); }
+  .pos {
+    font: 10px/1 var(--font-mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 3px 6px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+  .audio {
+    width: 32px; height: 32px;
+    display: grid; place-items: center;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    margin-left: auto;
+    color: var(--accent-ink);
+    background: var(--surface);
+    transition: background 0.15s, transform 0.08s, border-color 0.15s;
+    font-size: 12px;
+  }
+  .audio:active { transform: scale(0.92); }
+  .audio.playing {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: oklch(15% 0.04 150);
+  }
+  .audio.unsupported { opacity: 0.35; cursor: not-allowed; }
+  .ipa-row .audio + .tts-note {
+    width: 100%;
+    margin-top: 6px;
+    font: 10px/1.3 var(--font-mono);
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+
+  .reveal-trigger {
+    margin-top: auto;
+    padding: 14px 0 8px;
+    border-top: 1px dashed var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--muted);
+    font: 12px/1 var(--font-mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .reveal-trigger::before { content: '↓'; font-size: 14px; }
+
+  .body { display: none; flex-direction: column; gap: 16px; overflow: auto; }
+  .card.revealed .body { display: flex; }
+  .card.revealed .reveal-trigger { display: none; }
+
+  .gloss-block .label {
+    font: 10px/1 var(--font-mono);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .gloss-block .zh {
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--fg);
+  }
+  .gloss-block .en {
+    font: italic 13px/1.5 var(--font-display);
+    color: var(--muted);
+    margin-top: 5px;
+  }
+
+  .dialogue {
+    background: var(--bg);
+    border-left: 2px solid var(--accent);
+    padding: 12px 14px 14px;
+    border-radius: 0 8px 8px 0;
+  }
+  .dialogue .scene {
+    font: 10px/1.4 var(--font-mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .dialogue .speaker {
+    font: 600 12px/1 var(--font-body);
+    color: var(--accent-ink);
+    margin-bottom: 4px;
+    letter-spacing: 0.02em;
+  }
+  .dialogue .line {
+    font: 16px/1.45 var(--font-display);
+    color: var(--fg);
+    margin-bottom: 10px;
+  }
+  .dialogue .line:last-child { margin-bottom: 0; }
+  .dialogue mark {
+    background: var(--hl);
+    color: var(--accent-ink);
+    padding: 1px 3px;
+    border-radius: 2px;
+    font-weight: 500;
+    border-bottom: 1px solid var(--accent);
+  }
+  .dialogue .note {
+    font: 10px/1.4 var(--font-mono);
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+  }
+
+  .srs {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .srs button {
+    padding: 12px 0 10px;
+    border-radius: 10px;
+    font: 600 13px/1 var(--font-body);
+    letter-spacing: -0.005em;
+    text-align: center;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    transition: transform 0.08s, opacity 0.15s;
+  }
+  .srs button:active { transform: scale(0.97); }
+  .srs button .interval {
+    display: block;
+    font: 10px/1 var(--font-mono);
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    margin-top: 4px;
+    text-transform: uppercase;
+  }
+  .srs button.again { color: oklch(45% 0.13 25); }
+  .srs button.hard  { color: var(--fg); }
+  .srs button.good {
+    background: var(--accent);
+    color: oklch(15% 0.04 150);
+    border-color: var(--accent);
+  }
+  .srs button.good .interval { color: var(--accent-ink); }
+  .srs.hidden { visibility: hidden; }
+
+  /* Done state */
+  .done-screen {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    padding: 0 12px;
+  }
+  body.session-done .card,
+  body.session-done .srs,
+  body.session-done .progress-rail,
+  body.session-done .topbar .skip,
+  body.session-done .topbar .pos { display: none; }
+  body.session-done .done-screen { display: flex; }
+  .done-screen .kicker {
+    font: 11px/1 var(--font-mono);
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent-ink);
+    margin-bottom: 14px;
+  }
+  .done-screen .headline {
+    font: 500 36px/1.1 var(--font-display);
+    letter-spacing: -0.02em;
+    margin-bottom: 22px;
+  }
+  .done-screen .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 28px;
+    text-align: left;
+  }
+  .done-screen .stats .cell {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    background: var(--surface);
+  }
+  .done-screen .stats .num {
+    font: 500 24px/1 var(--font-display);
+    margin-bottom: 4px;
+  }
+  .done-screen .stats .lbl {
+    font: 10px/1 var(--font-mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .done-screen .cta {
+    display: inline-block;
+    background: var(--fg);
+    color: var(--bg);
+    padding: 14px 22px;
+    border-radius: 999px;
+    font: 600 14px/1 var(--font-body);
+    letter-spacing: -0.005em;
+  }
+  .done-screen .cta.secondary {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <a class="close" href="03-episode.html" aria-label="Close">✕</a>
+    <div class="pos"><em id="cur">1</em> / <span id="tot">6</span></div>
+    <button class="skip" id="skip" type="button">Skip</button>
+  </div>
+
+  <div class="progress-rail" id="rail"></div>
+
+  <article class="card" id="card"></article>
+
+  <div class="srs hidden" id="srs">
+    <button class="again" data-rate="again" type="button">Again<span class="interval">&lt; 10m</span></button>
+    <button class="hard"  data-rate="hard"  type="button">Hard<span class="interval">2 days</span></button>
+    <button class="good"  data-rate="good"  type="button">Got it<span class="interval">5 days</span></button>
+  </div>
+
+  <div class="done-screen">
+    <div class="kicker">Session complete · S1 E04</div>
+    <h1 class="headline">Nice. <em>6</em> words reviewed.</h1>
+    <div class="stats">
+      <div class="cell"><div class="num" id="s-good">0</div><div class="lbl">Got it</div></div>
+      <div class="cell"><div class="num" id="s-hard">0</div><div class="lbl">Hard</div></div>
+      <div class="cell"><div class="num" id="s-again">0</div><div class="lbl">Again</div></div>
+    </div>
+    <a class="cta" href="03-episode.html">Back to episode</a>
+    <a class="cta secondary" href="04-word.html">Review again</a>
+  </div>
+
+  <script>
+    var DECK = [
+      {
+        term: 'burn rate', pos: 'N.', ipa: '/bɜːrn reɪt/', tc: '04:12',
+        zh: '公司每月烧掉多少现金 — 决定一家创业公司在跑出收入或拿到下一轮融资前还能撑几个月。',
+        en: 'The rate at which a startup spends cash on hand.',
+        scene: 'Pied Piper office · the math conversation',
+        lines: [
+          { who: 'Jared',  text: 'At our current <mark>burn rate</mark>, with the seed money, we have about ten months of runway.' },
+          { who: 'Richard', text: 'So we’re broke in nine months.' }
+        ],
+        note: 'Paraphrased scene context — will swap to verified subtitle lines once the subtitle pull is wired in.'
+      },
+      {
+        term: 'runway', pos: 'N.', ipa: '/ˈrʌn.weɪ/', tc: '04:18',
+        zh: '指公司用现有资金还能维持多少个月 — 跑道越长,越不慌。',
+        en: 'How many months a startup can keep operating before running out of cash.',
+        scene: 'Pied Piper office · planning hires',
+        lines: [
+          { who: 'Jared', text: 'That gives us roughly nine months of <mark>runway</mark> — not enough to hire two engineers.' }
+        ],
+        note: 'Paraphrased scene context.'
+      },
+      {
+        term: 'term sheet', pos: 'N.', ipa: '/tɜːrm ʃiːt/', tc: '11:47',
+        zh: '投资条款清单 — 一份还没签字的草案,但里面写着估值、股权、董事席位、清算优先权全部关键条款。',
+        en: 'A non-binding draft of the headline terms of an investment.',
+        scene: 'Hooli boardroom · acquisition pitch',
+        lines: [
+          { who: 'Gavin', text: 'You sign this <mark>term sheet</mark>, ten million dollars hits your account by Friday.' }
+        ],
+        note: 'Paraphrased scene context.'
+      },
+      {
+        term: 'fiduciary duty', pos: 'N.', ipa: '/fɪˈduːʃiˌɛri/', tc: '18:03',
+        zh: '受托责任 — 拿了投资人的钱后,创始人在法律上必须为股东利益最大化做决定,不能凭个人好恶。',
+        en: 'A legal obligation to act in the best interest of another party (here, shareholders).',
+        scene: 'Pied Piper office · Peter explains the rules',
+        lines: [
+          { who: 'Peter', text: 'Once you take my money, you have a <mark>fiduciary duty</mark> to the shareholders — not to your principles.' }
+        ],
+        note: 'Paraphrased scene context. (This episode is literally titled “Fiduciary Duties.”)'
+      },
+      {
+        term: 'vesting cliff', pos: 'N.', ipa: '/ˈvɛs.tɪŋ klɪf/', tc: '22:30',
+        zh: '股权悬崖 — 创始人/员工要工作满一定时间(通常一年)才能解锁第一批股权,之前离职就什么都没有。',
+        en: 'A minimum tenure (usually one year) before any stock vests.',
+        scene: 'Investor call · negotiating the cap table',
+        lines: [
+          { who: 'Lawyer', text: 'Standard four-year vest with a one-year <mark>cliff</mark>. He walks before twelve months, he gets nothing.' }
+        ],
+        note: 'Paraphrased scene context.'
+      },
+      {
+        term: 'pivot', pos: 'V.', ipa: '/ˈpɪv.ət/', tc: '34:55',
+        zh: '转型 — 创业语境里特指把产品方向大改一次:原来是做 A 的,发现做不下去了,转去做 B。',
+        en: 'To significantly change product direction in response to market signal.',
+        scene: 'Pied Piper office · strategy meeting',
+        lines: [
+          { who: 'Erlich', text: 'If the consumer play doesn’t hit, we <mark>pivot</mark> to enterprise. Same compression, different customer.' }
+        ],
+        note: 'Paraphrased scene context.'
+      }
+    ];
+
+    var card  = document.getElementById('card');
+    var srs   = document.getElementById('srs');
+    var rail  = document.getElementById('rail');
+    var curEl = document.getElementById('cur');
+    var totEl = document.getElementById('tot');
+    var skip  = document.getElementById('skip');
+    var idx = 0;
+    var stats = { good: 0, hard: 0, again: 0 };
+
+    totEl.textContent = DECK.length;
+
+    DECK.forEach(function () {
+      rail.appendChild(document.createElement('span'));
+    });
+
+    function paintRail() {
+      var spans = rail.children;
+      for (var i = 0; i < spans.length; i++) {
+        spans[i].className = '';
+        if (i < idx) spans[i].classList.add('done');
+        if (i === idx) spans[i].classList.add('active');
+      }
+    }
+
+    function renderCard() {
+      var w = DECK[idx];
+      card.classList.remove('revealed');
+      srs.classList.add('hidden');
+      curEl.textContent = idx + 1;
+      paintRail();
+
+      var linesHtml = w.lines.map(function (l) {
+        return '<div class="speaker">' + l.who + '</div>' +
+               '<p class="line">“' + l.text + '”</p>';
+      }).join('');
+
+      card.innerHTML =
+        '<header class="card-head">' +
+          '<div class="src"><span class="show">Silicon Valley</span> · S1 E04</div>' +
+          '<div class="timecode">' + w.tc + '</div>' +
+        '</header>' +
+        '<div class="term-block">' +
+          '<h1 class="term">' + w.term + '</h1>' +
+          '<div class="ipa-row">' +
+            '<span class="pos">' + w.pos + '</span>' +
+            '<span class="ipa">' + w.ipa + '</span>' +
+            '<button class="audio" id="audio-btn" aria-label="Play pronunciation" type="button">▶</button>' +
+          '</div>' +
+        '</div>' +
+        '<button class="reveal-trigger" id="reveal" type="button">Tap to reveal</button>' +
+        '<div class="body">' +
+          '<div class="gloss-block">' +
+            '<div class="label">释义 · ZH</div>' +
+            '<div class="zh">' + w.zh + '</div>' +
+            '<div class="en">' + w.en + '</div>' +
+          '</div>' +
+          '<div class="dialogue">' +
+            '<div class="scene">' + w.scene + '</div>' +
+            linesHtml +
+            '<div class="note">' + w.note + '</div>' +
+          '</div>' +
+        '</div>';
+
+      document.getElementById('reveal').addEventListener('click', function () {
+        card.classList.add('revealed');
+        srs.classList.remove('hidden');
+      });
+
+      wireAudio(w.term);
+    }
+
+    var ttsSupported = typeof window.speechSynthesis !== 'undefined' &&
+                       typeof window.SpeechSynthesisUtterance !== 'undefined';
+    var enVoice = null;
+    function pickVoice() {
+      if (!ttsSupported) return;
+      var voices = window.speechSynthesis.getVoices();
+      if (!voices || !voices.length) return;
+      enVoice =
+        voices.find(function (v) { return /en[-_]US/i.test(v.lang) && /Samantha|Ava|Alex|Karen|Daniel/i.test(v.name); }) ||
+        voices.find(function (v) { return /en[-_]US/i.test(v.lang); }) ||
+        voices.find(function (v) { return /^en/i.test(v.lang); }) ||
+        null;
+    }
+    if (ttsSupported) {
+      pickVoice();
+      window.speechSynthesis.onvoiceschanged = pickVoice;
+    }
+
+    function speak(text) {
+      if (!ttsSupported) return null;
+      try { window.speechSynthesis.cancel(); } catch (_) {}
+      var u = new SpeechSynthesisUtterance(text);
+      u.lang = 'en-US';
+      u.rate = 0.92;
+      u.pitch = 1;
+      if (enVoice) u.voice = enVoice;
+      window.speechSynthesis.speak(u);
+      return u;
+    }
+
+    function wireAudio(term) {
+      var btn = document.getElementById('audio-btn');
+      if (!btn) return;
+      if (!ttsSupported) {
+        btn.classList.add('unsupported');
+        btn.title = 'Pronunciation unavailable in this browser';
+        btn.setAttribute('aria-disabled', 'true');
+        return;
+      }
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (btn.classList.contains('playing')) {
+          try { window.speechSynthesis.cancel(); } catch (_) {}
+          btn.classList.remove('playing');
+          return;
+        }
+        var u = speak(term);
+        if (!u) return;
+        btn.classList.add('playing');
+        u.onend   = function () { btn.classList.remove('playing'); };
+        u.onerror = function () { btn.classList.remove('playing'); };
+      });
+      // Auto-play once on first render — quietly. Many browsers gate
+      // synthesis until a user gesture; if blocked, the button still works.
+      setTimeout(function () {
+        if (!document.body.classList.contains('audio-primed')) {
+          document.body.classList.add('audio-primed');
+          // do not auto-speak; first-tap on the page is the user gesture
+        }
+      }, 0);
+    }
+
+    function advance(rate) {
+      if (rate && stats[rate] !== undefined) stats[rate]++;
+      idx++;
+      if (idx >= DECK.length) {
+        document.getElementById('s-good').textContent  = stats.good;
+        document.getElementById('s-hard').textContent  = stats.hard;
+        document.getElementById('s-again').textContent = stats.again;
+        document.body.classList.add('session-done');
+        return;
+      }
+      renderCard();
+    }
+
+    srs.addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-rate]');
+      if (!btn) return;
+      advance(btn.getAttribute('data-rate'));
+    });
+
+    skip.addEventListener('click', function () { advance(null); });
+
+    renderCard();
+  </script>
+</body>
+</html>

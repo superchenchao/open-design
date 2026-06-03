@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Silicon Valley — Season 1</title>
+<style>
+  :root {
+    --bg:      oklch(97% 0.004 150);
+    --surface: oklch(100% 0 0);
+    --fg:      oklch(18% 0.012 150);
+    --muted:   oklch(50% 0.012 150);
+    --border:  oklch(90% 0.006 150);
+    --accent:  oklch(68% 0.18 145);
+    --accent-ink: oklch(28% 0.10 145);
+    --hl:      oklch(94% 0.06 145);
+    --font-display: 'Iowan Old Style', 'Charter', Georgia, serif;
+    --font-body:    -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+    --font-mono:    'JetBrains Mono', 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.45 var(--font-body);
+    -webkit-font-smoothing: antialiased;
+  }
+  body { padding: 14px 20px 32px; }
+  a { color: inherit; text-decoration: none; }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+    font: 11px/1 var(--font-mono);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .topbar .back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--fg);
+  }
+  .topbar .back::before { content: '←'; font-size: 14px; }
+
+  /* Show masthead — typographic, no fake images */
+  .masthead {
+    border-top: 1px solid var(--fg);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 0 18px;
+    margin-bottom: 6px;
+  }
+  .masthead .kicker {
+    font: 11px/1 var(--font-mono);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .masthead h1 {
+    font: 500 34px/1.0 var(--font-display);
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+  .masthead .stats {
+    display: flex;
+    gap: 18px;
+    font: 11px/1 var(--font-mono);
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+  .masthead .stats em {
+    font-style: normal;
+    color: var(--fg);
+    font-weight: 600;
+  }
+
+  .blurb {
+    font: italic 14px/1.55 var(--font-display);
+    color: var(--muted);
+    padding: 14px 0 6px;
+  }
+
+  /* Season tabs */
+  .season-tabs {
+    display: flex;
+    gap: 4px;
+    margin: 16px 0 12px;
+    overflow-x: auto;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .season-tabs::-webkit-scrollbar { display: none; }
+  .season-tabs button {
+    flex: 0 0 auto;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 7px 12px;
+    border-radius: 999px;
+    font: 11px/1 var(--font-mono);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+  .season-tabs button.active {
+    background: var(--fg);
+    color: var(--bg);
+    border-color: var(--fg);
+  }
+
+  /* Episode list */
+  .ep-list { display: flex; flex-direction: column; }
+  .ep {
+    display: grid;
+    grid-template-columns: 30px 1fr auto;
+    align-items: start;
+    gap: 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .ep:last-child { border-bottom: 0; }
+  .ep .ep-num {
+    font: 12px/1.5 var(--font-mono);
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+  .ep .ep-title {
+    font: 500 16px/1.25 var(--font-display);
+    letter-spacing: -0.005em;
+    margin-bottom: 4px;
+  }
+  .ep.current .ep-title { color: var(--accent-ink); }
+  .ep .ep-sub {
+    font: 12px/1.4 var(--font-body);
+    color: var(--muted);
+  }
+  .ep .ep-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    text-align: right;
+  }
+  .ep .word-count {
+    font: 11px/1 var(--font-mono);
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+  .ep .word-count em {
+    font-style: normal;
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .ep .progress {
+    width: 44px;
+    height: 3px;
+    background: var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .ep .progress > i {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+  }
+
+  .ep.current {
+    background:
+      linear-gradient(to right, var(--hl) 0%, transparent 60%);
+    margin-left: -20px;
+    padding-left: 20px;
+    margin-right: -20px;
+    padding-right: 20px;
+  }
+  .ep.current .badge {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 3px 7px;
+    background: var(--accent);
+    color: oklch(15% 0.04 150);
+    font: 600 10px/1 var(--font-mono);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    border-radius: 4px;
+  }
+
+  .footer-cta {
+    margin-top: 22px;
+    display: flex;
+    justify-content: center;
+  }
+  .footer-cta a {
+    font: 11px/1 var(--font-mono);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 4px;
+  }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <a class="back" href="01-home.html">Library</a>
+    <span>247 / 1,420</span>
+  </div>
+
+  <header class="masthead">
+    <div class="kicker">HBO · 2014–2019 · 6 Seasons</div>
+    <h1>Silicon Valley</h1>
+    <div class="stats">
+      <span><em>247</em> words</span>
+      <span><em>53</em> episodes</span>
+      <span><em>32%</em> learned</span>
+    </div>
+  </header>
+
+  <p class="blurb">"Get used to it. We're a startup. The only thing predictable is the unpredictability."</p>
+
+  <nav class="season-tabs" aria-label="Season">
+    <button class="active">S1 · 8</button>
+    <button>S2 · 10</button>
+    <button>S3 · 10</button>
+    <button>S4 · 10</button>
+    <button>S5 · 8</button>
+    <button>S6 · 7</button>
+  </nav>
+
+  <ol class="ep-list">
+    <li class="ep">
+      <span class="ep-num">E01</span>
+      <div>
+        <div class="ep-title">Minimum Viable Product</div>
+        <div class="ep-sub">Pied Piper finds itself in the middle of a bidding war.</div>
+      </div>
+      <div class="ep-right">
+        <div class="word-count"><em>32</em> words</div>
+        <div class="progress"><i style="width:100%;background:var(--muted)"></i></div>
+      </div>
+    </li>
+    <li class="ep">
+      <span class="ep-num">E02</span>
+      <div>
+        <div class="ep-title">The Cap Table</div>
+        <div class="ep-sub">The team confronts the realities of equity and acquihires.</div>
+      </div>
+      <div class="ep-right">
+        <div class="word-count"><em>28</em> words</div>
+        <div class="progress"><i style="width:100%;background:var(--muted)"></i></div>
+      </div>
+    </li>
+    <li class="ep">
+      <span class="ep-num">E03</span>
+      <div>
+        <div class="ep-title">Articles of Incorporation</div>
+        <div class="ep-sub">Richard learns what a term sheet really costs.</div>
+      </div>
+      <div class="ep-right">
+        <div class="word-count"><em>34</em> words</div>
+        <div class="progress"><i style="width:64%"></i></div>
+      </div>
+    </li>
+    <li class="ep current">
+      <span class="ep-num">E04</span>
+      <div>
+        <div class="ep-title">Fiduciary Duties</div>
+        <div class="ep-sub">Burn rate, runway, and the math of staying alive.</div>
+        <span class="badge">Resume</span>
+      </div>
+      <div class="ep-right">
+        <div class="word-count"><em>14</em>/<em>44</em></div>
+        <div class="progress"><i style="width:32%"></i></div>
+      </div>
+    </li>
+    <li class="ep">
+      <span class="ep-num">E05</span>
+      <div>
+        <div class="ep-title">Signaling Risk</div>
+        <div class="ep-sub">Branding, Erlich's flair, and the dick-joke logo.</div>
+      </div>
+      <div class="ep-right">
+        <div class="word-count"><em>26</em> words</div>
+        <div class="progress"><i style="width:0%"></i></div>
+      </div>
+    </li>
+    <li class="ep">
+      <span class="ep-num">E06</span>
+      <div>
+        <div class="ep-title">Third Party Insourcing</div>
+        <div class="ep-sub">Outsourcing, integration headaches, and Jared.</div>
+      </div>
+      <div class="ep-right">
+        <div class="word-count"><em>30</em> words</div>
+        <div class="progress"><i style="width:0%"></i></div>
+      </div>
+    </li>
+    <li class="ep">
+      <span class="ep-num">E07</span>
+      <div>
+        <div class="ep-title">Proof of Concept</div>
+        <div class="ep-sub">TechCrunch Disrupt looms. Demos, pivots, panic.</div>
+      </div>
+      <div class="ep-right">
+        <div class="word-count"><em>29</em> words</div>
+        <div class="progress"><i style="width:0%"></i></div>
+      </div>
+    </li>
+    <li class="ep">
+      <span class="ep-num">E08</span>
+      <div>
+        <div class="ep-title">Optimal Tip-to-Tip Efficiency</div>
+        <div class="ep-sub">Middle-out compression, blue-balls math, the win.</div>
+      </div>
+      <div class="ep-right">
+        <div class="word-count"><em>24</em> words</div>
+        <div class="progress"><i style="width:0%"></i></div>
+      </div>
+    </li>
+  </ol>
+
+  <div class="footer-cta">
+    <a href="03-episode.html">View word list →</a>
+  </div>
+</body>
+</html>

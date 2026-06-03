@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Munch.tv — Home</title>
+<style>
+  :root {
+    --bg:      oklch(97% 0.004 150);
+    --surface: oklch(100% 0 0);
+    --fg:      oklch(18% 0.012 150);
+    --muted:   oklch(50% 0.012 150);
+    --border:  oklch(90% 0.006 150);
+    --accent:  oklch(68% 0.18 145);
+    --accent-ink: oklch(28% 0.10 145);
+    --hl:      oklch(94% 0.06 145);
+
+    --font-display: 'Iowan Old Style', 'Charter', Georgia, serif;
+    --font-body:    -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+    --font-mono:    'JetBrains Mono', 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 15px/1.45 var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body { padding: 18px 20px 32px; }
+  a { color: inherit; text-decoration: none; }
+
+  .brand {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 22px;
+  }
+  .brand .logo {
+    font: 600 22px/1 var(--font-display);
+    letter-spacing: -0.02em;
+  }
+  .brand .logo .dot { color: var(--accent); }
+  .brand .meta {
+    font: 11px/1 var(--font-mono);
+    color: var(--muted);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .lede {
+    font: 400 28px/1.18 var(--font-display);
+    letter-spacing: -0.015em;
+    margin-bottom: 6px;
+  }
+  .lede em { font-style: italic; color: var(--accent-ink); }
+  .sub {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 26px;
+    line-height: 1.5;
+  }
+
+  .section-label {
+    font: 11px/1 var(--font-mono);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 24px 0 12px;
+  }
+  .section-label::before {
+    content: '';
+    width: 6px; height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+  }
+
+  /* Featured card */
+  .featured {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 18px 16px;
+    margin-bottom: 22px;
+    position: relative;
+    overflow: hidden;
+  }
+  .featured::before {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 90px; height: 90px;
+    background: radial-gradient(circle at top right, var(--hl), transparent 70%);
+    pointer-events: none;
+  }
+  .featured .show-title {
+    font: 500 22px/1.1 var(--font-display);
+    letter-spacing: -0.01em;
+    margin-bottom: 4px;
+  }
+  .featured .show-meta {
+    font: 11px/1 var(--font-mono);
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .featured .progress-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+  .featured .progress-bar {
+    flex: 1;
+    height: 3px;
+    background: var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .featured .progress-bar > i {
+    display: block;
+    width: 32%;
+    height: 100%;
+    background: var(--accent);
+  }
+  .featured .progress-num { font: 12px/1 var(--font-mono); color: var(--fg); }
+
+  .cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    background: var(--accent);
+    color: oklch(15% 0.04 150);
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: -0.005em;
+  }
+  .cta::after {
+    content: '→';
+    font-weight: 500;
+    margin-left: 2px;
+  }
+
+  /* Show grid */
+  .show-list { display: flex; flex-direction: column; gap: 10px; }
+  .show-row {
+    display: grid;
+    grid-template-columns: 36px 1fr auto;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .show-row:last-child { border-bottom: 0; }
+  .show-row .num {
+    font: 11px/1 var(--font-mono);
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
+  .show-row .title {
+    font: 500 16px/1.2 var(--font-display);
+    letter-spacing: -0.005em;
+  }
+  .show-row .tag {
+    font: 11px/1 var(--font-mono);
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    margin-top: 2px;
+    text-transform: uppercase;
+  }
+  .show-row .count {
+    font: 12px/1 var(--font-mono);
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+  .show-row .count em {
+    font-style: normal;
+    color: var(--fg);
+    font-weight: 600;
+  }
+
+  .footer-note {
+    margin-top: 28px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font: 11px/1.4 var(--font-mono);
+    color: var(--muted);
+    letter-spacing: 0.06em;
+  }
+</style>
+</head>
+<body>
+  <header class="brand">
+    <div class="logo">munch<span class="dot">.</span>tv</div>
+    <div class="meta">v0 · 4 shows</div>
+  </header>
+
+  <h1 class="lede">Learn English by <em>watching</em> what you already love.</h1>
+  <p class="sub">A vocabulary deck for every episode — slang, idiom, jargon — paired with the line where it lands.</p>
+
+  <div class="section-label">Continue</div>
+
+  <article class="featured">
+    <h2 class="show-title">Silicon Valley</h2>
+    <div class="show-meta">HBO · 2014 · S1 E4</div>
+    <div class="progress-row">
+      <span class="progress-num">14</span>
+      <div class="progress-bar"><i></i></div>
+      <span class="progress-num">44</span>
+    </div>
+    <a class="cta" href="02-show.html">Resume Episode 4</a>
+  </article>
+
+  <div class="section-label">Library</div>
+
+  <div class="show-list">
+    <a class="show-row" href="02-show.html">
+      <span class="num">01</span>
+      <div>
+        <div class="title">Silicon Valley</div>
+        <div class="tag">Tech · Comedy · 6 seasons</div>
+      </div>
+      <span class="count"><em>247</em> words</span>
+    </a>
+    <a class="show-row" href="#">
+      <span class="num">02</span>
+      <div>
+        <div class="title">Succession</div>
+        <div class="tag">Drama · Boardroom · 4 seasons</div>
+      </div>
+      <span class="count"><em>312</em> words</span>
+    </a>
+    <a class="show-row" href="#">
+      <span class="num">03</span>
+      <div>
+        <div class="title">Mad Men</div>
+        <div class="tag">Drama · Period · 7 seasons</div>
+      </div>
+      <span class="count"><em>198</em> words</span>
+    </a>
+    <a class="show-row" href="#">
+      <span class="num">04</span>
+      <div>
+        <div class="title">The Bear</div>
+        <div class="tag">Drama · Kitchen · 3 seasons</div>
+      </div>
+      <span class="count"><em>156</em> words</span>
+    </a>
+  </div>
+
+  <p class="footer-note">A sibling of munch.love · Built for ESL learners who watch in the original.</p>
+</body>
+</html>
