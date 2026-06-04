@@ -268,6 +268,18 @@ describe('installFromLocalFolder', () => {
     expect(rows.every((row) => row.sourceKind === 'local')).toBe(true);
     expect(rows.find((row) => row.id === 'my-bundle/deck-skeleton')?.fsPath)
       .toBe(path.join(pluginsRoot, 'my-bundle', 'skills', 'deck-skeleton'));
+    expect(rows.find((row) => row.id === 'my-bundle/deck-pacing')?.manifest.od).toMatchObject({
+      hidden: true,
+      bundleResourceKind: 'craft',
+    });
+    expect(rows.find((row) => row.id === 'my-bundle/linear-clone')?.manifest.od).toMatchObject({
+      hidden: true,
+      bundleResourceKind: 'design-system',
+    });
+    expect(rows.filter((row) => row.manifest.od?.hidden !== true).map((row) => row.id).sort()).toEqual([
+      'my-bundle',
+      'my-bundle/deck-skeleton',
+    ]);
   });
 
   it('keeps bundle marketplace aliases and local reinstalls in separate namespace folders', async () => {

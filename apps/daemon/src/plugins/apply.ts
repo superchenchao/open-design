@@ -51,6 +51,13 @@ export class MissingInputError extends Error {
   }
 }
 
+export class NonApplyablePluginError extends Error {
+  constructor(pluginId: string) {
+    super(`Plugin ${pluginId} is not applyable`);
+    this.name = 'NonApplyablePluginError';
+  }
+}
+
 // Apply result narrows the trust tier to 'trusted' | 'restricted'. The
 // installed-plugin record can carry 'bundled' (per §5.3); we coerce to
 // 'trusted' at apply time so the snapshot's permission contract is binary.
@@ -88,6 +95,9 @@ export interface ApplyComputed {
 
 export function applyPlugin(input: ApplyInput): ApplyComputed {
   const manifest = input.plugin.manifest;
+  if (isBundleResourceOnlyPlugin(input.plugin)) {
+    throw new NonApplyablePluginError(input.plugin.id);
+  }
   const rawTrust: TrustTier = input.trust ?? input.plugin.trust;
   const trust: ApplyTrust = rawTrust === 'restricted' ? 'restricted' : 'trusted';
 
@@ -213,6 +223,11 @@ export function applyPlugin(input: ApplyInput): ApplyComputed {
   };
 
   return { result, manifestSourceDigest: digest, warnings: resolved.warnings };
+}
+
+export function isBundleResourceOnlyPlugin(plugin: InstalledPluginRecord): boolean {
+  const od = (plugin.manifest.od ?? {}) as Record<string, unknown>;
+  return od.hidden === true && (od.bundleResourceKind === 'design-system' || od.bundleResourceKind === 'craft');
 }
 
 interface ValidationResult {

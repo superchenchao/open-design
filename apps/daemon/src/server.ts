@@ -146,6 +146,7 @@ import {
   listInstalledPlugins,
   listIterationsForRun,
   MissingInputError,
+  NonApplyablePluginError,
   pluginPromptBlock,
   pruneExpiredSnapshots,
   readPluginLockfile,
@@ -7290,6 +7291,9 @@ export async function startServer({
     } catch (err) {
       if (err instanceof MissingInputError) {
         return res.status(422).json({ error: 'missing_inputs', fields: err.fields });
+      }
+      if (err instanceof NonApplyablePluginError) {
+        return res.status(409).json({ error: 'plugin_not_applyable', message: err.message });
       }
       res.status(500).json({ error: String(err) });
     }

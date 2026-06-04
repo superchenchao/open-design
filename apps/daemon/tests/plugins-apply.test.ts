@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import path from 'node:path';
-import { applyPlugin, MissingInputError } from '../src/plugins/apply.js';
+import { applyPlugin, MissingInputError, NonApplyablePluginError } from '../src/plugins/apply.js';
 import { defaultRegistryRoots } from '../src/plugins/registry.js';
 import { TRUSTED_DEFAULT_CAPABILITIES } from '../src/plugins/trust.js';
 import type { ContextItem, InstalledPluginRecord } from '@open-design/contracts';
@@ -69,6 +69,23 @@ describe('applyPlugin', () => {
 
   it('throws MissingInputError when a required input is missing', () => {
     expect(() => applyPlugin({ plugin: pluginFixture(), inputs: {}, registry: REGISTRY })).toThrow(MissingInputError);
+  });
+
+  it('rejects hidden bundle resource children as non-applyable', () => {
+    const resource = pluginFixture({
+      id: 'my-bundle/linear-clone',
+      manifest: {
+        name: 'linear-clone',
+        title: 'Linear Clone',
+        version: '1.0.0',
+        od: {
+          hidden: true,
+          bundleResourceKind: 'design-system',
+        },
+      },
+    });
+
+    expect(() => applyPlugin({ plugin: resource, inputs: {}, registry: REGISTRY })).toThrow(NonApplyablePluginError);
   });
 
   it('coerces optional inputs by defaulting when blank', () => {

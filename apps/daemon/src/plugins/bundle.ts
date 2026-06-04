@@ -273,7 +273,10 @@ async function synthesizeResourceChild(
     name: child.id,
     version: options.bundleRecord.version,
     title,
-    od: {},
+    od: {
+      hidden: true,
+      bundleResourceKind: kind,
+    },
   };
   const record: InstalledPluginRecord = {
     id: fullId,
