@@ -1,6 +1,6 @@
 ---
 name: visual-validation
-description: Reserved atom id for planned post-generation screenshot comparison once the daemon can execute it against fresh artifacts.
+description: Render the current artifact, compare it against reference screenshots, and feed the result into critique scoring.
 od:
   scenario: new-generation
   mode: critique
@@ -8,16 +8,16 @@ od:
 
 # Visual validation
 
-This reserved atom id is intentionally not executable in the current pre-start
-pipeline. A runnable visual-validation worker needs a post-generation hook so
-it can compare fresh artifacts instead of the pre-run HTML snapshot.
+This atom renders the current project artifact through the daemon preview
+route, compares it against discovered or explicit reference screenshots, and
+feeds a conservative score back into the critique loop.
 
 ## Current state
 
-- `od plugin doctor` warns when a plugin references `visual-validation`.
-- The daemon registry treats it as planned and skips it in pipeline stages.
-- The helper code under `apps/daemon/src/plugins/atoms/visual-validation.ts`
-  remains implementation scaffolding for a future post-generation integration.
+- The daemon registry executes `visual-validation` as a built-in atom worker.
+- Reports are written under `critique/visual-validation/`.
+- When no reference screenshots are present, the atom skips without changing
+  critique signals.
 
-Do not rely on this atom for critique-stage signals until the daemon ships a
-real post-generation execution boundary.
+When references exist but the daemon cannot render the artifact, the atom fails
+closed by returning a low critique score and `preview.ok: false`.

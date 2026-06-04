@@ -44,7 +44,7 @@ const newGenerationScenarioPipeline = {
     { id: 'discovery', atoms: ['discovery-question-form'] },
     { id: 'plan',      atoms: ['direction-picker', 'todo-write'] },
     { id: 'generate',  atoms: ['file-write', 'live-artifact'] },
-    { id: 'critique',  atoms: ['critique-theater'],
+    { id: 'critique',  atoms: ['critique-theater', 'visual-validation'],
       repeat: true,
       until: 'critique.score>=4 || iterations>=3' },
   ],
@@ -131,6 +131,7 @@ describe('apply: bundled-scenario pipeline fallback (spec §23.3.3)', () => {
     expect(out.result.pipeline?.stages?.[0]?.id).toBe('discovery');
     expect(out.result.pipeline?.stages?.find((stage) => stage.id === 'critique')?.atoms).toEqual([
       'critique-theater',
+      'visual-validation',
     ]);
   });
 

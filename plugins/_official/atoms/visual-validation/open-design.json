@@ -4,7 +4,7 @@
   "name": "visual-validation",
   "title": "Visual validation",
   "version": "0.1.0",
-  "description": "Reserved atom id for planned post-generation screenshot comparison once the daemon can execute it against fresh artifacts.",
+  "description": "Render the current artifact, compare it against reference screenshots, and feed the result into critique scoring.",
   "license": "MIT",
   "author": {
     "name": "Open Design",

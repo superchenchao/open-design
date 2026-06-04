@@ -29,15 +29,15 @@ describe('atoms catalog — Phase 6/7/8 promotion', () => {
     expect(atom?.taskKinds).toContain('code-migration');
   });
 
-  it("'visual-validation' remains planned until a post-generation worker exists", () => {
+  it("'visual-validation' is implemented with daemon-backed screenshot comparison", () => {
     const atom = findAtom('visual-validation');
-    expect(atom?.status).toBe('planned');
-    expect(isImplementedAtom('visual-validation')).toBe(false);
+    expect(atom?.status).toBe('implemented');
+    expect(isImplementedAtom('visual-validation')).toBe(true);
   });
 
-  it('the catalog only retains visual-validation as planned (after the §3.AA2 promotion)', () => {
+  it('the catalog no longer contains planned first-party atoms', () => {
     const planned = FIRST_PARTY_ATOMS.filter((a) => a.status === 'planned');
-    expect(planned.map((a) => a.id)).toEqual(['visual-validation']);
+    expect(planned).toEqual([]);
   });
 
   it('every atom in the catalog has a non-empty taskKinds[]', () => {

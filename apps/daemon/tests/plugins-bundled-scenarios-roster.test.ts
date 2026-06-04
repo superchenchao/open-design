@@ -63,7 +63,7 @@ describe('plugins/_official/scenarios roster', () => {
       expect(stageIds).toEqual(expected.pipelineStages);
       if (folder === 'od-new-generation' || folder === 'od-tune-collab') {
         const critiqueStage = manifest.od.pipeline.stages.find((s: { id: string }) => s.id === 'critique');
-        expect(critiqueStage?.atoms).toEqual(['critique-theater']);
+        expect(critiqueStage?.atoms).toEqual(['critique-theater', 'visual-validation']);
       }
     });
   }

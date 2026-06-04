@@ -93,7 +93,8 @@
         {
           "id": "critique",
           "atoms": [
-            "critique-theater"
+            "critique-theater",
+            "visual-validation"
           ],
           "repeat": true,
           "until": "critique.score>=4 || iterations>=3"
