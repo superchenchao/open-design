@@ -70,18 +70,6 @@ export async function runVisualValidation(
   const cwd = path.resolve(input.cwd);
   const entryFile = input.entryFile ?? await detectEntryFile(cwd);
   let outputDir: string | null = null;
-  if (!entryFile) {
-    return {
-      report: {
-        status: 'skipped',
-        entryFile: null,
-        message: 'skipped: no HTML entry file found for visual validation',
-        comparedAt: new Date().toISOString(),
-        comparison: null,
-      },
-      signals: {},
-    };
-  }
 
   try {
     const referenceImages = await resolveReferenceImages(cwd, input.referenceImages);
@@ -100,6 +88,15 @@ export async function runVisualValidation(
 
     outputDir = path.join(cwd, 'critique', 'visual-validation');
     await fsp.mkdir(outputDir, { recursive: true });
+    if (!entryFile) {
+      const failure = buildFailedVisualValidationResult(
+        null,
+        'visual validation failed: no HTML entry file found for visual validation',
+      );
+      await writeVisualValidationArtifacts(outputDir, failure.report);
+      return failure;
+    }
+
     let best: VisualValidationComparison | null = null;
     for (const [index, referencePath] of referenceImages.entries()) {
       const reference = PNG.sync.read(await fsp.readFile(referencePath));
@@ -126,7 +123,7 @@ export async function runVisualValidation(
         diffPath,
         pixelmatchThreshold: input.pixelmatchThreshold ?? DEFAULT_PIXELMATCH_THRESHOLD,
       });
-      if (!best || comparison.similarity > best.similarity) best = comparison;
+      if (!best || comparison.similarity < best.similarity) best = comparison;
     }
 
     if (!best) {

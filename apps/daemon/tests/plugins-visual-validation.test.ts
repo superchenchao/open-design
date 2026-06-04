@@ -26,6 +26,35 @@ describe('visual validation atom runner', () => {
     }
   });
 
+  it('fails closed when references exist but no HTML entry file is found', async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), 'od-visual-missing-entry-'));
+    try {
+      await writeFile(
+        path.join(cwd, 'reference-home.png'),
+        PNG.sync.write(createFilledPng(200, 120, [255, 255, 255, 255])),
+      );
+      const result = await runVisualValidation({
+        cwd,
+        captureScreenshot: async ({ outputPath }) => {
+          await writeFile(outputPath, PNG.sync.write(createFilledPng(200, 120, [255, 255, 255, 255])));
+        },
+      });
+
+      expect(result.report.status).toBe('failed');
+      expect(result.report.entryFile).toBeNull();
+      expect(result.report.message).toContain('no HTML entry file found');
+      expect(result.signals['preview.ok']).toBe(false);
+      expect(result.signals['critique.score']).toBe(1);
+
+      const reportPath = path.join(cwd, 'critique', 'visual-validation', 'report.json');
+      const saved = JSON.parse(await readFile(reportPath, 'utf8')) as { status?: string; message?: string };
+      expect(saved.status).toBe('failed');
+      expect(saved.message).toContain('no HTML entry file found');
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   it('compares rendered output against reference screenshots and writes a report', async () => {
     const cwd = await mkdtemp(path.join(os.tmpdir(), 'od-visual-compare-'));
     try {
@@ -300,6 +329,41 @@ describe('visual validation atom runner', () => {
         'critique/visual-validation/spec-reference-2.actual.png',
       ]);
       expect(captures).toContain(result.report.comparison?.actualPath);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it('scores from the worst reference match instead of the best one', async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), 'od-visual-worst-reference-'));
+    try {
+      await writeFile(path.join(cwd, 'index.html'), '<!doctype html><html><body>ok</body></html>', 'utf8');
+      await mkdir(path.join(cwd, 'references'), { recursive: true });
+      await writeFile(
+        path.join(cwd, 'references', 'reference-desktop.png'),
+        PNG.sync.write(createFilledPng(200, 120, [255, 255, 255, 255])),
+      );
+      await writeFile(
+        path.join(cwd, 'references', 'reference-mobile.png'),
+        PNG.sync.write(createFilledPng(200, 120, [255, 255, 255, 255])),
+      );
+
+      const result = await runVisualValidation({
+        cwd,
+        captureScreenshot: async ({ outputPath }) => {
+          const png = createFilledPng(200, 120, [255, 255, 255, 255]);
+          if (outputPath.endsWith('reference-mobile-2.actual.png')) {
+            paintRect(png, { x: 20, y: 20, width: 160, height: 80 }, [255, 0, 0, 255]);
+          }
+          await writeFile(outputPath, PNG.sync.write(png));
+        },
+      });
+
+      expect(result.report.status).toBe('ok');
+      expect(result.report.comparison?.referencePath).toBe('references/reference-mobile.png');
+      expect(result.report.comparison?.similarity).toBeLessThan(50);
+      expect(result.signals['preview.ok']).toBe(true);
+      expect(result.signals['critique.score']).toBe(1);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }
