@@ -80,6 +80,7 @@ import {
 } from '../runtime/exports';
 import { copyToClipboard } from '../lib/copy-to-clipboard';
 import { buildReactComponentSrcdoc } from '../runtime/react-component';
+import { shouldConsumeSlideNav } from '../runtime/slide-nav';
 import { findHtmlEntriesReferencing } from '../runtime/jsx-module-refs';
 import { buildLazySrcdocTransport, buildSrcdoc, canActivateSrcDocTransport } from '../runtime/srcdoc';
 import {
@@ -7156,17 +7157,17 @@ function HtmlViewer({
   // slide its marked element lives on. We write the cached slide state first so
   // a freshly-mounted iframe (the tab may have just been activated) restores to
   // the target on load via syncCachedSlideStateToIframe(), then post directly
-  // to cover the already-loaded iframe. Each nonce is consumed once so manual
-  // navigation afterwards is never clobbered.
-  const consumedSlideNavNonceRef = useRef<number | null>(null);
+  // to cover the already-loaded iframe. The consume-once guard lives in
+  // `shouldConsumeSlideNav` (keyed by file outside this component) so it holds
+  // across remounts — switching away from and back to the deck must not replay
+  // the stale request and yank the preview off wherever the user navigated.
   useEffect(() => {
     const nonce = slideNavRequest?.nonce;
     if (nonce == null) return;
-    if (consumedSlideNavNonceRef.current === nonce) return;
     if (!effectiveDeck) return;
     const requested = slideNavRequest?.slideIndex;
     if (typeof requested !== 'number' || !Number.isFinite(requested) || requested < 0) return;
-    consumedSlideNavNonceRef.current = nonce;
+    if (!shouldConsumeSlideNav(previewStateKey, nonce)) return;
     const target = Math.floor(requested);
     const cachedCount = htmlPreviewSlideState.get(previewStateKey)?.count;
     const count = slideState?.count ?? cachedCount ?? target + 1;
