@@ -916,7 +916,7 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  width: 96px;
+  width: 124px;
 }
 .viewer-viewport-trigger {
   width: 100%;
@@ -931,6 +931,16 @@
   line-height: 1.2;
   box-shadow: var(--shadow-xs);
 }
+.viewer-viewport-trigger > svg {
+  flex: 0 0 auto;
+}
+.viewer-viewport-trigger > span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .viewer-viewport-trigger:hover:not(:disabled),
 .viewer-viewport-trigger[aria-expanded='true'] {
   border-color: var(--border-strong);
@@ -942,6 +952,7 @@
   right: 0;
   z-index: 80;
   width: 100%;
+  min-width: 124px;
   padding: 5px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);

@@ -1371,13 +1371,13 @@
 .chat-queued-send-strip {
   display: flex;
   flex-direction: column;
-  align-self: center;
-  width: fit-content;
-  min-width: min(320px, calc(100% - 20px));
-  max-width: min(calc(100% - 20px), 520px);
+  align-self: stretch;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
   gap: 3px;
   box-sizing: border-box;
-  margin: 0 auto 2px;
+  margin: 0 0 2px;
   padding: 7px;
   overflow: visible;
   border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
