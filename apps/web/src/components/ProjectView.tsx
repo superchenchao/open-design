@@ -149,6 +149,7 @@ import {
   historyWithCommentAttachmentContext,
   mergeAttachedComments,
   mergePreviewCommentAttachments,
+  queuedSlideNavTarget,
   removeAttachedComment,
 } from '../comments';
 import { filterImplicitProducedFiles } from '../produced-files';
@@ -289,6 +290,7 @@ const CHAT_PANEL_WIDTH_STORAGE_KEY = 'open-design.project.chatPanelWidth';
 const DEFAULT_CHAT_PANEL_WIDTH = 460;
 const MIN_CHAT_PANEL_WIDTH = 345;
 const MAX_CHAT_PANEL_WIDTH = 720;
+const COMMENT_INSPECTOR_PANEL_WIDTH = 320;
 const MIN_WORKSPACE_PANEL_WIDTH = 400;
 const SPLIT_RESIZE_HANDLE_WIDTH = 8;
 const CHAT_PANEL_KEYBOARD_STEP = 16;
@@ -983,6 +985,14 @@ export function ProjectView({
   // file's Share/Export menu. Drives the "Share" next-step action: it reuses the
   // existing export/deploy surface rather than introducing a new share backend.
   const [shareRequest, setShareRequest] = useState<{ name: string; nonce: number } | null>(null);
+  // When a queued chat send starts processing, ask the workspace to flip the
+  // deck preview to the slide its marked element lives on, so the user watches
+  // the edit land in context instead of staying parked on slide 1. Mirrors the
+  // `shareRequest` nonce signal: FileWorkspace matches `name` against the open
+  // file and FileViewer consumes each nonce once.
+  const [slideNavRequest, setSlideNavRequest] = useState<
+    { name: string; slideIndex: number; nonce: number } | null
+  >(null);
   const abortRef = useRef<AbortController | null>(null);
   const cancelRef = useRef<AbortController | null>(null);
   const streamingConversationIdRef = useRef<string | null>(null);
@@ -1696,6 +1706,14 @@ export function ProjectView({
   const projectFileNames = useMemo(
     () => new Set(projectFiles.map((f) => f.name)),
     [projectFiles],
+  );
+  const activeProjectFileName = useMemo(
+    () => (
+      openTabsState.active && projectFileNames.has(openTabsState.active)
+        ? openTabsState.active
+        : null
+    ),
+    [openTabsState.active, projectFileNames],
   );
   const agentsById = useMemo(
     () => new Map(agents.map((agent) => [agent.id, agent])),
@@ -3550,6 +3568,16 @@ export function ProjectView({
     ],
   );
 
+  // Flip the deck preview to the slide a queued send's marked element lives on
+  // the moment that send starts processing. No-op for plain prompts or marks
+  // without a slide index; FileWorkspace/FileViewer ignore it unless the named
+  // file is the open deck.
+  const armSlideNavForQueuedSend = useCallback((item: QueuedChatSend) => {
+    const target = queuedSlideNavTarget(item.commentAttachments);
+    if (!target) return;
+    setSlideNavRequest({ name: target.filePath, slideIndex: target.slideIndex, nonce: Date.now() });
+  }, []);
+
   const sendQueuedChatSendNow = useCallback((id: string) => {
     const item = queuedChatSendsRef.current.find((candidate) => candidate.id === id);
     if (!item) return;
@@ -3558,6 +3586,7 @@ export function ProjectView({
       return;
     }
     void (async () => {
+      armSlideNavForQueuedSend(item);
       const started = await handleSend(
         item.prompt,
         item.attachments,
@@ -3566,7 +3595,7 @@ export function ProjectView({
       );
       if (started) removeQueuedChatSend(id);
     })();
-  }, [currentConversationBusy, handleSend, prioritizeQueuedChatSend, removeQueuedChatSend]);
+  }, [armSlideNavForQueuedSend, currentConversationBusy, handleSend, prioritizeQueuedChatSend, removeQueuedChatSend]);
 
   useEffect(() => {
     if (currentConversationBusy) {
@@ -3581,6 +3610,7 @@ export function ProjectView({
     );
     if (!next) return;
     startingQueuedChatSendIdRef.current = next.id;
+    armSlideNavForQueuedSend(next);
     void (async () => {
       const started = await handleSend(
         next.prompt,
@@ -3603,6 +3633,7 @@ export function ProjectView({
     })();
   }, [
     activeConversationId,
+    armSlideNavForQueuedSend,
     currentConversationBusy,
     queuedAutoStartTick,
     queuedChatSends,
@@ -4671,6 +4702,9 @@ export function ProjectView({
     workspacePanelMinWidth === 0
       ? 'minmax(0, 1fr)'
       : `minmax(${workspacePanelMinWidth}px, 1fr)`;
+  const splitLeftPanelWidth = leftInspectorActive
+    ? COMMENT_INSPECTOR_PANEL_WIDTH
+    : chatPanelWidthRef.current;
   const chatPanelAriaMinWidth = Math.min(MIN_CHAT_PANEL_WIDTH, chatPanelMaxWidth);
 
   const renderPreferredChatPanelWidth = useCallback((
@@ -5154,7 +5188,7 @@ export function ProjectView({
           leftInspectorActive && !workspaceFocused ? 'split-manual-edit' : '',
           resizingChatPanel && !workspaceFocused ? 'is-resizing-chat' : '',
         ].filter(Boolean).join(' ')}
-        style={projectSplitStyle(workspaceFocused, chatPanelWidthRef.current, workspacePanelTrack)}
+        style={projectSplitStyle(workspaceFocused, splitLeftPanelWidth, workspacePanelTrack)}
       >
         <div className="split-chat-slot" hidden={workspaceFocused}>
           {commentInspectorActive ? (
@@ -5180,6 +5214,7 @@ export function ProjectView({
               onSessionModeChange={handleActiveConversationSessionModeChange}
               projectKindForTracking={projectKindToTracking(project.metadata?.kind)}
               projectFiles={projectFiles}
+              activeProjectFileName={activeProjectFileName}
               hasActiveDesignSystem={!!project.designSystemId}
               activeDesignSystem={chatDesignSystemSummary}
               projectFileNames={projectFileNames}
@@ -5220,6 +5255,7 @@ export function ProjectView({
               newConversationDisabled={newConversationDisabled}
               conversations={conversations}
               activeConversationId={activeConversationId}
+              messagesConversationId={messagesConversationId}
               onSelectConversation={handleSelectConversation}
               onDeleteConversation={handleDeleteConversation}
               onOpenSettings={onOpenSettings}
@@ -5363,6 +5399,7 @@ export function ProjectView({
           commentSendDisabled={currentConversationQueueDisabled}
           openRequest={openRequest}
           shareRequest={shareRequest}
+          slideNavRequest={slideNavRequest}
           liveArtifactEvents={liveArtifactEvents}
           designSystemActivityEvents={designSystemActivityEvents}
           tabsState={openTabsState}
@@ -5374,6 +5411,8 @@ export function ProjectView({
           onRequestBrowserUsePrompt={handleBrowserUsePrompt}
           onPluginFolderAgentAction={handlePluginFolderAgentAction}
           activePluginActionPaths={activePluginActionPaths}
+          preferredPreviewFile={project.metadata?.entryFile ?? null}
+          autoPreviewDesignArtifacts={project.metadata?.importedFrom === 'folder'}
           focusMode={workspaceFocused}
           onFocusModeChange={setWorkspaceFocused}
           designSystemProject={designSystemProject}

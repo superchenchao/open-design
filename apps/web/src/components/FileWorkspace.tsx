@@ -33,6 +33,7 @@ import {
 } from '../providers/registry';
 import { deriveFileOps, type FileOpEntry } from '../runtime/file-ops';
 import { latestTodosFromEvents, type TodoItem } from '../runtime/todos';
+import { deliverableSlideNavForActiveFile, isSlideNavDeliverableNow } from '../runtime/slide-nav';
 import {
   type AgentEvent,
   type AgentInfo,
@@ -115,6 +116,10 @@ interface Props {
   // Open the named file AND surface its Share/Export menu. Drives the chat-side
   // "Share" next-step action without a dedicated share backend.
   shareRequest?: { name: string; nonce: number } | null;
+  // Flip a deck preview to a given slide when a queued chat send starts. Mirrors
+  // `shareRequest`: the named file is activated (if open) and the matching
+  // FileViewer consumes the nonce to navigate.
+  slideNavRequest?: { name: string; slideIndex: number; nonce: number } | null;
   liveArtifactEvents?: LiveArtifactEventItem[];
   designSystemActivityEvents?: AgentEvent[];
   // Persisted set of open tabs + active tab. Owned by ProjectView so the
@@ -132,6 +137,8 @@ interface Props {
   ) => Promise<{ message?: string; url?: string } | void> | { message?: string; url?: string } | void;
   activePluginActionPaths?: Set<string>;
   hiddenPluginActionPaths?: Set<string>;
+  preferredPreviewFile?: string | null;
+  autoPreviewDesignArtifacts?: boolean;
   focusMode?: boolean;
   onFocusModeChange?: (next: boolean) => void;
   designSystemProject?: DesignSystemSummary | null;
@@ -359,6 +366,7 @@ export function FileWorkspace({
   commentSendDisabled = false,
   openRequest,
   shareRequest,
+  slideNavRequest,
   liveArtifactEvents = [],
   designSystemActivityEvents = [],
   tabsState,
@@ -371,6 +379,8 @@ export function FileWorkspace({
   onPluginFolderAgentAction,
   activePluginActionPaths,
   hiddenPluginActionPaths,
+  preferredPreviewFile = null,
+  autoPreviewDesignArtifacts = false,
   focusMode = false,
   onFocusModeChange,
   designSystemProject = null,
@@ -767,6 +777,22 @@ export function FileWorkspace({
     setActiveTab(name);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shareRequest]);
+
+  // Slide-nav request: decide deliverability once, at fire time. Only if the
+  // named deck is already an open tab do we mark this nonce deliverable and
+  // bring it forward so the matching FileViewer is mounted and flips. We never
+  // open a closed file — auto-flipping is a follow-along, not a reason to yank
+  // the user into a tab they never opened. Recording the deliverable nonce in
+  // state (not a ref) also means a request for a closed deck stays undeliverable
+  // forever: opening that file later matches the name but not the nonce, so the
+  // stale request can't resurface and jump the preview.
+  const [slideNavDeliverableNonce, setSlideNavDeliverableNonce] = useState<number | null>(null);
+  useEffect(() => {
+    if (!isSlideNavDeliverableNow(slideNavRequest, persistedTabs)) return;
+    setSlideNavDeliverableNonce(slideNavRequest!.nonce);
+    setActiveTab(slideNavRequest!.name);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slideNavRequest]);
 
   // Focus the Questions tab when the parent bumps the nonce (banner click in
   // chat, or a freshly generated form). The tab is transient — not added to
@@ -1686,8 +1712,16 @@ export function FileWorkspace({
 
   const isActiveSketch = activeFile?.kind === 'sketch' && isSketchName(activeFile.name);
   const activeSketch = activeFile && isActiveSketch ? sketches[activeFile.name] : null;
+  // The generation progress card takes priority over the design-files tab's
+  // empty "Creations will appear here" list: while a run is in flight and no
+  // previewable artifact exists yet, the design-files tab (the default landing
+  // tab) must still show generation progress rather than an idle empty state.
+  // `buildGenerationPreviewState` already returns null once a preview surface
+  // exists, so this never hides a finished artifact. (Pre-#3516 the preview
+  // branch rendered before the design-files branch with no tab guard; the
+  // composer rewrite added an `activeTab !== DESIGN_FILES_TAB` clause here that
+  // accidentally hid the progress card on the default tab.)
   const showGenerationPreview = Boolean(generationPreview)
-    && activeTab !== DESIGN_FILES_TAB
     && activeTab !== DESIGN_SYSTEM_TAB
     && !isBrowserTabId(activeTab)
     && !isSideChatTabId(activeTab)
@@ -1935,19 +1969,7 @@ export function FileWorkspace({
             );
           })}
         </div>
-        {/* Pinned to the right, OUTSIDE the horizontally-scrolling
-            `.ws-tabs-bar`, so the "+" launcher is never clipped by that
-            container's overflow and the middle file tabs scroll between the
-            sticky-left Design Files entry and this button. */}
-        <div className="ws-tabs-actions">
-          <div
-            id={APP_CHROME_FILE_ACTIONS_ID}
-            className="ws-tabs-file-actions"
-            data-app-chrome-file-actions="true"
-          />
-          {headerActions ? (
-            <div className="ws-tabs-project-actions">{headerActions}</div>
-          ) : null}
+        <div className="ws-add-tab">
           <button
             ref={launcherBtnRef}
             type="button"
@@ -1963,6 +1985,18 @@ export function FileWorkspace({
           >
             <Icon name="plus" size={15} />
           </button>
+        </div>
+        {/* Pinned to the right for project/file actions; the tab launcher sits
+            next to the file tabs so its spatial relationship stays clear. */}
+        <div className="ws-tabs-actions">
+          <div
+            id={APP_CHROME_FILE_ACTIONS_ID}
+            className="ws-tabs-file-actions"
+            data-app-chrome-file-actions="true"
+          />
+          {headerActions ? (
+            <div className="ws-tabs-project-actions">{headerActions}</div>
+          ) : null}
         </div>
       </div>
       {launcherOpen ? (
@@ -2152,6 +2186,8 @@ export function FileWorkspace({
             }}
             uploadError={uploadError}
             onClearUploadError={() => setUploadError(null)}
+            preferredPreviewFile={preferredPreviewFile}
+            autoPreviewDesignArtifacts={autoPreviewDesignArtifacts}
             onPluginFolderAgentAction={onPluginFolderAgentAction}
             activePluginActionPaths={activePluginActionPaths}
             hiddenPluginActionPaths={hiddenPluginActionPaths}
@@ -2233,6 +2269,11 @@ export function FileWorkspace({
                 ? { nonce: shareRequest.nonce }
                 : null
             }
+            slideNavRequest={deliverableSlideNavForActiveFile(
+              slideNavRequest,
+              activeFile.name,
+              slideNavDeliverableNonce,
+            )}
           />
         ) : (
           <div className="viewer-empty">

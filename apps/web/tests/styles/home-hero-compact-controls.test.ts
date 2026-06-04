@@ -28,7 +28,7 @@ function ruleValue(block: string, property: string): string {
 describe('HomeHero compact composer controls', () => {
   it('keeps the session mode and execution buttons compact in the hero', () => {
     const modeTrigger = cssDeclarations(
-      '.home-hero__foot-left .session-mode-toggle__trigger',
+      '.home-hero__foot-right .session-mode-toggle__trigger',
     );
     const switcherChip = cssDeclarations(
       '.home-hero__execution-switcher .inline-switcher__chip',
