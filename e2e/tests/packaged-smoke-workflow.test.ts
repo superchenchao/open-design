@@ -180,6 +180,8 @@ describe("packaged smoke workflow", () => {
     expect(workflow).toContain("OD_PACKAGED_E2E_WIN_UPDATE_METADATA_URL: ${{ inputs.win_update_metadata_url }}");
     expect(workflow).toContain("OD_PACKAGED_E2E_WIN_UPDATE_VERSION: ${{ inputs.win_update_target_version }}");
     expect(buildBetaScript).toContain(".\\packages\\metatool\\src\\cli.ts");
+    expect(buildBetaScript).toContain('"pnpm.cmd", "--filter", "@open-design/tools-pack", "build"');
+    expect(buildBetaScript).not.toContain('"node", ".\\esbuild.config.mjs"');
     expect(buildBetaScript).not.toContain(".\\scripts\\tool-build-metadata.mjs");
     expect(buildBetaScript).toContain("Skipping local Windows update fixture build because external update metadata or installer inputs are set");
     expect(workflow).toContain("Publish beta candidate platform to Nexu S3");

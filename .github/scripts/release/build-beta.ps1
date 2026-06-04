@@ -667,8 +667,8 @@ try {
     Write-WorkspaceInstallState -State $state -StampPath $reuse.stampPath
   }
 
-  Measure-Step "tools-pack dist bundle" {
-    Invoke-Node24 -Arguments @("node", ".\esbuild.config.mjs") -WorkingDirectory (Join-Path $workspaceRoot "tools\pack")
+  Measure-Step "tools-pack build" {
+    Invoke-Node24 -Arguments @("pnpm.cmd", "--filter", "@open-design/tools-pack", "build")
   }
 
   Measure-Step "electron dist repair" {
