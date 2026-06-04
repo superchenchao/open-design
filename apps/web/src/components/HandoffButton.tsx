@@ -456,6 +456,17 @@ export function HandoffButton({
     }
   }
 
+  function chooseFramework(id: FrameworkId) {
+    setFrameworkId(id);
+    writePreferredFramework(id);
+    setError(null);
+    setCopiedCliId(null);
+    if (copiedTimerRef.current !== null) {
+      window.clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = null;
+    }
+  }
+
   if (!loaded) {
     return null;
   }
@@ -673,10 +684,7 @@ export function HandoffButton({
                     type="button"
                     className={`handoff-framework-chip${framework.id === selectedFramework.id ? ' active' : ''}`}
                     aria-pressed={framework.id === selectedFramework.id}
-                    onClick={() => {
-                      setFrameworkId(framework.id);
-                      writePreferredFramework(framework.id);
-                    }}
+                    onClick={() => chooseFramework(framework.id)}
                   >
                     {frameworkLabel(framework.id, t)}
                   </button>

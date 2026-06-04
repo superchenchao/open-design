@@ -47,6 +47,15 @@ describe('HandoffButton i18n', () => {
     expect(css).toContain('width: 24px;');
   });
 
+  it('makes the selected CLI framework visibly distinct', () => {
+    const css = readExpandedIndexCss();
+
+    expect(css).toContain('.app .handoff-framework-chip.active');
+    expect(css).toContain('color: var(--accent-strong);');
+    expect(css).toContain('font-weight: 700;');
+    expect(css).toContain('box-shadow:');
+  });
+
   it('localizes the primary handoff label', async () => {
     stubEditors([{ id: 'finder', label: 'Finder', available: true }]);
 
