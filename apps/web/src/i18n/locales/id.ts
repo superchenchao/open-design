@@ -1478,6 +1478,8 @@ export const id: Dict = {
   'assistant.role': 'Asisten',
   'assistant.workingLabel': 'Sedang bekerja',
   'assistant.doneLabel': 'Selesai',
+  'assistant.shareToOpenDesign': 'Bagikan ke Open Design',
+  'assistant.shareToOpenDesignBusy': 'Membagikan…',
   'assistant.feedbackPrompt': 'Masukan',
   'assistant.feedbackPositive': 'Membantu',
   'assistant.feedbackNegative': 'Tidak membantu',

@@ -2388,6 +2388,8 @@ export interface Dict {
   'assistant.role': string;
   'assistant.workingLabel': string;
   'assistant.doneLabel': string;
+  'assistant.shareToOpenDesign': string;
+  'assistant.shareToOpenDesignBusy': string;
   'assistant.feedbackPrompt': string;
   'assistant.feedbackPositive': string;
   'assistant.feedbackNegative': string;

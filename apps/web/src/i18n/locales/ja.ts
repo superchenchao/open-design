@@ -1215,6 +1215,8 @@ export const ja: Dict = {
   'assistant.role': 'アシスタント',
   'assistant.workingLabel': '作業中',
   'assistant.doneLabel': '完了',
+  'assistant.shareToOpenDesign': 'Open Design に共有',
+  'assistant.shareToOpenDesignBusy': '共有中…',
   'assistant.feedbackPrompt': 'フィードバック',
   'assistant.feedbackPositive': '役に立った',
   'assistant.feedbackNegative': '役に立たなかった',

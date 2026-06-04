@@ -258,6 +258,11 @@ interface Props {
   ) => Promise<{ message?: string; url?: string } | void> | { message?: string; url?: string } | void;
   activePluginActionPaths?: Set<string>;
   hiddenPluginActionPaths?: Set<string>;
+  // "Share to Open Design" button on each completed assistant message —
+  // wired by ProjectView to handleSend with the bundled
+  // `od-share-to-community` scenario's trigger prompt.
+  onShareToOpenDesign?: () => void;
+  shareToOpenDesignBusy?: boolean;
   forceStreamingMessageIds?: Set<string>;
   initialDraft?: string;
   // Question-form submissions become a normal user message; the parent
@@ -374,6 +379,8 @@ export function ChatPane({
   onRequestPluginFolderAgentAction,
   activePluginActionPaths,
   hiddenPluginActionPaths,
+  onShareToOpenDesign,
+  shareToOpenDesignBusy,
   forceStreamingMessageIds,
   initialDraft,
   onSubmitForm,
@@ -1190,6 +1197,8 @@ export function ChatPane({
                         onRequestPluginFolderAgentAction={onRequestPluginFolderAgentAction}
                         activePluginActionPaths={activePluginActionPaths}
                         hiddenPluginActionPaths={hiddenPluginActionPaths}
+                        onShareToOpenDesign={onShareToOpenDesign}
+                        shareToOpenDesignBusy={shareToOpenDesignBusy}
                         isLast={m.id === lastAssistantId}
                         errorCardOwnerId={errorCardOwnerId}
                         nextUserContent={nextUserContentByAssistantId.get(m.id)}

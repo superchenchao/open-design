@@ -297,6 +297,11 @@ interface Props {
   ) => Promise<{ message?: string; url?: string } | void> | { message?: string; url?: string } | void;
   activePluginActionPaths?: Set<string>;
   hiddenPluginActionPaths?: Set<string>;
+  // Click handler for the "Share to Open Design" button rendered next to
+  // the post-completion Discord prompt. ProjectView wires this to
+  // handleSend with the bundled `od-share-to-community` trigger prompt.
+  onShareToOpenDesign?: () => void;
+  shareToOpenDesignBusy?: boolean;
   // True only for the most recent assistant message — gate question-form
   // interactivity on this so older forms render as a locked "answered"
   // capsule instead of being re-submittable.
@@ -339,6 +344,8 @@ export function AssistantMessage({
   onRequestPluginFolderAgentAction,
   activePluginActionPaths = new Set(),
   hiddenPluginActionPaths = new Set(),
+  onShareToOpenDesign,
+  shareToOpenDesignBusy = false,
   isLast,
   errorCardOwnerId = null,
   nextUserContent,
@@ -672,6 +679,28 @@ export function AssistantMessage({
                 hasEmptyResponse={hasEmptyResponse}
               />
             )}
+            {/*
+              "Share to Open Design" — pairs with the post-feedback Discord
+              prompt (assistant-feedback-discord-note). Only shows on the most
+              recent assistant message after a successful run, gated on the
+              same isFeedbackEligible signal so it appears alongside the
+              thumbs-up/down + Discord CTA — not on errored runs, partial
+              streams, or empty responses. Click hands the user a packaged
+              plugin via the bundled od-share-to-community scenario.
+            */}
+            {onShareToOpenDesign && isLast && showFeedback ? (
+              <button
+                type="button"
+                className="assistant-share-to-od-btn"
+                data-testid="assistant-share-to-od"
+                disabled={shareToOpenDesignBusy}
+                onClick={onShareToOpenDesign}
+              >
+                {shareToOpenDesignBusy
+                  ? t('assistant.shareToOpenDesignBusy')
+                  : t('assistant.shareToOpenDesign')}
+              </button>
+            ) : null}
           </div>
         ) : null}
       </div>

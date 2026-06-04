@@ -1315,6 +1315,8 @@ export const tr: Dict = {
   'assistant.role': 'Asistan',
   'assistant.workingLabel': 'Çalışıyor',
   'assistant.doneLabel': 'Bitti',
+  'assistant.shareToOpenDesign': "Open Design'a paylaş",
+  'assistant.shareToOpenDesignBusy': 'Paylaşılıyor…',
   'assistant.feedbackPrompt': 'Geri bildirim',
   'assistant.feedbackPositive': 'Yararlı',
   'assistant.feedbackNegative': 'Yararlı değil',

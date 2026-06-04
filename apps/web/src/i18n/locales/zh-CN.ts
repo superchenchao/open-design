@@ -2009,6 +2009,8 @@ export const zhCN: Dict = {
   'assistant.role': '助手',
   'assistant.workingLabel': '执行中',
   'assistant.doneLabel': '已完成',
+  'assistant.shareToOpenDesign': '分享到 Open Design',
+  'assistant.shareToOpenDesignBusy': '分享中…',
   'assistant.feedbackPrompt': '反馈',
   'assistant.feedbackPositive': '有帮助',
   'assistant.feedbackNegative': '没有帮助',

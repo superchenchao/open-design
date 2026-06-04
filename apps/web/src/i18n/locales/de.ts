@@ -1216,6 +1216,8 @@ export const de: Dict = {
   'assistant.role': 'Assistent',
   'assistant.workingLabel': 'Arbeitet',
   'assistant.doneLabel': 'Fertig',
+  'assistant.shareToOpenDesign': 'An Open Design teilen',
+  'assistant.shareToOpenDesignBusy': 'Wird geteilt…',
   'assistant.feedbackPrompt': 'Feedback',
   'assistant.feedbackPositive': 'Hilfreich',
   'assistant.feedbackNegative': 'Nicht hilfreich',

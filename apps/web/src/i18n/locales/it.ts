@@ -1218,6 +1218,8 @@ export const it: Dict = {
   'assistant.role': 'Assistente',
   'assistant.workingLabel': 'In corso',
   'assistant.doneLabel': 'Completato',
+  'assistant.shareToOpenDesign': 'Condividi su Open Design',
+  'assistant.shareToOpenDesignBusy': 'Condivisione…',
   'assistant.emptyResponseLabel': 'Nessun output',
   'assistant.emptyResponseMessage': 'Il provider ha terminato la richiesta senza restituire testo o un artefatto. Prova un altro modello o provider, controlla la quota o riprova.',
   'assistant.unfinishedLabel': 'Fermato con lavoro non completato',

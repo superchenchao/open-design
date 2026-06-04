@@ -1328,6 +1328,8 @@ export const ar: Dict = {
   'assistant.role': 'المساعد',
   'assistant.workingLabel': 'جاري العمل',
   'assistant.doneLabel': 'تم',
+  'assistant.shareToOpenDesign': 'المشاركة على Open Design',
+  'assistant.shareToOpenDesignBusy': 'جارٍ المشاركة…',
   'assistant.feedbackPrompt': 'ملاحظات',
   'assistant.feedbackPositive': 'مفيد',
   'assistant.feedbackNegative': 'غير مفيد',

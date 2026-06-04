@@ -1370,6 +1370,8 @@ export const uk: Dict = {
   'assistant.role': 'Асистент',
   'assistant.workingLabel': 'Роботи',
   'assistant.doneLabel': 'Готово',
+  'assistant.shareToOpenDesign': 'Поділитися з Open Design',
+  'assistant.shareToOpenDesignBusy': 'Ділимося…',
   'assistant.feedbackPrompt': 'Відгук',
   'assistant.feedbackPositive': 'Корисно',
   'assistant.feedbackNegative': 'Не корисно',

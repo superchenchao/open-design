@@ -1930,6 +1930,8 @@ export const fr: Dict = {
   'assistant.role': 'Assistant',
   'assistant.workingLabel': 'En cours',
   'assistant.doneLabel': 'Terminé',
+  'assistant.shareToOpenDesign': 'Partager à Open Design',
+  'assistant.shareToOpenDesignBusy': 'Partage en cours…',
   'assistant.feedbackPrompt': 'Avis',
   'assistant.feedbackPositive': 'Utile',
   'assistant.feedbackNegative': 'Pas utile',

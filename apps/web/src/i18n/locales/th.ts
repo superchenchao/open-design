@@ -1289,6 +1289,8 @@ export const th: Dict = {
   'assistant.role': 'หน่วยผู้ช่วยเหลือส่วนตัว',
   'assistant.workingLabel': 'ดำเนินระบบรับทำงานอยู่',
   'assistant.doneLabel': 'บรรลุสู่ระดับพร้อมแล้ว',
+  'assistant.shareToOpenDesign': 'แชร์ไปยัง Open Design',
+  'assistant.shareToOpenDesignBusy': 'กำลังแชร์…',
   'assistant.feedbackPrompt': 'ข้อเสนอแนะ',
   'assistant.feedbackPositive': 'มีประโยชน์',
   'assistant.feedbackNegative': 'ไม่มีประโยชน์',

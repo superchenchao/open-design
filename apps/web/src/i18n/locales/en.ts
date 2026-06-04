@@ -2058,6 +2058,8 @@ export const en: Dict = {
   'assistant.role': 'Assistant',
   'assistant.workingLabel': 'Working',
   'assistant.doneLabel': 'Done',
+  'assistant.shareToOpenDesign': 'Share to Open Design',
+  'assistant.shareToOpenDesignBusy': 'Sharing…',
   'assistant.feedbackPrompt': 'Feedback',
   'assistant.feedbackPositive': 'Helpful',
   'assistant.feedbackNegative': 'Not helpful',

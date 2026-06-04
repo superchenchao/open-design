@@ -1328,6 +1328,8 @@ export const hu: Dict = {
   'assistant.role': 'Asszisztens',
   'assistant.workingLabel': 'Dolgozik',
   'assistant.doneLabel': 'Kész',
+  'assistant.shareToOpenDesign': 'Megosztás az Open Designnal',
+  'assistant.shareToOpenDesignBusy': 'Megosztás folyamatban…',
   'assistant.feedbackPrompt': 'Visszajelzés',
   'assistant.feedbackPositive': 'Hasznos',
   'assistant.feedbackNegative': 'Nem hasznos',

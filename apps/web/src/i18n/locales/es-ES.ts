@@ -1217,6 +1217,8 @@ export const esES: Dict = {
   'assistant.role': 'Asistente',
   'assistant.workingLabel': 'Trabajando',
   'assistant.doneLabel': 'Listo',
+  'assistant.shareToOpenDesign': 'Compartir con Open Design',
+  'assistant.shareToOpenDesignBusy': 'Compartiendo…',
   'assistant.feedbackPrompt': 'Comentarios',
   'assistant.feedbackPositive': 'Útil',
   'assistant.feedbackNegative': 'No útil',
