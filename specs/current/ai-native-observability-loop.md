@@ -192,10 +192,15 @@ The minimum manifest shape should be stable across traces:
     {
       "artifact_id": "art_456",
       "type": "html_prototype",
+      "mime_type": "text/html",
       "size_bytes": 482193,
       "sha256": "sha256:...",
+      "build_status": "ok",
       "preview_status": "ok",
       "export_status": "ok",
+      "summary": "Generated HTML prototype for the requested dashboard flow.",
+      "redacted": false,
+      "truncated": false,
       "storage_ref": "od://objects/workspaces/ws_1/runs/run_1/artifacts/art_456",
       "thumbnail_ref": "od://objects/workspaces/ws_1/runs/run_1/artifacts/art_456/thumb.png"
     }
