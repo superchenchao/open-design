@@ -149,6 +149,7 @@ import {
   historyWithCommentAttachmentContext,
   mergeAttachedComments,
   mergePreviewCommentAttachments,
+  queuedSlideNavTarget,
   removeAttachedComment,
 } from '../comments';
 import { filterImplicitProducedFiles } from '../produced-files';
@@ -161,19 +162,25 @@ import { ProjectDesignSystemPicker } from './ProjectDesignSystemPicker';
 import { PluginDetailsModal } from './PluginDetailsModal';
 import { DesignSystemPreviewModal } from './DesignSystemPreviewModal';
 import { ChatPane } from './ChatPane';
+import type { QuestionFormOpenRequest } from './AssistantMessage';
+import { WorkingDirPill } from './WorkingDirPill';
 import type { ChatSendMeta } from './ChatComposer';
 import {
   CritiqueTheaterMount,
   useCritiqueTheaterEnabled,
 } from './Theater';
 import { useIframeKeepAlivePool } from './IframeKeepAlivePool';
-import { decideAutoOpenAfterWrite } from './auto-open-file';
+import {
+  decideAutoOpenAfterWrite,
+  selectAutoOpenProducedHtml,
+} from './auto-open-file';
 import { buildRepoImportPrompt, designSystemNeedsRepoConnect } from './design-system-github-evidence';
 import { collectReferencedJsxNames } from '../runtime/jsx-module-refs';
 import { FileWorkspace } from './FileWorkspace';
 import {
   type PluginFolderAgentAction,
 } from './design-files/pluginFolderActions';
+import { SHARE_TO_COMMUNITY_PROMPT } from './share-to-community/shareToCommunityPrompt';
 import { CenteredLoader } from './Loading';
 import type { SettingsSection } from './SettingsDialog';
 import { Toast } from './Toast';
@@ -187,6 +194,12 @@ import { copyToClipboard } from '../lib/copy-to-clipboard';
 import { effectiveMaxTokens } from '../state/maxTokens';
 import { effectiveAgentModelChoice } from './agentModelSelection';
 import { mediaExecutionPolicyForProjectMetadata } from '../media/execution-policy';
+import { mediaModelProviderId } from '../media/models';
+import {
+  useByokImageModelOptions,
+  useByokVideoModelOptions,
+  useByokSpeechModelOptions,
+} from '../media/aihubmix-image-models';
 import {
   buildFinalizeCredentialsMissingToast,
   buildFinalizeRequest,
@@ -246,6 +259,8 @@ interface Props {
   onOpenSettings: (section?: SettingsSection) => void;
   onOpenAmrSettings?: () => void;
   onOpenMcpSettings?: () => void;
+  onBrowsePlugins?: () => void;
+  onOpenConnectors?: () => void;
   // Pet wiring forwarded to the chat composer so users can adopt /
   // wake / tuck a pet without leaving the project view.
   onAdoptPetInline?: (petId: string) => void;
@@ -282,6 +297,7 @@ const CHAT_PANEL_WIDTH_STORAGE_KEY = 'open-design.project.chatPanelWidth';
 const DEFAULT_CHAT_PANEL_WIDTH = 460;
 const MIN_CHAT_PANEL_WIDTH = 345;
 const MAX_CHAT_PANEL_WIDTH = 720;
+const COMMENT_INSPECTOR_PANEL_WIDTH = 320;
 const MIN_WORKSPACE_PANEL_WIDTH = 400;
 const SPLIT_RESIZE_HANDLE_WIDTH = 8;
 const CHAT_PANEL_KEYBOARD_STEP = 16;
@@ -594,6 +610,25 @@ export function projectSplitClassName(workspaceFocused: boolean): string {
   return workspaceFocused ? 'split split-focus' : 'split';
 }
 
+// React key for the on-screen question form. Deliberately does NOT include the
+// form's parsed `id`: there is at most one (first) form per assistant message,
+// so `${conversation}:${message}` is already a stable, unique identity for the
+// occurrence. Folding the parsed id in would remount the panel mid-stream — the
+// preview shows the `discovery` fallback until the body `id` streams in, and a
+// form that emits answerable questions before its `id` would flip identity
+// while the user is mid-answer, dropping their selections. A distinct later
+// form lives in a different assistant message, so it still gets its own key
+// (and replays the reveal) without relying on the id.
+export function buildQuestionFormKey(
+  conversationId: string | null,
+  assistantMessageId: string | null,
+  hasForm: boolean,
+): string | null {
+  return conversationId && assistantMessageId && hasForm
+    ? `${conversationId}:${assistantMessageId}`
+    : null;
+}
+
 type ProjectSplitStyle = CSSProperties & {
   '--project-chat-panel-width': string;
   '--project-workspace-panel-track': string;
@@ -629,6 +664,57 @@ function shouldFetchElevenLabsVoiceOptions(project: Project): boolean {
     && metadata.audioKind === 'speech'
     && metadata.audioModel === 'elevenlabs-v3'
     && !metadata.voice;
+}
+
+// The media model the user picked in the New Project → Media dialog, keyed by
+// surface. For BYOK providers (AIHubMix) media is produced by the generate_*
+// chat tools whose default model comes from the per-request byok*Model field —
+// NOT the `od media generate` dispatcher — so without this seed the dialog pick
+// is dropped and the conversation falls back to the Settings default. Returns
+// undefined for non-media projects (and when the field is empty) so callers fall
+// back to the Settings default exactly as before. The daemon re-validates the id
+// against the active provider's registry, so a mismatched pick is safely ignored.
+function projectMediaModelSeed(
+  metadata: ProjectMetadata | null | undefined,
+  surface: 'image' | 'video' | 'speech',
+): string | undefined {
+  if (!metadata) return undefined;
+  if (surface === 'image' && metadata.kind === 'image') {
+    return metadata.imageModel?.trim() || undefined;
+  }
+  if (surface === 'video' && metadata.kind === 'video') {
+    return metadata.videoModel?.trim() || undefined;
+  }
+  if (surface === 'speech' && metadata.kind === 'audio' && metadata.audioKind === 'speech') {
+    return metadata.audioModel?.trim() || undefined;
+  }
+  return undefined;
+}
+
+function projectMediaVoiceSeed(
+  metadata: ProjectMetadata | null | undefined,
+): string | undefined {
+  if (metadata?.kind === 'audio' && metadata.audioKind === 'speech') {
+    return metadata.voice?.trim() || undefined;
+  }
+  return undefined;
+}
+
+// Carry the creation-time model pick into the conversation ONLY when it belongs
+// to the active BYOK provider. Guards against clobbering a user's Settings
+// default with a model from a different provider — e.g. a SenseAudio user whose
+// image project was created with the dialog's default `gpt-image-2` keeps their
+// configured SenseAudio model instead of being forced to the registry default.
+// AIHubMix's live (`aihubmix-` prefixed) ids resolve via mediaModelProviderId
+// without waiting on the async catalogue, so the AIHubMix path still seeds.
+function byokModelSeedForProtocol(
+  metadata: ProjectMetadata | null | undefined,
+  surface: 'image' | 'video' | 'speech',
+  protocol: string | undefined,
+): string | undefined {
+  const picked = projectMediaModelSeed(metadata, surface);
+  if (!picked) return undefined;
+  return mediaModelProviderId(picked) === protocol ? picked : undefined;
 }
 
 function projectEventToAgentEvent(evt: ProjectEvent): LiveArtifactEventItem['event'] | null {
@@ -674,6 +760,8 @@ export function ProjectView({
   onOpenSettings,
   onOpenAmrSettings,
   onOpenMcpSettings,
+  onBrowsePlugins,
+  onOpenConnectors,
   onAdoptPetInline,
   onTogglePet,
   onOpenPetSettings,
@@ -746,7 +834,10 @@ export function ProjectView({
   // while the model is still emitting `input_json_delta`; dropped per-id once
   // the full `tool_use` lands and wiped when the run ends. Never persisted —
   // see daemon `daemonAgentPayloadToPersistedAgentEvent` (returns null).
-  const [liveToolInput, setLiveToolInput] = useState<Record<string, { name: string; text: string }>>({});
+  // `seq` records how many persisted events existed when the tool started
+  // streaming, so the renderer can place the live card at the tool call's
+  // position in the message (text before it = preamble, after it = hedging).
+  const [liveToolInput, setLiveToolInput] = useState<Record<string, { name: string; text: string; seq: number }>>({});
   // True once the initial DB read for the active conversation has settled.
   // Auto-send gates on this so it can't fire before listMessages resolves and
   // race-clobber the freshly-pushed user + assistant placeholder. Without
@@ -768,6 +859,10 @@ export function ProjectView({
   const [audioVoiceOptionsError, setAudioVoiceOptionsError] = useState<string | null>(null);
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [filesRefresh, setFilesRefresh] = useState(0);
+  // True while a working-dir replace is reindexing the new folder. Surfaced
+  // to the Design Files panel so the file list shows a loading state instead
+  // of silently sitting on the old tree for the few seconds the scan takes.
+  const [workingDirReplacing, setWorkingDirReplacing] = useState(false);
   const [projectFiles, setProjectFiles] = useState<ProjectFile[]>([]);
   const projectFilesRef = useRef<ProjectFile[]>([]);
   const [liveArtifacts, setLiveArtifacts] = useState<LiveArtifactSummary[]>([]);
@@ -776,15 +871,40 @@ export function ProjectView({
   const [commentInspectorActive, setCommentInspectorActive] = useState(false);
   const commentInspectorPortalId = useId();
   const leftInspectorActive = commentInspectorActive;
-  // Per-session override for the BYOK SenseAudio chat's generate_image
-  // tool. Seeded once from Settings (config.byokImageModel) so the
-  // composer dropdown opens on the user's chosen default; subsequent
-  // selections live only in this component's state — page refresh /
-  // project switch resets to the Settings default. Persistent defaults
-  // live in Settings → BYOK → SenseAudio → Image generation model.
+  // Per-session override for the BYOK chat's generate_image tool. Seeded once
+  // from the New Project → Media model pick (project.metadata.imageModel) — but
+  // only when that pick belongs to the active BYOK provider (see
+  // byokModelSeedForProtocol) — falling back to the Settings default
+  // (config.byokImageModel) otherwise. Subsequent selections live only in this
+  // component's state — page refresh / project switch resets to this seed.
+  // Persistent defaults live in Settings → BYOK → Image generation model.
   const [byokImageModelOverride, setByokImageModelOverride] = useState<string>(
-    config.byokImageModel ?? '',
+    () => byokModelSeedForProtocol(project.metadata, 'image', config.apiProtocol) ?? config.byokImageModel ?? '',
   );
+  // Same per-session override for the BYOK chat's generate_video tool, seeded
+  // from the project's videoModel pick (provider-gated), then Settings.
+  const [byokVideoModelOverride, setByokVideoModelOverride] = useState<string>(
+    () => byokModelSeedForProtocol(project.metadata, 'video', config.apiProtocol) ?? config.byokVideoModel ?? '',
+  );
+  // Same per-session overrides for the BYOK chat's generate_speech tool (model +
+  // voice), seeded from the project's speech pick (provider-gated), then Settings.
+  const [byokSpeechModelOverride, setByokSpeechModelOverride] = useState<string>(
+    () => byokModelSeedForProtocol(project.metadata, 'speech', config.apiProtocol) ?? config.byokSpeechModel ?? '',
+  );
+  // Voice only carries when the speech model itself is carried (same provider),
+  // so a cross-provider voice id never leaks into the request.
+  const [byokSpeechVoiceOverride, setByokSpeechVoiceOverride] = useState<string>(
+    () => (byokModelSeedForProtocol(project.metadata, 'speech', config.apiProtocol)
+      ? projectMediaVoiceSeed(project.metadata)
+      : undefined) ?? config.byokSpeechVoice ?? '',
+  );
+  // Live model option lists (same hooks the composer/Settings pickers use) so
+  // the chat "default" (no explicit pick) resolves to the FIRST catalogue model
+  // shown in the dropdown — not a hardcoded id. The daemon keeps its own
+  // fallback for when the catalogue hasn't loaded.
+  const byokImageModelOptionsPV = useByokImageModelOptions(config.apiProtocol);
+  const byokVideoModelOptionsPV = useByokVideoModelOptions(config.apiProtocol);
+  const byokSpeechModelOptionsPV = useByokSpeechModelOptions(config.apiProtocol);
   // `closed` → no surface; `review` → read-only saved-state panel with a
   // preview + reopen-to-edit action (#1822); `edit` → the textarea editor.
   const [instructionsMode, setInstructionsMode] = useState<'closed' | 'review' | 'edit'>('closed');
@@ -870,6 +990,18 @@ export function ProjectView({
   // include a nonce so re-clicking the same name after the user closed the
   // tab still focuses it.
   const [openRequest, setOpenRequest] = useState<{ name: string; nonce: number } | null>(null);
+  // Like `openRequest`, but additionally asks the preview workspace to open the
+  // file's Share/Export menu. Drives the "Share" next-step action: it reuses the
+  // existing export/deploy surface rather than introducing a new share backend.
+  const [shareRequest, setShareRequest] = useState<{ name: string; nonce: number } | null>(null);
+  // When a queued chat send starts processing, ask the workspace to flip the
+  // deck preview to the slide its marked element lives on, so the user watches
+  // the edit land in context instead of staying parked on slide 1. Mirrors the
+  // `shareRequest` nonce signal: FileWorkspace matches `name` against the open
+  // file and FileViewer consumes each nonce once.
+  const [slideNavRequest, setSlideNavRequest] = useState<
+    { name: string; slideIndex: number; nonce: number } | null
+  >(null);
   const abortRef = useRef<AbortController | null>(null);
   const cancelRef = useRef<AbortController | null>(null);
   const streamingConversationIdRef = useRef<string | null>(null);
@@ -1002,19 +1134,43 @@ export function ProjectView({
     Boolean(questionForm || questionsGenerating) && questionFormSubmittedAnswers === undefined;
   // Stable identity for the current form occurrence, used to remember that its
   // one-by-one reveal already played. Keyed on the conversation + the hosting
-  // assistant message id + template id (not the message index). The assistant
-  // message id is allocated once and kept in place across the streaming→
-  // persisted swap (same `assistantId` throughout), so it survives the brief
-  // unmount/re-focus of the Questions tab without replaying the animation —
-  // yet it differs for every distinct form occurrence, so a second discovery
-  // form later in the same conversation (which shares the `discovery` template
-  // id) gets its own key and still animates from the frame.
-  const questionFormKey = useMemo(() => {
-    const f = questionForm ?? questionFormPreview;
-    return activeConversationId && lastAssistantMessageId && f
-      ? `${activeConversationId}:${lastAssistantMessageId}:${f.id}`
-      : null;
-  }, [activeConversationId, lastAssistantMessageId, questionForm, questionFormPreview]);
+  // assistant message id (not the message index, and NOT the parsed form id —
+  // see buildQuestionFormKey). The assistant message id is allocated once and
+  // kept in place across the streaming→persisted swap (same `assistantId`
+  // throughout), so it survives the brief unmount/re-focus of the Questions tab
+  // without replaying the animation, yet differs for every distinct form
+  // occurrence (each lives in its own assistant message).
+  const questionFormKey = useMemo(
+    () =>
+      buildQuestionFormKey(
+        activeConversationId,
+        lastAssistantMessageId,
+        Boolean(questionForm ?? questionFormPreview),
+      ),
+    [activeConversationId, lastAssistantMessageId, questionForm, questionFormPreview],
+  );
+
+  // Release #3661: let a past question form be manually re-opened in the
+  // Questions panel. Layered on top of main's stable questionFormKey (#3644) —
+  // the `displayed*` values fall back to the live form when nothing is manually
+  // pinned, so both fixes coexist.
+  const [manualQuestionFormRequest, setManualQuestionFormRequest] =
+    useState<QuestionFormOpenRequest | null>(null);
+  useEffect(() => {
+    setManualQuestionFormRequest(null);
+  }, [project.id, activeConversationId]);
+  useEffect(() => {
+    if (hasQuestions && questionFormKey) setManualQuestionFormRequest(null);
+  }, [hasQuestions, questionFormKey]);
+  const displayedQuestionForm = manualQuestionFormRequest?.form ?? questionForm;
+  const displayedQuestionFormPreview = manualQuestionFormRequest ? null : questionFormPreview;
+  const displayedQuestionFormSubmittedAnswers =
+    manualQuestionFormRequest?.submittedAnswers ?? questionFormSubmittedAnswers;
+  const displayedQuestionFormActive = manualQuestionFormRequest ? false : questionFormActive;
+  const displayedQuestionsGenerating = manualQuestionFormRequest ? false : questionsGenerating;
+  const displayedQuestionFormKey = manualQuestionFormRequest
+    ? `${activeConversationId ?? 'conversation'}:${manualQuestionFormRequest.messageId}:${manualQuestionFormRequest.form.id}:manual`
+    : questionFormKey;
 
   // Auto-switch the workspace to the Questions tab when a new discovery form
   // first appears, and let the chat banner re-focus it on click. The nonce
@@ -1031,9 +1187,29 @@ export function ProjectView({
     () => (questionsFocusNonce > 0 ? { nonce: questionsFocusNonce } : null),
     [questionsFocusNonce],
   );
-  const openQuestionsTab = useCallback(() => {
+  const submittedAnswersForQuestionFormRequest = useCallback((request: QuestionFormOpenRequest) => {
+    const assistantIndex = messages.findIndex((m) => m.id === request.messageId);
+    if (assistantIndex < 0) return null;
+    for (let i = assistantIndex + 1; i < messages.length; i++) {
+      const m = messages[i];
+      if (!m) continue;
+      if (m.role === 'assistant') break;
+      if (m.role !== 'user') continue;
+      const parsed = parseSubmittedAnswers(request.form, m.content ?? '');
+      if (parsed) return parsed;
+    }
+    return null;
+  }, [messages]);
+  const openQuestionsTab = useCallback((request?: QuestionFormOpenRequest) => {
+    if (request) {
+      setManualQuestionFormRequest({
+        ...request,
+        submittedAnswers:
+          request.submittedAnswers ?? submittedAnswersForQuestionFormRequest(request) ?? undefined,
+      });
+    }
     setQuestionsFocusNonce((n) => n + 1);
-  }, []);
+  }, [submittedAnswersForQuestionFormRequest]);
 
   const currentConversationQueuedItems = activeConversationId
     ? queuedChatSends
@@ -1581,6 +1757,14 @@ export function ProjectView({
   const projectFileNames = useMemo(
     () => new Set(projectFiles.map((f) => f.name)),
     [projectFiles],
+  );
+  const activeProjectFileName = useMemo(
+    () => (
+      openTabsState.active && projectFileNames.has(openTabsState.active)
+        ? openTabsState.active
+        : null
+    ),
+    [openTabsState.active, projectFileNames],
   );
   const agentsById = useMemo(
     () => new Map(agents.map((agent) => [agent.id, agent])),
@@ -2217,11 +2401,7 @@ export function ProjectView({
     const attachRecoverableRuns = async () => {
       const missingRunIdMessages = messages.filter((m) => {
         if (m.role !== 'assistant' || m.runId) return false;
-        const producedFileCount = Array.isArray(m.producedFiles) ? m.producedFiles.length : 0;
-        return (
-          isActiveRunStatus(m.runStatus) ||
-          (m.runStatus === 'succeeded' && (!m.content.trim() || producedFileCount === 0))
-        );
+        return isActiveRunStatus(m.runStatus);
       });
       const activeRuns = missingRunIdMessages.length > 0
         ? await listActiveChatRuns(project.id, reattachConversationId)
@@ -2246,14 +2426,8 @@ export function ProjectView({
       for (const message of messages) {
         if (cancelled) return;
         if (message.role !== 'assistant') continue;
-        const producedFileCount = Array.isArray(message.producedFiles)
-          ? message.producedFiles.length
-          : 0;
-        const needsTerminalReplay =
-          message.runStatus === 'succeeded' &&
-          (!message.content.trim() || producedFileCount === 0);
-        const needsFullReplay = needsTerminalReplay || isActiveRunStatus(message.runStatus);
-        if (!isActiveRunStatus(message.runStatus) && !needsTerminalReplay) continue;
+        const needsFullReplay = isActiveRunStatus(message.runStatus);
+        if (!needsFullReplay) continue;
         const fallbackRun = !message.runId
           ? activeByMessage.get(message.id) ?? historicalByMessage.get(message.id) ?? null
           : null;
@@ -2469,6 +2643,8 @@ export function ProjectView({
                 }
                 const diff = computeProducedFiles(beforeFileNames, nextFiles) ?? [];
                 const produced = mergeRecoveredArtifact(diff, recoveredExistingArtifact);
+                const producedHtmlToOpen = selectAutoOpenProducedHtml(produced);
+                if (producedHtmlToOpen) requestOpenFile(producedHtmlToOpen);
                 if (produced.length > 0) {
                   updateMessageById(
                     message.id,
@@ -2787,7 +2963,7 @@ export function ProjectView({
             )
           : apiProtocolModelLabel(config.apiProtocol, config.model);
       const preTurnFileNames = projectFiles.map((f) => f.name);
-      const assistantId = retryTarget?.failedAssistant.id ?? randomUUID();
+      const assistantId = randomUUID();
       const assistantMsg: ChatMessage = {
         id: assistantId,
         role: 'assistant',
@@ -2795,7 +2971,7 @@ export function ProjectView({
         agentId: assistantAgentId,
         agentName: assistantAgentName,
         events: [],
-        createdAt: retryTarget?.failedAssistant.createdAt ?? startedAt,
+        createdAt: startedAt,
         runStatus: config.mode === 'daemon' ? 'running' : undefined,
         startedAt,
         preTurnFileNames,
@@ -2830,7 +3006,10 @@ export function ProjectView({
       const nextHistory = retryTarget
         ? [...retryTarget.priorMessages, userMsg]
         : [...historyBase, userMsg];
-      setMessages([...nextHistory, assistantMsg]);
+      const nextVisibleMessages = retryTarget
+        ? [...nextHistory, ...retryTarget.preservedAttempts, assistantMsg]
+        : [...nextHistory, assistantMsg];
+      setMessages(nextVisibleMessages);
       markStreamingConversation(runConversationId);
       updateConversationLatestRun(config.mode === 'daemon' ? 'running' : 'queued');
       setArtifact(null);
@@ -3065,7 +3244,19 @@ export function ProjectView({
         onToolInputDelta: (id: string, name: string, delta: string) => {
           setLiveToolInput((prev) => ({
             ...prev,
-            [id]: { name, text: (prev[id]?.text ?? '') + delta },
+            [id]: {
+              name,
+              text: (prev[id]?.text ?? '') + delta,
+              // Pin the tool's stream position the first time we see it: the
+              // count of events already on the message is everything the model
+              // emitted before the tool call (its preamble). Buffered text
+              // (appendTextEvent) isn't flushed into `events` until the next
+              // frame, so add 1 for any still-pending preamble chunk — it will
+              // commit as one text event just before this tool's position.
+              seq:
+                prev[id]?.seq ??
+                ((latestAssistantMsg.events?.length ?? 0) + (textBuffer.hasPendingText() ? 1 : 0)),
+            },
           }));
         },
         onDone: (fullText = '') => {
@@ -3144,6 +3335,8 @@ export function ProjectView({
               nextFiles = await refreshProjectFiles();
             }
             const produced = computeProducedFiles(beforeFileNames, nextFiles) ?? [];
+            const producedHtmlToOpen = selectAutoOpenProducedHtml(produced);
+            if (producedHtmlToOpen) requestOpenFile(producedHtmlToOpen);
             setMessages((curr) => {
               const updated = curr.map((m) =>
                 m.id === assistantId
@@ -3380,7 +3573,13 @@ export function ProjectView({
           // default model. Prefer the live composer override; fall back
           // to the Settings default when the composer dropdown is on
           // "use default". Other protocols ignore unknown body fields.
-          byokImageModel: byokImageModelOverride || config.byokImageModel,
+          byokImageModel:
+            byokImageModelOverride || config.byokImageModel || byokImageModelOptionsPV[0]?.id,
+          byokVideoModel:
+            byokVideoModelOverride || config.byokVideoModel || byokVideoModelOptionsPV[0]?.id,
+          byokSpeechModel:
+            byokSpeechModelOverride || config.byokSpeechModel || byokSpeechModelOptionsPV[0]?.id,
+          byokSpeechVoice: byokSpeechVoiceOverride || config.byokSpeechVoice,
         });
         return true;
       }
@@ -3395,6 +3594,17 @@ export function ProjectView({
       config,
       locale,
       agentsById,
+      // Per-session BYOK image/video model overrides are read inside this
+      // callback (see the streamMessage context below). Without them in the
+      // deps, the dropdown updates its state + display but handleSend keeps a
+      // stale closure and sends the previously selected model.
+      byokImageModelOverride,
+      byokVideoModelOverride,
+      byokSpeechModelOverride,
+      byokSpeechVoiceOverride,
+      byokImageModelOptionsPV,
+      byokVideoModelOptionsPV,
+      byokSpeechModelOptionsPV,
       composedSystemPrompt,
       onTouchProject,
       project.id,
@@ -3416,6 +3626,16 @@ export function ProjectView({
     ],
   );
 
+  // Flip the deck preview to the slide a queued send's marked element lives on
+  // the moment that send starts processing. No-op for plain prompts or marks
+  // without a slide index; FileWorkspace/FileViewer ignore it unless the named
+  // file is the open deck.
+  const armSlideNavForQueuedSend = useCallback((item: QueuedChatSend) => {
+    const target = queuedSlideNavTarget(item.commentAttachments);
+    if (!target) return;
+    setSlideNavRequest({ name: target.filePath, slideIndex: target.slideIndex, nonce: Date.now() });
+  }, []);
+
   const sendQueuedChatSendNow = useCallback((id: string) => {
     const item = queuedChatSendsRef.current.find((candidate) => candidate.id === id);
     if (!item) return;
@@ -3424,6 +3644,7 @@ export function ProjectView({
       return;
     }
     void (async () => {
+      armSlideNavForQueuedSend(item);
       const started = await handleSend(
         item.prompt,
         item.attachments,
@@ -3432,7 +3653,7 @@ export function ProjectView({
       );
       if (started) removeQueuedChatSend(id);
     })();
-  }, [currentConversationBusy, handleSend, prioritizeQueuedChatSend, removeQueuedChatSend]);
+  }, [armSlideNavForQueuedSend, currentConversationBusy, handleSend, prioritizeQueuedChatSend, removeQueuedChatSend]);
 
   useEffect(() => {
     if (currentConversationBusy) {
@@ -3447,6 +3668,7 @@ export function ProjectView({
     );
     if (!next) return;
     startingQueuedChatSendIdRef.current = next.id;
+    armSlideNavForQueuedSend(next);
     void (async () => {
       const started = await handleSend(
         next.prompt,
@@ -3469,6 +3691,7 @@ export function ProjectView({
     })();
   }, [
     activeConversationId,
+    armSlideNavForQueuedSend,
     currentConversationBusy,
     queuedAutoStartTick,
     queuedChatSends,
@@ -3890,6 +4113,24 @@ export function ProjectView({
     ],
   );
 
+  // "Share to Open Design" — kicks off the bundled `od-share-to-community`
+  // scenario in the active conversation. We just inject the trigger prompt
+  // through the standard chat-send path; the agent then loads SKILL.md and
+  // drives the rest. Busy flag debounces the double-click while the send
+  // request is in flight (handleSend is async).
+  const [shareToOpenDesignBusy, setShareToOpenDesignBusy] = useState(false);
+  const shareToOpenDesignBusyRef = useRef(false);
+  const handleShareToOpenDesign = useCallback(() => {
+    if (currentConversationActionDisabled || shareToOpenDesignBusyRef.current) return;
+    shareToOpenDesignBusyRef.current = true;
+    setShareToOpenDesignBusy(true);
+    void Promise.resolve(handleSend(SHARE_TO_COMMUNITY_PROMPT, [], []))
+      .finally(() => {
+        shareToOpenDesignBusyRef.current = false;
+        setShareToOpenDesignBusy(false);
+      });
+  }, [currentConversationActionDisabled, handleSend]);
+
   const sentDesignSystemReviewTaskKeysRef = useRef<Set<string>>(new Set());
   const persistDesignSystemReviewEntry = useCallback((
     sectionTitle: string,
@@ -4219,10 +4460,20 @@ export function ProjectView({
         const forkTitle = sourceTitle
           ? t('chat.forkedConversationTitle', { title: sourceTitle })
           : undefined;
+        // Seed the fork from the messages the user is actually looking at,
+        // up to and including the fork point. A run that errored or had its
+        // connection reset before its assistant message was persisted leaves
+        // that message in memory only; copying from the database by id would
+        // 404 and silently drop the fork. Sending the in-memory snapshot makes
+        // the fork resilient to that gap.
+        const forkIndex = messages.findIndex((m) => m.id === assistantMessage.id);
+        const seedMessages =
+          forkIndex >= 0 ? messages.slice(0, forkIndex + 1) : [...messages, assistantMessage];
         const fresh = await createConversation(project.id, forkTitle, {
           seedFromConversationId: activeConversationId,
           forkAfterMessageId: assistantMessage.id,
           sessionMode: activeSessionMode,
+          seedMessages,
         });
         if (!fresh) throw new Error(t('chat.forkConversationFailed'));
         setMessages([]);
@@ -4261,6 +4512,7 @@ export function ProjectView({
       activeConversation?.title,
       activeSessionMode,
       forkingMessageId,
+      messages,
       navigate,
       onProjectsRefresh,
       openTabsState.active,
@@ -4489,6 +4741,24 @@ export function ProjectView({
     }
   }, [githubConnected, onOpenSettings, designSystemProject, projectFiles]);
 
+  // "Next step" affordance handlers (shown under the last assistant message
+  // once it produced a previewable HTML artifact). Recommended-direction chips
+  // prefill the composer (not auto-send) so the user reviews before sending;
+  // Share reuses the preview workspace's existing Share/Export menu. There is
+  // deliberately no generic "continue editing" / "optimize visuals" action —
+  // free-form follow-ups belong in the composer and the visual directions are
+  // already covered by the concrete chips, so vague catch-alls only added noise.
+  const handleArtifactChip = useCallback((_fileName: string, prompt: string) => {
+    setComposerDraftSignal({ text: prompt, nonce: Date.now() });
+  }, []);
+  const handleArtifactShare = useCallback(
+    (fileName: string) => {
+      requestOpenFile(fileName);
+      setShareRequest({ name: fileName, nonce: Date.now() });
+    },
+    [requestOpenFile],
+  );
+
   const handleBrowserUsePrompt = useCallback((text: string) => {
     setWorkspaceFocused(false);
     setComposerDraftSignal({
@@ -4508,6 +4778,9 @@ export function ProjectView({
     workspacePanelMinWidth === 0
       ? 'minmax(0, 1fr)'
       : `minmax(${workspacePanelMinWidth}px, 1fr)`;
+  const splitLeftPanelWidth = leftInspectorActive
+    ? COMMENT_INSPECTOR_PANEL_WIDTH
+    : chatPanelWidthRef.current;
   const chatPanelAriaMinWidth = Math.min(MIN_CHAT_PANEL_WIDTH, chatPanelMaxWidth);
 
   const renderPreferredChatPanelWidth = useCallback((
@@ -4991,7 +5264,7 @@ export function ProjectView({
           leftInspectorActive && !workspaceFocused ? 'split-manual-edit' : '',
           resizingChatPanel && !workspaceFocused ? 'is-resizing-chat' : '',
         ].filter(Boolean).join(' ')}
-        style={projectSplitStyle(workspaceFocused, chatPanelWidthRef.current, workspacePanelTrack)}
+        style={projectSplitStyle(workspaceFocused, splitLeftPanelWidth, workspacePanelTrack)}
       >
         <div className="split-chat-slot" hidden={workspaceFocused}>
           {commentInspectorActive ? (
@@ -5017,6 +5290,7 @@ export function ProjectView({
               onSessionModeChange={handleActiveConversationSessionModeChange}
               projectKindForTracking={projectKindToTracking(project.metadata?.kind)}
               projectFiles={projectFiles}
+              activeProjectFileName={activeProjectFileName}
               hasActiveDesignSystem={!!project.designSystemId}
               activeDesignSystem={chatDesignSystemSummary}
               projectFileNames={projectFileNames}
@@ -5040,6 +5314,8 @@ export function ProjectView({
               onRequestPluginFolderAgentAction={handlePluginFolderAgentAction}
               activePluginActionPaths={activePluginActionPaths}
               hiddenPluginActionPaths={hiddenAssistantPluginActionPaths}
+              onShareToOpenDesign={handleShareToOpenDesign}
+              shareToOpenDesignBusy={shareToOpenDesignBusy}
               forceStreamingMessageIds={forceStreamingPluginMessageIds}
               initialDraft={chatInitialDraft}
               onSubmitForm={(text) => {
@@ -5049,19 +5325,37 @@ export function ProjectView({
               onOpenQuestions={openQuestionsTab}
               onContinueRemainingTasks={handleContinueRemainingTasks}
               onAssistantFeedback={handleAssistantFeedback}
+              onArtifactShare={handleArtifactShare}
+              onArtifactChip={handleArtifactChip}
               onForkFromMessage={handleForkFromMessage}
               forkingMessageId={forkingMessageId}
               onNewConversation={handleNewConversation}
               newConversationDisabled={newConversationDisabled}
               conversations={conversations}
               activeConversationId={activeConversationId}
+              messagesConversationId={messagesConversationId}
               onSelectConversation={handleSelectConversation}
               onDeleteConversation={handleDeleteConversation}
               onOpenSettings={onOpenSettings}
+              showByokRecoveryAction={
+                config.mode === 'api' &&
+                daemonLive &&
+                (
+                  !config.apiKey.trim() ||
+                  !config.baseUrl.trim() ||
+                  !config.model.trim()
+                )
+              }
+              onSwitchToLocalCli={() => {
+                setError(null);
+                onModeChange('daemon');
+              }}
               onOpenAmrSettings={onOpenAmrSettings}
               onSwitchToAmrAndRetry={handleSwitchToAmrAndRetry}
               onLaunchAntigravityOauth={handleLaunchAntigravityOauth}
               onOpenMcpSettings={onOpenMcpSettings}
+              onBrowsePlugins={onBrowsePlugins}
+              onOpenConnectors={onOpenConnectors}
               connectRepoNeeded={connectRepoNeeded}
               githubConnected={githubConnected}
               onConnectRepo={handleConnectRepo}
@@ -5074,6 +5368,12 @@ export function ProjectView({
               byokApiProtocol={config.apiProtocol}
               byokImageModel={byokImageModelOverride}
               onChangeByokImageModel={setByokImageModelOverride}
+              byokVideoModel={byokVideoModelOverride}
+              onChangeByokVideoModel={setByokVideoModelOverride}
+              byokSpeechModel={byokSpeechModelOverride}
+              onChangeByokSpeechModel={setByokSpeechModelOverride}
+              byokSpeechVoice={byokSpeechVoiceOverride}
+              onChangeByokSpeechVoice={setByokSpeechVoiceOverride}
               projectMetadata={project.metadata}
               onProjectMetadataChange={(metadata) => {
                 onProjectChange({ ...project, metadata });
@@ -5157,6 +5457,14 @@ export function ProjectView({
         <FileWorkspace
           projectId={project.id}
           projectKind={projectKindToTracking(project.metadata?.kind) ?? 'prototype'}
+          rootDirName={(() => {
+            const baseDir =
+              projectDetail.project?.metadata?.baseDir ?? project.metadata?.baseDir;
+            return typeof baseDir === 'string'
+              ? baseDir.split(/[/\\]/).filter(Boolean).pop()
+              : undefined;
+          })()}
+          reloading={workingDirReplacing}
           resolvedDir={projectDetail.resolvedDir}
           files={projectFiles}
           liveArtifacts={liveArtifacts}
@@ -5170,6 +5478,8 @@ export function ProjectView({
           commentQueueOnSend={commentQueueOnSend}
           commentSendDisabled={currentConversationQueueDisabled}
           openRequest={openRequest}
+          shareRequest={shareRequest}
+          slideNavRequest={slideNavRequest}
           liveArtifactEvents={liveArtifactEvents}
           designSystemActivityEvents={designSystemActivityEvents}
           tabsState={openTabsState}
@@ -5181,6 +5491,8 @@ export function ProjectView({
           onRequestBrowserUsePrompt={handleBrowserUsePrompt}
           onPluginFolderAgentAction={handlePluginFolderAgentAction}
           activePluginActionPaths={activePluginActionPaths}
+          preferredPreviewFile={project.metadata?.entryFile ?? null}
+          autoPreviewDesignArtifacts={project.metadata?.importedFrom === 'folder'}
           focusMode={workspaceFocused}
           onFocusModeChange={setWorkspaceFocused}
           designSystemProject={designSystemProject}
@@ -5217,6 +5529,26 @@ export function ProjectView({
           conversationId={activeConversationId}
           headerActions={(
             <>
+              <WorkingDirPill
+                projectId={project.id}
+                resolvedDir={projectDetail.resolvedDir}
+                onReplaced={({ project: updated }) => {
+                  if (updated) onProjectChange(updated);
+                  // The new working dir has a different file tree, so the
+                  // current listing, breadcrumb nav, and open tabs are all
+                  // stale. Refetch files; DesignFilesPanel's self-heal then
+                  // drops the now-unmatched currentDir back to root.
+                  // projectDetail.refresh() repulls resolvedDir so the
+                  // breadcrumb root + pill show the new folder name even on
+                  // the Electron path, which reports no updated project.
+                  setWorkingDirReplacing(true);
+                  refreshFilesAndDesignMd();
+                  void Promise.all([
+                    refreshWorkspaceItems(),
+                    projectDetail.refresh(),
+                  ]).finally(() => setWorkingDirReplacing(false));
+                }}
+              />
               <EntrySettingsMenu
                 config={config}
                 onThemeChange={handleThemeChange}
@@ -5230,13 +5562,13 @@ export function ProjectView({
               />
             </>
           )}
-          questionForm={questionForm}
-          questionFormPreview={questionFormPreview}
-          questionFormKey={questionFormKey}
-          questionFormInteractive={questionFormActive}
+          questionForm={displayedQuestionForm}
+          questionFormPreview={displayedQuestionFormPreview}
+          questionFormKey={displayedQuestionFormKey}
+          questionFormInteractive={displayedQuestionFormActive}
           questionFormSubmitDisabled={currentConversationActionDisabled}
-          questionFormSubmittedAnswers={questionFormSubmittedAnswers}
-          questionsGenerating={questionsGenerating}
+          questionFormSubmittedAnswers={displayedQuestionFormSubmittedAnswers}
+          questionsGenerating={displayedQuestionsGenerating}
           focusQuestionsRequest={focusQuestionsRequest}
           onSubmitQuestionForm={(text) => {
             if (currentConversationActionDisabled) return;
@@ -5460,6 +5792,7 @@ export interface RetryTarget {
   failedAssistant: ChatMessage;
   userMsg: ChatMessage;
   priorMessages: ChatMessage[];
+  preservedAttempts: ChatMessage[];
 }
 
 export function resolveRetryTarget(
@@ -5474,14 +5807,24 @@ export function resolveRetryTarget(
   );
   if (failedIndex <= 0 || failedIndex !== messages.length - 1) return null;
 
-  const userMsg = messages[failedIndex - 1];
+  let userIndex = failedIndex - 1;
+  while (
+    userIndex >= 0 &&
+    messages[userIndex]?.role === 'assistant' &&
+    messages[userIndex]?.runStatus === 'failed'
+  ) {
+    userIndex -= 1;
+  }
+
+  const userMsg = messages[userIndex];
   const failedAssistant = messages[failedIndex];
   if (!userMsg || userMsg.role !== 'user' || !failedAssistant) return null;
 
   return {
     failedAssistant,
     userMsg,
-    priorMessages: messages.slice(0, failedIndex - 1),
+    priorMessages: messages.slice(0, userIndex),
+    preservedAttempts: messages.slice(userIndex + 1, failedIndex + 1),
   };
 }
 
@@ -5836,5 +6179,10 @@ export function createBufferedTextUpdates({
     window.addEventListener('pagehide', onPageHide);
   }
 
-  return { appendContent, appendTextEvent, appendEvent, flush, cancel };
+  // True when text has been appended but not yet flushed into a `text` event.
+  // Callers that need the soon-to-be-committed event count (e.g. pinning a live
+  // tool's stream position) add 1 for this still-buffered preamble.
+  const hasPendingText = () => pendingTextEventDelta.length > 0;
+
+  return { appendContent, appendTextEvent, appendEvent, flush, cancel, hasPendingText };
 }
