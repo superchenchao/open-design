@@ -180,6 +180,8 @@ describe("packaged smoke workflow", () => {
     expect(workflow).toContain("scripts/release-beta.ts");
     expect(workflow).not.toContain('git fetch --force --depth=1 origin "+refs/tags/open-design-v*:refs/tags/open-design-v*"');
     expect(workflow).toContain("release-beta-s requires at least one target to be enabled");
+    expect(workflow).toContain("beta_version: ${{ inputs.publish && steps.reserve.outputs.beta_version || inputs.release_version != '' && inputs.release_version || steps.beta.outputs.beta_version }}");
+    expect(workflow).toContain("if: ${{ inputs.publish }}");
     expect(workflow).toContain("Reject unsupported self-hosted mac_x64");
     expect(workflow).toContain("Reject unsupported self-hosted linux_x64");
     expect(workflow).toContain("name: Probe Windows signing capability");
@@ -244,6 +246,9 @@ describe("packaged smoke workflow", () => {
     expect(publishBetaMetadataScript).toContain("manifest.platformKey !== target");
     expect(publishBetaMetadataScript).toContain("manifest.r2.versionPrefix.includes(`/versions/${releaseVersion}`)");
     expect(publishBetaMetadataScript).toContain("refusing stale ${def.target} platform manifest");
+    expect(publishBetaMetadataScript).toContain("publishLatestPlatformObjects");
+    expect(platformPublishScript).not.toContain("await upload(join(releaseAssetsDir, name), `${latestPrefix}/${name}`");
+    expect(platformPublishScript).not.toContain("await upload(manifestPath, `${latestPrefix}/platforms/${target}.json`");
     expect(platformPublishScript).toContain('const target = requiredTarget();');
     expect(platformPublishScript).toContain("legacyPlatformKey");
     expect(workflow).not.toContain("win_enable:");
@@ -492,6 +497,7 @@ describe("packaged smoke workflow", () => {
       expect(fixture.uploadedObjectKeys()).toEqual([
         "beta/versions/1.2.3-beta.4/metadata.json",
         "beta/latest/metadata.json",
+        "beta/latest/platforms/mac_arm64.json",
       ]);
     } finally {
       await fixture.close();
@@ -500,7 +506,9 @@ describe("packaged smoke workflow", () => {
   });
 
   it("accepts target-first win_x64 platform manifests in beta metadata publish", async () => {
-    const fixture = await startReleaseMetadataObjectStore({});
+    const fixture = await startReleaseMetadataObjectStore({
+      "beta/versions/1.2.3-beta.4.unsigned/latest.yml": "versioned updater feed",
+    });
     const runnerTemp = await mkdtemp(join(tmpdir(), "od-release-beta-win-metadata-"));
     const platformManifestRoot = join(runnerTemp, "release-platform-manifests");
 
@@ -522,6 +530,10 @@ describe("packaged smoke workflow", () => {
               runId: 222222222,
             },
             legacyPlatformKey: "win",
+            feed: {
+              name: "latest.yml",
+              url: "https://releases.open-design.ai/beta/versions/1.2.3-beta.4.unsigned/latest.yml",
+            },
             platform: "win",
             platformKey: "win_x64",
             releaseTarget: "win_x64",
@@ -575,6 +587,8 @@ describe("packaged smoke workflow", () => {
       expect(fixture.uploadedObjectKeys()).toEqual([
         "beta/versions/1.2.3-beta.4.unsigned/metadata.json",
         "beta/latest/metadata.json",
+        "beta/latest/platforms/win_x64.json",
+        "beta/latest/latest.yml",
       ]);
     } finally {
       await fixture.close();

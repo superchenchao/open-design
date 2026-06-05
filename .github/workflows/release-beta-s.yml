@@ -295,12 +295,12 @@ jobs:
     outputs:
       asset_version_suffix: ${{ steps.beta.outputs.asset_version_suffix }}
       base_version: ${{ steps.beta.outputs.base_version }}
-      beta_version: ${{ steps.reserve.outputs.beta_version }}
+      beta_version: ${{ inputs.publish && steps.reserve.outputs.beta_version || inputs.release_version != '' && inputs.release_version || steps.beta.outputs.beta_version }}
       branch: ${{ steps.beta.outputs.branch }}
       commit: ${{ steps.beta.outputs.commit }}
       previous_commit: ${{ steps.prev.outputs.previous_commit }}
-      release_name: ${{ steps.reserve.outputs.release_name }}
-      state_source: ${{ steps.reserve.outputs.state_source }}
+      release_name: ${{ inputs.publish && steps.reserve.outputs.release_name || steps.beta.outputs.release_name }}
+      state_source: ${{ inputs.publish && steps.reserve.outputs.state_source || steps.beta.outputs.state_source }}
       version_lock_key: ${{ steps.reserve.outputs.version_lock_key }}
       version_lock_url: ${{ steps.reserve.outputs.version_lock_url }}
     steps:
@@ -427,6 +427,7 @@ jobs:
           fnm exec --using=24 -- node --experimental-strip-types ./scripts/release-beta.ts
 
       - name: Reserve beta version
+        if: ${{ inputs.publish }}
         id: reserve
         working-directory: _release-metadata
         env:

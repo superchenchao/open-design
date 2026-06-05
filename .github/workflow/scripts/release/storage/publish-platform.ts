@@ -229,9 +229,6 @@ function targetConfig(): TargetConfig {
 const config = targetConfig();
 for (const name of config.assetNames) {
   await upload(join(releaseAssetsDir, name), `${versionPrefix}/${name}`, "public, max-age=31536000, immutable");
-  if (name === "latest.yml" || name === "latest-mac.yml") {
-    await upload(join(releaseAssetsDir, name), `${latestPrefix}/${name}`, "public, max-age=60, must-revalidate");
-  }
 }
 
 const report = config.reportDirectory == null ? null : await uploadReport(config.reportDirectory);
@@ -268,7 +265,6 @@ mkdirSync(manifestDir, { recursive: true });
 const manifestPath = join(manifestDir, `${target}.json`);
 writeJson(manifestPath, manifest);
 await upload(manifestPath, `${versionPrefix}/platforms/${target}.json`, "public, max-age=31536000, immutable");
-await upload(manifestPath, `${latestPrefix}/platforms/${target}.json`, "public, max-age=60, must-revalidate");
 
 const outputs: Record<string, string> = {
   platform_latest_manifest_url: latestManifestUrl,
