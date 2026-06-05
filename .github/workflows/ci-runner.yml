@@ -15,6 +15,7 @@ on:
           - unit
           - typecheck
           - daemon
+          - web
 
 permissions:
   contents: read

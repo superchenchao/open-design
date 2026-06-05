@@ -4,7 +4,7 @@ set -Eeuo pipefail
 mode="${1:-${OD_CI_MODE:-}}"
 
 if [ -z "$mode" ]; then
-  echo "usage: $0 <probe|setup|policy|unit|typecheck|daemon>" >&2
+  echo "usage: $0 <probe|setup|policy|unit|typecheck|daemon|web>" >&2
   exit 2
 fi
 
@@ -43,7 +43,7 @@ capture_cmd() {
 
 require_mode() {
   case "$mode" in
-    probe | setup | policy | unit | typecheck | daemon) ;;
+    probe | setup | policy | unit | typecheck | daemon | web) ;;
     *)
       echo "unknown CI mode: $mode" >&2
       exit 2
@@ -193,8 +193,13 @@ daemon_exit_code="0"
 daemon_seconds="0"
 daemon_test_exit_code="0"
 daemon_test_seconds="0"
+web_status="skipped"
+web_exit_code="0"
+web_seconds="0"
+web_test_exit_code="0"
+web_test_seconds="0"
 
-if [ "$mode" = "setup" ] || [ "$mode" = "policy" ] || [ "$mode" = "unit" ] || [ "$mode" = "typecheck" ] || [ "$mode" = "daemon" ]; then
+if [ "$mode" = "setup" ] || [ "$mode" = "policy" ] || [ "$mode" = "unit" ] || [ "$mode" = "typecheck" ] || [ "$mode" = "daemon" ] || [ "$mode" = "web" ]; then
   append_summary ""
   append_summary "### Install"
   append_summary ""
@@ -428,6 +433,41 @@ if [ "$mode" = "daemon" ] && [ "$install_exit_code" = "0" ]; then
   daemon_seconds="$(( $(date +%s) - daemon_start ))"
 fi
 
+record_web_result() {
+  local label="$1"
+  local exit_code="$2"
+  local seconds="$3"
+
+  append_summary "| \`$label\` | \`$exit_code\` | \`$seconds\` |"
+  if [ "$exit_code" != "0" ] && [ "$web_status" = "ok" ]; then
+    web_status="failed"
+    web_exit_code="$exit_code"
+  fi
+}
+
+if [ "$mode" = "web" ] && [ "$install_exit_code" = "0" ]; then
+  append_summary ""
+  append_summary "### Web workspace tests"
+  append_summary ""
+  append_summary "| Check | Exit code | Seconds |"
+  append_summary "| --- | ---: | ---: |"
+
+  web_status="ok"
+  web_start="$(date +%s)"
+
+  run_ci_command "@open-design/web build:sidecar" pnpm --filter @open-design/web build:sidecar
+  web_sidecar_build_exit_code="$last_command_exit_code"
+  web_sidecar_build_seconds="$last_command_seconds"
+  record_web_result "@open-design/web build:sidecar" "$web_sidecar_build_exit_code" "$web_sidecar_build_seconds"
+
+  run_ci_command "@open-design/web test" pnpm --filter @open-design/web test
+  web_test_exit_code="$last_command_exit_code"
+  web_test_seconds="$last_command_seconds"
+  record_web_result "@open-design/web test" "$web_test_exit_code" "$web_test_seconds"
+
+  web_seconds="$(( $(date +%s) - web_start ))"
+fi
+
 if [ -n "$pnpm_store" ] && [ -d "$pnpm_store" ]; then
   pnpm_store_size="$(du -sh "$pnpm_store" 2>/dev/null | awk '{print $1}')"
 fi
@@ -450,6 +490,8 @@ append_summary "| Typecheck status | \`$typecheck_status\` |"
 append_summary "| Typecheck seconds | \`$typecheck_seconds\` |"
 append_summary "| Daemon status | \`$daemon_status\` |"
 append_summary "| Daemon seconds | \`$daemon_seconds\` |"
+append_summary "| Web status | \`$web_status\` |"
+append_summary "| Web seconds | \`$web_seconds\` |"
 
 cat > "$manifest" <<JSON
 {
@@ -521,6 +563,11 @@ cat > "$manifest" <<JSON
   "daemonSeconds": "$(json_escape "$daemon_seconds")",
   "daemonTestExitCode": "$(json_escape "$daemon_test_exit_code")",
   "daemonTestSeconds": "$(json_escape "$daemon_test_seconds")",
+  "webStatus": "$(json_escape "$web_status")",
+  "webExitCode": "$(json_escape "$web_exit_code")",
+  "webSeconds": "$(json_escape "$web_seconds")",
+  "webTestExitCode": "$(json_escape "$web_test_exit_code")",
+  "webTestSeconds": "$(json_escape "$web_test_seconds")",
   "dockerVersion": "$(json_escape "$docker_version")",
   "dockerStatus": "$(json_escape "$docker_status")",
   "rootDisk": "$(json_escape "$disk_root")",
@@ -548,4 +595,8 @@ fi
 
 if [ "$daemon_exit_code" != "0" ]; then
   exit "$daemon_exit_code"
+fi
+
+if [ "$web_exit_code" != "0" ]; then
+  exit "$web_exit_code"
 fi
