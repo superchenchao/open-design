@@ -21,6 +21,28 @@ append_summary() {
   fi
 }
 
+append_toolchain_storage_summary() {
+  append_summary ""
+  append_summary "### Toolchain"
+  append_summary ""
+  append_summary "| Tool | Version |"
+  append_summary "| --- | --- |"
+  append_summary "| git | \`$git_version\` |"
+  append_summary "| node | \`$node_version\` |"
+  append_summary "| npm | \`$npm_version\` |"
+  append_summary "| corepack | \`$corepack_version\` |"
+  append_summary "| pnpm | \`$pnpm_version\` |"
+  append_summary "| docker | \`$docker_version\` |"
+  append_summary ""
+  append_summary "### Storage"
+  append_summary ""
+  append_summary "| Path | Available |"
+  append_summary "| --- | --- |"
+  append_summary "| / | \`$disk_root\` |"
+  append_summary "| workspace | \`$workspace_disk\` |"
+  append_summary "| pnpm store | \`$pnpm_store\` |"
+}
+
 json_escape() {
   local value="$1"
   value="${value//\\/\\\\}"
@@ -127,18 +149,6 @@ if [ "$node_major" != "24" ]; then
   exit 1
 fi
 
-append_summary ""
-append_summary "### Toolchain"
-append_summary ""
-append_summary "| Tool | Version |"
-append_summary "| --- | --- |"
-append_summary "| git | \`$git_version\` |"
-append_summary "| node | \`$node_version\` |"
-append_summary "| npm | \`$npm_version\` |"
-append_summary "| corepack | \`$corepack_version\` |"
-append_summary "| pnpm | \`$pnpm_version\` |"
-append_summary "| docker | \`$docker_version\` |"
-
 if [ -n "$pnpm_store_dir" ]; then
   mkdir -p "$pnpm_store_dir"
   export npm_config_store_dir="$pnpm_store_dir"
@@ -148,14 +158,9 @@ export npm_config_fetch_retry_maxtimeout="$pnpm_fetch_retry_maxtimeout"
 export npm_config_fetch_retry_mintimeout="$pnpm_fetch_retry_mintimeout"
 export npm_config_network_timeout="$pnpm_network_timeout"
 
-append_summary ""
-append_summary "### Storage"
-append_summary ""
-append_summary "| Path | Available |"
-append_summary "| --- | --- |"
-append_summary "| / | \`$disk_root\` |"
-append_summary "| workspace | \`$workspace_disk\` |"
-append_summary "| pnpm store | \`$pnpm_store\` |"
+if [ "$mode" = "probe" ]; then
+  append_toolchain_storage_summary
+fi
 
 docker_status="skipped"
 if [ "$allow_docker" = "1" ]; then
@@ -267,6 +272,8 @@ if [ "$mode" = "setup" ] || [ "$mode" = "core" ] || [ "$mode" = "policy" ] || [ 
     echo "missing required pnpm shim after corepack prepare" >&2
     exit 1
   fi
+
+  append_toolchain_storage_summary
 
   append_summary ""
   append_summary "### Install"
