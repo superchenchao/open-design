@@ -9,7 +9,7 @@
  * islands only when behavior is needed.
  */
 
-import { Header, type HeaderProps } from './_components/header';
+import { AMR_URL, Header, type HeaderProps } from './_components/header';
 import { Wire } from './_components/wire';
 import {
   DEFAULT_LOCALE,
@@ -1156,10 +1156,7 @@ export default function Page({
                 </li>
               </ul>
               <div className='amr-band-actions'>
-                <a
-                  className='nav-cta amr-band-cta'
-                  href='https://open-design.ai/amr/'
-                >
+                <a className='nav-cta amr-band-cta' href={AMR_URL}>
                   {home.amrBand.cta}
                 </a>
               </div>

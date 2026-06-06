@@ -30,7 +30,10 @@ import {
 const REPO = 'https://github.com/nexu-io/open-design';
 const DISCORD = 'https://discord.gg/9ptkbbqRu';
 const X_TWITTER = 'https://x.com/nexudotio';
-const AMR_URL = 'https://open-design.ai/amr/';
+// Canonical AMR destination. Exported so the homepage AMR band CTA
+// (app/page.tsx) links to the same URL the nav uses, without a second
+// hand-maintained copy of the literal.
+export const AMR_URL = 'https://open-design.ai/amr/';
 
 const ext = {
   target: '_blank',
