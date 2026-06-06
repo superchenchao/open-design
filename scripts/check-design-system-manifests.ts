@@ -365,7 +365,7 @@ function validateTokenSourceLineReferences(
     if (reference === undefined) continue;
     hasTokensCssSource = true;
     const line = lines[reference.line - 1];
-    if (line === undefined || !line.includes(binding.name)) {
+    if (line === undefined || !lineDeclaresToken(line, binding.name)) {
       violations.push(
         `${repositoryManifestPath}: ${reportPath} token ${binding.name} source ${source} must point to a ${tokensPath} line declaring ${binding.name}`,
       );
@@ -384,6 +384,14 @@ function parseTokenSourceReference(source: string, tokensPath: string): { line: 
   const line = Number(source.slice(prefix.length));
   if (!Number.isInteger(line) || line < 1) return undefined;
   return { line };
+}
+
+function lineDeclaresToken(line: string, tokenName: string): boolean {
+  return new RegExp(`^\\s*${escapeRegExp(tokenName)}\\s*:`).test(line);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function normalizeTokenValue(value: string): string {
