@@ -16,6 +16,7 @@ const DIFF_COLOR = [255, 76, 76] as const;
 const IGNORED_REFERENCE_SCAN_DIRS = new Set(['critique', 'dist', 'node_modules', '.next']);
 const AUTO_DISCOVERED_REFERENCE_IMAGE_RE = /\.png$/i;
 const PACKAGED_PLAYWRIGHT_BROWSERS_DIR = 'ms-playwright';
+const VISUAL_VALIDATION_CHROMIUM_CHANNEL = 'chromium';
 
 export interface VisualValidationCaptureInput {
   entryFile: string;
@@ -247,7 +248,7 @@ async function comparePngs(input: {
 async function captureWithPlaywright(input: VisualValidationCaptureInput): Promise<void> {
   configurePackagedPlaywrightEnvironment();
   const { chromium } = await import('playwright');
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(resolveVisualValidationChromiumLaunchOptions());
   try {
     const page = await browser.newPage({ viewport: input.viewport, deviceScaleFactor: 1 });
     await stabilizePage(page);
@@ -261,6 +262,15 @@ async function captureWithPlaywright(input: VisualValidationCaptureInput): Promi
   } finally {
     await browser.close();
   }
+}
+
+export function resolveVisualValidationChromiumLaunchOptions(): { channel: 'chromium' } {
+  return {
+    // Playwright's default headless launch uses chromium_headless_shell-*.
+    // Packaged builds may legitimately ship only chromium-* via `--no-shell`,
+    // so force the bundled Chromium new-headless channel instead.
+    channel: VISUAL_VALIDATION_CHROMIUM_CHANNEL,
+  };
 }
 
 export function resolvePackagedPlaywrightBrowsersPath(env: NodeJS.ProcessEnv = process.env): string | null {

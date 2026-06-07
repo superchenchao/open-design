@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { PNG } from 'pngjs';
 import {
+  resolveVisualValidationChromiumLaunchOptions,
   resolvePackagedPlaywrightBrowsersPath,
   runVisualValidation,
   similarityToCritiqueScore,
@@ -308,6 +309,12 @@ describe('visual validation atom runner', () => {
         PLAYWRIGHT_BROWSERS_PATH: '/custom/playwright-cache',
       } as NodeJS.ProcessEnv),
     ).toBe('/custom/playwright-cache');
+  });
+
+  it('launches visual validation with Playwright new-headless Chromium', () => {
+    expect(resolveVisualValidationChromiumLaunchOptions()).toEqual({
+      channel: 'chromium',
+    });
   });
 
   it('skips ignored dependency trees before recursing for references', async () => {
