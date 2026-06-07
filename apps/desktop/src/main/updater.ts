@@ -1085,6 +1085,36 @@ function validateLauncherPayloadManifest(value: unknown, expected: {
   return value as LauncherPayloadManifest;
 }
 
+async function assertLauncherPayloadBootConfig(input: {
+  manifest: LauncherPayloadManifest;
+  payloadRoot: string;
+  stagingRoot: string;
+}): Promise<void> {
+  const resourcesPath = input.manifest.platform === "darwin"
+    ? join(input.stagingRoot, input.manifest.entry?.cwd ?? "", "Contents", "Resources")
+    : join(input.payloadRoot, "resources");
+  if (!containsPath(input.stagingRoot, resourcesPath)) {
+    throw new Error("launcher payload resources path escaped extracted payload");
+  }
+  const resourcesEntry = await lstat(resourcesPath);
+  if (!resourcesEntry.isDirectory() || resourcesEntry.isSymbolicLink()) {
+    throw new Error("launcher payload resources must be a plain directory");
+  }
+  const packagedConfigPath = join(resourcesPath, "open-design-config.json");
+  if (!containsPath(input.stagingRoot, packagedConfigPath)) {
+    throw new Error("launcher payload config path escaped extracted payload");
+  }
+  const rawConfig = await readJsonStrict<unknown>(packagedConfigPath);
+  if (!isRecord(rawConfig)) throw new Error("launcher payload config must be a JSON object");
+  const resourceRoot = typeof rawConfig.resourceRoot === "string" && rawConfig.resourceRoot.length > 0
+    ? rawConfig.resourceRoot
+    : join(resourcesPath, "open-design");
+  const resourceRootEntry = await lstat(resourceRoot);
+  if (!resourceRootEntry.isDirectory() || resourceRootEntry.isSymbolicLink()) {
+    throw new Error("launcher payload resource root must be a plain directory");
+  }
+}
+
 async function defaultExtractLauncherPayloadArchive(input: LauncherPayloadExtractInput): Promise<void> {
   await mkdir(input.destinationRoot, { recursive: true });
   if (input.platform === "darwin") {
@@ -1158,6 +1188,7 @@ async function applyLauncherPayloadRelease(input: {
     if (!payloadRootEntry.isDirectory() || payloadRootEntry.isSymbolicLink()) {
       throw new Error("launcher payload root must be a plain directory");
     }
+    await assertLauncherPayloadBootConfig({ manifest, payloadRoot, stagingRoot });
 
     await mkdir(versionPaths.versionsRoot, { recursive: true });
     await rm(versionPaths.versionRoot, { force: true, recursive: true });
