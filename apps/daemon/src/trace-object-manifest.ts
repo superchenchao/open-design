@@ -150,6 +150,7 @@ function readRelayConfig(env: NodeJS.ProcessEnv): ObjectRelayConfig | null {
   if (!url) return null;
   const uploadSecret = env.OPEN_DESIGN_OBJECT_UPLOAD_SECRET?.trim();
   if (!uploadSecret) return null;
+  if (env.NODE_ENV !== 'test') return null;
   return {
     url,
     uploadSecret,

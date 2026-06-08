@@ -271,6 +271,35 @@ describe('telemetry worker', () => {
     expect(put).not.toHaveBeenCalled();
   });
 
+  it('rejects signed-looking object batches when server upload authority is absent', async () => {
+    const put = vi.fn(async () => ({}));
+    const response = await worker.fetch(
+      makeObjectRequest({
+        client_id: 'installation-1',
+        project_id: 'proj-1',
+        run_id: 'run-1',
+        objects: [
+          {
+            storage_ref: 'od://objects/workspaces/unknown/projects/proj-1/runs/run-1/attachment/att-1/brief.txt',
+            object_class: 'attachment',
+            mime: 'text/plain',
+            content_base64: base64('hello object'),
+          },
+        ],
+      }),
+      {
+        ...env,
+        TRACE_OBJECT_BUCKET: { put },
+      },
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      error: 'object relay upload authority is not configured',
+    });
+    expect(put).not.toHaveBeenCalled();
+  });
+
   it('rejects object refs outside the signed project and run namespace', async () => {
     const put = vi.fn(async () => ({}));
     const response = await worker.fetch(

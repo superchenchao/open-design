@@ -62,6 +62,7 @@ describe('buildTraceObjectManifests', () => {
       prefs: { metrics: true, content: true, artifactManifest: true },
       fetchImpl: fetchSpy as any,
       env: {
+        NODE_ENV: 'test',
         OPEN_DESIGN_OBJECT_RELAY_URL: 'https://telemetry.open-design.ai/api/objects/batch',
         OPEN_DESIGN_OBJECT_UPLOAD_SECRET: 'object-upload-secret',
         OPEN_DESIGN_OBJECT_MAX_BYTES: '1024',
@@ -137,6 +138,7 @@ describe('buildTraceObjectManifests', () => {
       prefs: { metrics: true, content: true, artifactManifest: true },
       fetchImpl: fetchSpy as any,
       env: {
+        NODE_ENV: 'test',
         OPEN_DESIGN_OBJECT_RELAY_URL: 'https://telemetry.open-design.ai/api/objects/batch',
         OPEN_DESIGN_OBJECT_UPLOAD_SECRET: 'object-upload-secret',
       },
@@ -196,6 +198,7 @@ describe('buildTraceObjectManifests', () => {
       prefs: { metrics: true, content: true, artifactManifest: true },
       fetchImpl: fetchSpy as any,
       env: {
+        NODE_ENV: 'test',
         OPEN_DESIGN_OBJECT_RELAY_URL: 'https://telemetry.open-design.ai/api/objects/batch',
         OPEN_DESIGN_OBJECT_UPLOAD_SECRET: 'object-upload-secret',
       },
@@ -205,5 +208,35 @@ describe('buildTraceObjectManifests', () => {
     expect(batchSizes).toEqual([100, 1]);
     expect(manifests?.completeness).toBe('complete');
     expect(manifests?.artifactManifest).toHaveLength(101);
+  });
+
+  it('does not mint object upload signatures from packaged release configuration', async () => {
+    const projectsRoot = path.join(dataDir, 'projects');
+    const projectDir = path.join(projectsRoot, 'proj-1');
+    await mkdir(projectDir, { recursive: true });
+    await writeFile(path.join(projectDir, 'artifact.txt'), 'release artifact');
+    const fetchSpy = vi.fn();
+
+    const manifests = await buildTraceObjectManifests({
+      installationId: 'install-1',
+      projectId: 'proj-1',
+      runId: 'run-1',
+      projectsRoot,
+      artifacts: [
+        { summary: { slug: 'artifact.txt', type: 'text', sizeBytes: 'release artifact'.length } },
+      ],
+      prompt: 'prompt',
+      prefs: { metrics: true, content: true, artifactManifest: true },
+      fetchImpl: fetchSpy as any,
+      env: {
+        NODE_ENV: 'production',
+        OPEN_DESIGN_OBJECT_RELAY_URL: 'https://telemetry.open-design.ai/api/objects/batch',
+        OPEN_DESIGN_OBJECT_UPLOAD_SECRET: 'object-upload-secret',
+      },
+      now: () => new Date('2026-06-08T00:00:00.000Z'),
+    });
+
+    expect(manifests).toBeUndefined();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

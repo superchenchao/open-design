@@ -34,13 +34,15 @@ Rate Limiting bindings for two independent keys:
 
 Object ingest uses the same rate limit bindings with a separate marker value,
 `X-Open-Design-Telemetry: object-ingestion-v1`, plus a timestamped HMAC in
-`X-Open-Design-Object-Timestamp` and `X-Open-Design-Object-Signature` signed by
-the daemon from `OPEN_DESIGN_OBJECT_UPLOAD_SECRET` and verified by the Worker
-with `TRACE_OBJECT_UPLOAD_SECRET`. The Worker also requires every
-`storage_ref` to match the signed `project_id`, `run_id`, and object class
-payload before deriving an R2 key. It enforces a 50 MiB
-single-object limit and a 100 MiB request-body limit by default. Oversized
-objects are reported as unavailable instead of being written.
+`X-Open-Design-Object-Timestamp` and `X-Open-Design-Object-Signature` verified
+by the Worker with `TRACE_OBJECT_UPLOAD_SECRET`. Packaged daemon clients do not
+mint this authority from a shipped static secret; the daemon-side signing path is
+limited to test fixtures until upload authority can be issued by trusted
+server-side infrastructure. The Worker also requires every `storage_ref` to
+match the signed `project_id`, `run_id`, and object class payload before
+deriving an R2 key. It enforces a 50 MiB single-object limit and a 100 MiB
+request-body limit by default. Oversized objects are reported as unavailable
+instead of being written.
 
 ## Secrets
 

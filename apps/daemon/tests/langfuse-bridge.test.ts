@@ -478,6 +478,7 @@ describe('langfuse-bridge.reportRunCompletedFromDaemon', () => {
       .mockResolvedValueOnce(new Response('{}', { status: 207 }));
 
     process.env.OPEN_DESIGN_OBJECT_RELAY_URL = 'https://telemetry.open-design.ai/api/objects/batch';
+    process.env.OPEN_DESIGN_OBJECT_UPLOAD_SECRET = 'object-upload-secret';
     process.env.LANGFUSE_PUBLIC_KEY = 'pk';
     process.env.LANGFUSE_SECRET_KEY = 'sk';
     try {
@@ -501,6 +502,7 @@ describe('langfuse-bridge.reportRunCompletedFromDaemon', () => {
       });
     } finally {
       delete process.env.OPEN_DESIGN_OBJECT_RELAY_URL;
+      delete process.env.OPEN_DESIGN_OBJECT_UPLOAD_SECRET;
       delete process.env.LANGFUSE_PUBLIC_KEY;
       delete process.env.LANGFUSE_SECRET_KEY;
     }
@@ -598,6 +600,7 @@ describe('langfuse-bridge.reportRunCompletedFromDaemon', () => {
     });
 
     process.env.OPEN_DESIGN_OBJECT_RELAY_URL = 'https://telemetry.open-design.ai/api/objects/batch';
+    process.env.OPEN_DESIGN_OBJECT_UPLOAD_SECRET = 'object-upload-secret';
     process.env.LANGFUSE_PUBLIC_KEY = 'pk';
     process.env.LANGFUSE_SECRET_KEY = 'sk';
     try {
@@ -623,6 +626,7 @@ describe('langfuse-bridge.reportRunCompletedFromDaemon', () => {
       });
     } finally {
       delete process.env.OPEN_DESIGN_OBJECT_RELAY_URL;
+      delete process.env.OPEN_DESIGN_OBJECT_UPLOAD_SECRET;
       delete process.env.LANGFUSE_PUBLIC_KEY;
       delete process.env.LANGFUSE_SECRET_KEY;
     }
