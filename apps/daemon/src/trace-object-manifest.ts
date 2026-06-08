@@ -15,6 +15,7 @@ const OBJECT_RELAY_MARKER_HEADER = 'X-Open-Design-Telemetry';
 const OBJECT_RELAY_MARKER_VALUE = 'object-ingestion-v1';
 const DEFAULT_RETENTION_DAYS = 90;
 const DEFAULT_OBJECT_MAX_BYTES = 50 * 1024 * 1024;
+const DEFAULT_OBJECT_BATCH_MAX_BYTES = 100 * 1024 * 1024;
 
 type ObjectClass = 'attachment' | 'artifact' | 'input_text_snapshot';
 type TraceObjectManifestEntry =
@@ -64,6 +65,7 @@ interface ObjectRelayConfig {
   url: string;
   timeoutMs: number;
   objectMaxBytes: number;
+  objectBatchMaxBytes: number;
 }
 
 interface RelayResult {
@@ -72,6 +74,14 @@ interface RelayResult {
   reason?: string;
   size_bytes?: number;
   sha256?: string;
+}
+
+interface ObjectRelayRequestObject {
+  storage_ref: string;
+  object_class: ObjectClass;
+  filename: string;
+  mime: string;
+  content_base64: string;
 }
 
 function byteLength(value: string): number {
@@ -137,6 +147,10 @@ function readRelayConfig(env: NodeJS.ProcessEnv): ObjectRelayConfig | null {
     objectMaxBytes: parsePositiveInt(
       env.OPEN_DESIGN_OBJECT_MAX_BYTES,
       DEFAULT_OBJECT_MAX_BYTES,
+    ),
+    objectBatchMaxBytes: parsePositiveInt(
+      env.OPEN_DESIGN_OBJECT_BATCH_MAX_BYTES ?? env.TRACE_OBJECT_BATCH_MAX_BYTES,
+      DEFAULT_OBJECT_BATCH_MAX_BYTES,
     ),
   };
 }
@@ -204,6 +218,106 @@ function manifestBase(
     type: 'text',
     source: 'user_prompt',
   };
+}
+
+function buildObjectBatchBody(
+  opts: BuildTraceObjectManifestsOptions,
+  objects: ObjectRelayRequestObject[],
+): string {
+  return JSON.stringify({
+    client_id: opts.installationId ?? undefined,
+    project_id: opts.projectId,
+    run_id: opts.runId,
+    objects,
+  });
+}
+
+function splitObjectBatches(
+  config: ObjectRelayConfig,
+  opts: BuildTraceObjectManifestsOptions,
+  objects: ObjectRelayRequestObject[],
+): {
+  batches: ObjectRelayRequestObject[][];
+  overflowResults: RelayResult[];
+} {
+  const batches: ObjectRelayRequestObject[][] = [];
+  const overflowResults: RelayResult[] = [];
+  let current: ObjectRelayRequestObject[] = [];
+
+  for (const object of objects) {
+    if (byteLength(buildObjectBatchBody(opts, [object])) > config.objectBatchMaxBytes) {
+      overflowResults.push({
+        storage_ref: object.storage_ref,
+        status: 'unavailable',
+        reason: 'object_batch_too_large',
+      });
+      continue;
+    }
+
+    const next = [...current, object];
+    if (
+      current.length > 0 &&
+      byteLength(buildObjectBatchBody(opts, next)) > config.objectBatchMaxBytes
+    ) {
+      batches.push(current);
+      current = [object];
+    } else {
+      current = next;
+    }
+  }
+
+  if (current.length > 0) batches.push(current);
+  return { batches, overflowResults };
+}
+
+async function postObjects(
+  config: ObjectRelayConfig,
+  opts: BuildTraceObjectManifestsOptions,
+  objects: ObjectRelayRequestObject[],
+): Promise<RelayResult[]> {
+  const body = buildObjectBatchBody(opts, objects);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
+  try {
+    const fetchImpl = opts.fetchImpl ?? fetch;
+    const response = await fetchImpl(config.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        [OBJECT_RELAY_MARKER_HEADER]: OBJECT_RELAY_MARKER_VALUE,
+      },
+      body,
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      return objects.map((object) => ({
+        storage_ref: object.storage_ref,
+        status: 'unavailable',
+        reason: `relay_${response.status}`,
+      }));
+    }
+    const parsed = await response.json().catch(() => null);
+    if (
+      !parsed ||
+      typeof parsed !== 'object' ||
+      !Array.isArray((parsed as { objects?: unknown }).objects)
+    ) {
+      return objects.map((object) => ({
+        storage_ref: object.storage_ref,
+        status: 'unavailable',
+        reason: 'relay_invalid_response',
+      }));
+    }
+    return (parsed as { objects: RelayResult[] }).objects;
+  } catch {
+    return objects.map((object) => ({
+      storage_ref: object.storage_ref,
+      status: 'unavailable',
+      reason: 'relay_network_error',
+    }));
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function collectSources(
@@ -331,49 +445,12 @@ async function postObjectBatch(
 
   if (objects.length === 0) return [];
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), config.timeoutMs);
-  try {
-    const fetchImpl = opts.fetchImpl ?? fetch;
-    const response = await fetchImpl(config.url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        [OBJECT_RELAY_MARKER_HEADER]: OBJECT_RELAY_MARKER_VALUE,
-      },
-      body: JSON.stringify({
-        client_id: opts.installationId ?? undefined,
-        project_id: opts.projectId,
-        run_id: opts.runId,
-        objects,
-      }),
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      return objects.map((object) => ({
-        storage_ref: object.storage_ref,
-        status: 'unavailable',
-        reason: `relay_${response.status}`,
-      }));
-    }
-    const parsed = await response.json().catch(() => null);
-    if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as { objects?: unknown }).objects)) {
-      return objects.map((object) => ({
-        storage_ref: object.storage_ref,
-        status: 'unavailable',
-        reason: 'relay_invalid_response',
-      }));
-    }
-    return (parsed as { objects: RelayResult[] }).objects;
-  } catch {
-    return objects.map((object) => ({
-      storage_ref: object.storage_ref,
-      status: 'unavailable',
-      reason: 'relay_network_error',
-    }));
-  } finally {
-    clearTimeout(timer);
+  const { batches, overflowResults } = splitObjectBatches(config, opts, objects);
+  const batchResults: RelayResult[] = [];
+  for (const batch of batches) {
+    batchResults.push(...await postObjects(config, opts, batch));
   }
+  return [...batchResults, ...overflowResults];
 }
 
 function groupManifests(entries: TraceObjectManifestEntry[]): TraceObjectUploadManifests {
