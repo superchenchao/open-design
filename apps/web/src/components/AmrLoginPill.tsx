@@ -20,7 +20,7 @@ import {
   amrLoginStatusEventReason,
   notifyAmrLoginStatusChanged,
 } from './amrLoginPolling';
-import { AMR_CONSOLE_URL } from '../runtime/amr-guidance';
+import { amrConsoleUrlForProfile } from '../runtime/amr-guidance';
 
 interface AmrLoginPillProps {
   className?: string;
@@ -107,7 +107,7 @@ export function AmrAccountControl({
   hideSignedInStatus = false,
   signInLabel,
   showConsoleAction = false,
-  consoleUrl = AMR_CONSOLE_URL,
+  consoleUrl,
   showCancelSignInAction = false,
   onSignIn,
   onSignOut,
@@ -117,11 +117,13 @@ export function AmrAccountControl({
   cancelSignInDisabled = false,
 }: AmrAccountControlProps) {
   const { t } = useI18n();
-  const badgeLabel = showProfileBadge ? profileBadgeLabel(profile) : null;
   const isSignedIn = status === 'signed-in';
   const isSigningIn = status === 'signing-in';
   const isCanceled = status === 'canceled';
   const hasError = status === 'error';
+  const badgeLabel = showProfileBadge ? profileBadgeLabel(profile) : null;
+  const visibleBadgeLabel = isSignedIn ? badgeLabel : null;
+  const resolvedConsoleUrl = consoleUrl ?? amrConsoleUrlForProfile(profile);
   const loginErrorText = errorMessage || t('settings.amrLoginErrorCompact');
   const statusText = isSignedIn
     ? hideSignedInStatus
@@ -148,12 +150,17 @@ export function AmrAccountControl({
       aria-label={t('settings.amrAccountStatus')}
     >
       {statusText ? (
-        <span className="amr-account-control__status">{statusText}</span>
+        <span className="amr-account-control__status">
+          <span className="amr-account-control__status-text">{statusText}</span>
+          {visibleBadgeLabel ? (
+            <span className="amr-login-pill-badge">{visibleBadgeLabel}</span>
+          ) : null}
+        </span>
       ) : null}
       {isSignedIn && showConsoleAction ? (
         <a
           className="amr-account-control__action"
-          href={consoleUrl}
+          href={resolvedConsoleUrl}
           target="_blank"
           rel="noopener noreferrer"
           aria-label={t('settings.amrConsole')}
@@ -193,9 +200,6 @@ export function AmrAccountControl({
         >
           {signInLabel ?? t('settings.amrSignIn')}
         </button>
-      ) : null}
-      {badgeLabel ? (
-        <span className="amr-login-pill-badge">{badgeLabel}</span>
       ) : null}
       {hasError ? (
         <span className="amr-account-control__error" role="alert">
