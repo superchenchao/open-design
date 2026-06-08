@@ -2014,6 +2014,39 @@ describe('POST /api/test/connection agent mode', () => {
     );
   });
 
+  it('resolves the AMR connection-test scope from the merged launch env', async () => {
+    rememberLiveModels('amr', [{ id: 'local-env-model', label: 'local-env-model' }], 'local');
+    const previousProfile = process.env.OPEN_DESIGN_AMR_PROFILE;
+    process.env.OPEN_DESIGN_AMR_PROFILE = 'local';
+
+    try {
+      await withFakeAgent(
+        'vela',
+        `void import(${JSON.stringify(pathToFileURL(FAKE_VELA_FIXTURE).href)});\n`,
+        async () => {
+          const result = await testAgentConnection({
+            agentId: 'amr',
+            agentCliEnv: {
+              amr: {
+                VELA_BIN: '/tmp/fake-vela-bin',
+              },
+            },
+          });
+
+          expect(result).toMatchObject({
+            ok: true,
+            kind: 'success',
+            agentName: 'AMR',
+            sample: 'Hello from fake vela.',
+          });
+        },
+      );
+    } finally {
+      if (previousProfile === undefined) delete process.env.OPEN_DESIGN_AMR_PROFILE;
+      else process.env.OPEN_DESIGN_AMR_PROFILE = previousProfile;
+    }
+  });
+
   it('reports success for a fake Codex agent response', async () => {
     await withFakeCodex(
       `

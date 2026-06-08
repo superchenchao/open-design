@@ -1606,6 +1606,7 @@ function attachAgentStreamHandlers(
   prompt: string,
   cwd: string,
   model: string | undefined,
+  modelEnv: Record<string, string | undefined>,
   liveModelScope: string | null,
   send: (event: string, payload: unknown) => void,
   appendRawStdout?: (chunk: string) => void,
@@ -1647,7 +1648,7 @@ function attachAgentStreamHandlers(
       // concrete fallback id here too, otherwise Test connection deadlocks
       // on the same `session/set_model must be called before session/prompt`
       // error the chat-run path already handles.
-      model: resolveModelForAgent(def as never, model ?? null, process.env, liveModelScope),
+      model: resolveModelForAgent(def as never, model ?? null, modelEnv, liveModelScope),
       mcpServers: [],
       send,
     });
@@ -1713,7 +1714,6 @@ async function testAgentConnectionInternal(
     validateAgentCliEnv(input.agentCliEnv),
     input.agentId,
   );
-  const liveModelScope = input.agentId === 'amr' ? resolveAmrProfile(configuredAgentEnv) : null;
   const executableResolution = resolveAgentLaunch(def, configuredAgentEnv);
   const resolvedBin = executableResolution.selectedPath;
   if (!resolvedBin || !executableResolution.launchPath) {
@@ -1915,6 +1915,7 @@ async function testAgentConnectionInternal(
       undefined,
       { resolvedBin: executableResolution.selectedPath },
     );
+    const liveModelScope = input.agentId === 'amr' ? resolveAmrProfile(baseEnv) : null;
     const mmdRouteLaunchEnv = input.agentId === 'claude'
       ? await loadMmdRouteLaunchEnv(
           {
@@ -1987,6 +1988,7 @@ async function testAgentConnectionInternal(
       SMOKE_PROMPT,
       tempDir,
       input.model,
+      env,
       liveModelScope,
       sink.send,
       sink.appendRawStdout,

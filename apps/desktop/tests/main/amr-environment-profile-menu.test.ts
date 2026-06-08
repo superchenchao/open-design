@@ -20,6 +20,15 @@ describe("AMR Environment Profile desktop menu helpers", () => {
     const result = mergeAmrEnvironmentProfileConfig(
       {
         agentId: "claude",
+        agentModels: {
+          amr: {
+            model: "deepseek-v4-flash",
+            reasoning: "default",
+          },
+          claude: {
+            model: "sonnet",
+          },
+        },
         agentCliEnv: {
           amr: {
             VELA_BIN: "/opt/open-design/vela",
@@ -37,6 +46,11 @@ describe("AMR Environment Profile desktop menu helpers", () => {
 
     expect(result).toEqual({
       agentId: "claude",
+      agentModels: {
+        claude: {
+          model: "sonnet",
+        },
+      },
       agentCliEnv: {
         amr: {
           VELA_BIN: "/opt/open-design/vela",
@@ -58,6 +72,28 @@ describe("AMR Environment Profile desktop menu helpers", () => {
           OPEN_DESIGN_AMR_PROFILE: "test",
         },
       },
+    });
+  });
+
+  it("drops agentModels when AMR was the only persisted model choice", () => {
+    expect(
+      mergeAmrEnvironmentProfileConfig(
+        {
+          agentModels: {
+            amr: {
+              model: "deepseek-v4-flash",
+            },
+          },
+        },
+        "test",
+      ),
+    ).toEqual({
+      agentCliEnv: {
+        amr: {
+          OPEN_DESIGN_AMR_PROFILE: "test",
+        },
+      },
+      agentModels: undefined,
     });
   });
 

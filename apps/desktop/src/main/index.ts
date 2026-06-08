@@ -81,6 +81,7 @@ const AMR_ENVIRONMENT_PROFILES = ["prod", "test", "local"] as const;
 const APP_CONFIG_CHANGED_IPC_CHANNEL = "od:app-config-changed";
 type AmrEnvironmentProfile = (typeof AMR_ENVIRONMENT_PROFILES)[number];
 type DesktopAppConfigPrefs = {
+  agentModels?: Record<string, { model?: string; reasoning?: string }>;
   agentCliEnv?: Record<string, Record<string, string>>;
   [key: string]: unknown;
 };
@@ -206,8 +207,13 @@ export function mergeAmrEnvironmentProfileConfig(
   if (!AMR_ENVIRONMENT_PROFILES.includes(profile)) {
     throw new Error(`Unsupported AMR Environment Profile: ${String(profile)}`);
   }
+  const nextAgentModels = { ...(config.agentModels ?? {}) };
+  delete nextAgentModels[AMR_PROFILE_AGENT_ID];
   return {
     ...config,
+    ...(Object.keys(nextAgentModels).length > 0
+      ? { agentModels: nextAgentModels }
+      : { agentModels: undefined }),
     agentCliEnv: {
       ...(config.agentCliEnv ?? {}),
       [AMR_PROFILE_AGENT_ID]: {
