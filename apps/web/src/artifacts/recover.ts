@@ -9,6 +9,7 @@ type RecoverHtmlArtifactInput = {
 const HTML_OPEN_RE = /<html\b/gi;
 const HTML_CLOSE_RE = /<\/html\s*>/gi;
 const ADJACENT_DOCTYPE_RE = /<!doctype\s+html\b[^>]*>\s*$/i;
+const HTML_FENCE_RE = /```(?:html|HTML)\s*\n([\s\S]*?)\n```/g;
 
 function findLastArtifactOpen(sourceText: string, identifier?: string): number {
   if (!identifier) return sourceText.lastIndexOf('<artifact');
@@ -71,4 +72,20 @@ export function recoverStandaloneHtmlDocument(sourceText: string | null | undefi
   const candidate = String(sourceText || '').replace(/^﻿/, '').trim();
   if (!/<\/html\s*>$/i.test(candidate)) return null;
   return validateHtmlArtifact(candidate).ok ? candidate : null;
+}
+
+export function recoverHtmlDocumentFromMarkdownFence(sourceText: string | null | undefined): string | null {
+  const text = String(sourceText || '');
+  HTML_FENCE_RE.lastIndex = 0;
+  let recovered: string | null = null;
+  let count = 0;
+  let match: RegExpExecArray | null;
+  while ((match = HTML_FENCE_RE.exec(text)) !== null) {
+    const candidate = (match[1] || '').replace(/^﻿/, '').trim();
+    if (!/<\/html\s*>$/i.test(candidate)) continue;
+    if (!validateHtmlArtifact(candidate).ok) continue;
+    recovered = candidate;
+    count += 1;
+  }
+  return count === 1 ? recovered : null;
 }

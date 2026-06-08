@@ -14,7 +14,7 @@ import { AnimatePresence } from 'motion/react';
 import { createHtmlArtifactManifest, inferLegacyManifest } from '../artifacts/manifest';
 import { resolveHtmlPointerArtifactTarget } from '../artifacts/pointer';
 import { validateHtmlArtifact } from '../artifacts/validate';
-import { recoverHtmlArtifactFromPrecedingDocument, recoverStandaloneHtmlDocument } from '../artifacts/recover';
+import { recoverHtmlArtifactFromPrecedingDocument, recoverHtmlDocumentFromMarkdownFence, recoverStandaloneHtmlDocument } from '../artifacts/recover';
 import { createArtifactParser } from '../artifacts/parser';
 import {
   findFirstQuestionForm,
@@ -1747,7 +1747,8 @@ export function ProjectView({
   );
 
   const artifactFromStandaloneHtml = useCallback((sourceText: string): Artifact | null => {
-    const html = recoverStandaloneHtmlDocument(sourceText);
+    const html = recoverStandaloneHtmlDocument(sourceText)
+      ?? recoverHtmlDocumentFromMarkdownFence(sourceText);
     if (!html) return null;
     return {
       identifier: 'response',

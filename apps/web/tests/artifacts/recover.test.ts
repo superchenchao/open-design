@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { recoverHtmlArtifactFromPrecedingDocument, recoverStandaloneHtmlDocument } from '../../src/artifacts/recover';
+import { recoverHtmlArtifactFromPrecedingDocument, recoverHtmlDocumentFromMarkdownFence, recoverStandaloneHtmlDocument } from '../../src/artifacts/recover';
 
 const completeHtml = '<!doctype html><html><head><title>Demo</title></head><body><main><h1>Recovered artifact</h1></main></body></html>';
 
@@ -80,5 +80,33 @@ describe('recoverStandaloneHtmlDocument', () => {
 
   it('does not recover document-shaped output missing a closing html tag', () => {
     expect(recoverStandaloneHtmlDocument('<!doctype html><html><body><main><h1>Missing close</h1></main></body>')).toBeNull();
+  });
+});
+
+describe('recoverHtmlDocumentFromMarkdownFence', () => {
+  it('recovers a single complete html fenced code block from prose', () => {
+    expect(recoverHtmlDocumentFromMarkdownFence([
+      '明白了，这是落地页原型。',
+      '',
+      '```html',
+      completeHtml,
+      '```',
+    ].join('\n'))).toBe(completeHtml);
+  });
+
+  it('does not recover non-html fences or partial html snippets', () => {
+    expect(recoverHtmlDocumentFromMarkdownFence(['```ts', completeHtml, '```'].join('\n'))).toBeNull();
+    expect(recoverHtmlDocumentFromMarkdownFence('```html\n<main><h1>Snippet</h1></main>\n```')).toBeNull();
+  });
+
+  it('does not guess when multiple complete html fences are present', () => {
+    expect(recoverHtmlDocumentFromMarkdownFence([
+      '```html',
+      completeHtml,
+      '```',
+      '```html',
+      completeHtml.replace('Demo', 'Second'),
+      '```',
+    ].join('\n'))).toBeNull();
   });
 });
