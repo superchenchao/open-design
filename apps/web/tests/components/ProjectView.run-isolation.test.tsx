@@ -1109,6 +1109,48 @@ describe('ProjectView conversation run isolation', () => {
     expect(screen.getByTestId('conversation-latest-runs').textContent).toContain('conv-a:succeeded');
   });
 
+  it('skips an interrupted reattached run\'s completion side effects when it finishes late', async () => {
+    // The interrupted run is tagged superseded synchronously at send-now time
+    // (before handleStop clears the refs), so its late onDone — which the
+    // daemon still delivers for the canceled run — must not run the completion
+    // flow (file refresh, artifact persist, produced-file attach) even though
+    // it could land before the replacement send attaches.
+    let reattachHandlers: { onDone: () => void } | null = null;
+    reattachDaemonRun.mockImplementation(async (input: unknown) => {
+      reattachHandlers = (input as { handlers: { onDone: () => void } }).handlers;
+      return new Promise<void>(() => {});
+    });
+    streamViaDaemon.mockImplementation(async (input: unknown) => {
+      const options = input as {
+        onRunCreated?: (runId: string) => void;
+        onRunStatus?: (status: NonNullable<ChatMessage['runStatus']>) => void;
+      };
+      options.onRunCreated?.('run-replacement');
+      options.onRunStatus?.('running');
+    });
+
+    renderProjectView();
+
+    await waitFor(() => expect(screen.getByTestId('active-conversation').textContent).toBe('conv-a'));
+    await waitFor(() => expect(screen.getByTestId('streaming-state').textContent).toBe('streaming'));
+
+    fireEvent.click(screen.getByTestId('send-message'));
+    await waitFor(() => expect(screen.getByTestId('send-queued-0').textContent).toBe('hello from b'));
+
+    fireEvent.click(screen.getByTestId('send-queued-0'));
+    await waitFor(() => expect(streamViaDaemon).toHaveBeenCalledTimes(1));
+
+    fetchProjectFiles.mockClear();
+
+    // The superseded reattached run finishes late.
+    await act(async () => {
+      reattachHandlers?.onDone();
+    });
+
+    // Its completion side effects (which refetch the file list) did not run.
+    expect(fetchProjectFiles).not.toHaveBeenCalled();
+  });
+
   it('auto-starts queued sends one at a time after the active run completes', async () => {
     let finishReattach: (() => void) | null = null;
     let reattachHandlers: { onDone: () => void } | null = null;

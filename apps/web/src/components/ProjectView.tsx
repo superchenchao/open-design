@@ -1005,6 +1005,13 @@ export function ProjectView({
   >(null);
   const abortRef = useRef<AbortController | null>(null);
   const cancelRef = useRef<AbortController | null>(null);
+  // Runs explicitly superseded by a "send now" interrupt. Their abort
+  // controller is recorded here synchronously — before handleStop() clears the
+  // active refs — so the run's late terminal callbacks (which the daemon still
+  // delivers for a canceled run) can be recognized as stale and skip every
+  // current-run side effect, independent of abortRef churn. A WeakSet so a
+  // finished run's controller is collected once nothing else references it.
+  const supersededRunsRef = useRef<WeakSet<AbortController>>(new WeakSet());
   const streamingConversationIdRef = useRef<string | null>(null);
   const [queuedChatSends, setQueuedChatSends] = useState<QueuedChatSend[]>([]);
   const queuedChatSendsRef = useRef<QueuedChatSend[]>([]);
@@ -2633,16 +2640,22 @@ export function ProjectView({
               textBuffer.appendEvent(ev);
             },
             onDone: () => {
-              textBuffer.flush();
+              // A reattached run interrupted by a "send now" still receives a
+              // late onDone from the daemon. Decide ownership first, then bail
+              // BEFORE any current-run side effect (committing buffered text,
+              // repainting the artifact preview via setArtifact, re-finalizing
+              // the message) — only release this run's bookkeeping. See the
+              // streamViaDaemon onDone for the ownership rationale.
+              const runMayFinalize =
+                !supersededRunsRef.current.has(controller);
+              if (runMayFinalize) textBuffer.flush();
               textBuffer.cancel();
               unregisterTextBuffer();
-              // A reattached run interrupted by a "send now" still receives a
-              // late onDone from the daemon. Skip its completion side effects
-              // (artifact persist, produced-file attachment) when a newer run
-              // owns the active slot. See the streamViaDaemon onDone for the
-              // ownership rationale.
-              const runMayFinalize =
-                abortRef.current === null || abortRef.current === controller;
+              completedReattachRunsRef.current.add(runId);
+              reattachControllersRef.current.delete(runId);
+              reattachCancelControllersRef.current.delete(runId);
+              clearCurrentRunStreamingMarker(reattachConversationId, controller, cancelController);
+              if (!runMayFinalize) return;
               for (const ev of parser.flush()) {
                 if (ev.type === 'artifact:end') {
                   parsedArtifact = parsedArtifact
@@ -2667,11 +2680,6 @@ export function ProjectView({
                 true,
                 { telemetryFinalized: true },
               );
-              completedReattachRunsRef.current.add(runId);
-              reattachControllersRef.current.delete(runId);
-              reattachCancelControllersRef.current.delete(runId);
-              clearCurrentRunStreamingMarker(reattachConversationId, controller, cancelController);
-              if (!runMayFinalize) return;
               void (async () => {
                 const preTurn = message.preTurnFileNames;
                 let nextFiles = await refreshProjectFiles();
@@ -2719,7 +2727,7 @@ export function ProjectView({
               // A superseded reattached run must not paint a global failure
               // banner or re-finalize its message over the replacement run.
               const runMayFinalize =
-                abortRef.current === null || abortRef.current === controller;
+                !supersededRunsRef.current.has(controller);
               textBuffer.flush();
               textBuffer.cancel();
               unregisterTextBuffer();
@@ -2772,10 +2780,10 @@ export function ProjectView({
         })
           .catch((err) => {
             // Skip AbortError (expected on interrupt) and any error from a run
-            // that has already been superseded — only the run still holding the
-            // active controllers may surface a global failure here.
+            // that was tagged superseded by a send-now interrupt — it must not
+            // surface a global failure over the replacement.
             const runMayFinalize =
-              abortRef.current === null || abortRef.current === controller;
+              !supersededRunsRef.current.has(controller);
             if ((err as Error).name !== 'AbortError' && runMayFinalize) {
               const msg = err instanceof Error ? err.message : String(err);
               setError(msg);
@@ -3330,13 +3338,12 @@ export function ProjectView({
           // The daemon delivers onDone even for a canceled run, so a run
           // superseded by a "send now" interrupt can still land here and must
           // not apply its completion side effects over the replacement. A run
-          // may finalize when no *newer* run owns the active slot: either this
-          // run still holds it, or the slot is null because this run's own
-          // terminal onRunStatus already cleared it (the normal success path —
-          // onRunStatus fires before onDone). A live replacement leaves abortRef
-          // pointing at a different controller.
+          // may finalize unless it was tagged superseded at interrupt time
+          // (recorded before handleStop cleared the refs), which is reliable
+          // even before the replacement send attaches — unlike abortRef, whose
+          // terminal onRunStatus / handleStop churn make it ambiguous here.
           const runMayFinalize =
-            abortRef.current === null || abortRef.current === controller;
+            !supersededRunsRef.current.has(controller);
           if (!runMayFinalize) {
             textBuffer.cancel();
             cancelSendTextBuffer();
@@ -3449,11 +3456,10 @@ export function ProjectView({
           // A run superseded by a "send now" interrupt can still surface a
           // late disconnect error (e.g. a canceled stream that lost its
           // terminal SSE). It must not paint a global failure banner or
-          // re-finalize its already-canceled assistant message when a newer run
-          // owns the active slot. See the onDone above for the ownership
-          // rationale.
+          // re-finalize its already-canceled assistant message once it was
+          // tagged superseded. See the onDone above for the ownership rationale.
           const runMayFinalize =
-            abortRef.current === null || abortRef.current === controller;
+            !supersededRunsRef.current.has(controller);
           textBuffer.flush();
           textBuffer.cancel();
           cancelSendTextBuffer();
@@ -3561,7 +3567,7 @@ export function ProjectView({
           onRunStatus: (runStatus) => {
             const endedAt = isTerminalRunStatus(runStatus) ? Date.now() : undefined;
             const runMayFinalize =
-              abortRef.current === null || abortRef.current === controller;
+              !supersededRunsRef.current.has(controller);
             updateMessageById(
               assistantId,
               (prev) => ({
@@ -3784,6 +3790,16 @@ export function ProjectView({
       // of its busy state, and the auto-start effect below then flushes the
       // now-first queued send — reusing the same path as a natural completion,
       // so runs never overlap.
+      //
+      // Record the runs we're superseding BEFORE handleStop() clears the active
+      // refs. The daemon still delivers a late terminal callback for the
+      // canceled run; tagging its controller here lets those callbacks be
+      // recognized as stale and skip every current-run side effect, even if the
+      // replacement send hasn't attached yet.
+      if (abortRef.current) supersededRunsRef.current.add(abortRef.current);
+      for (const controller of reattachControllersRef.current.values()) {
+        supersededRunsRef.current.add(controller);
+      }
       prioritizeQueuedChatSend(id);
       handleStop();
       return;
