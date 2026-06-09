@@ -11,12 +11,6 @@ on:
         description: Asset basename (e.g. video-seedance-desk-hologram-ar-realdesk)
         required: true
         type: string
-  push:
-    branches:
-      - template/video-seedance-desk-hologram-ar-realdesk
-    paths:
-      - .github/workflows/publish-repository-template-assets.yml
-
 permissions:
   contents: read
 
@@ -31,34 +25,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Resolve publish inputs
-        id: publish
-        shell: bash
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          INPUT_SOURCE_COMMIT: ${{ inputs.source_commit }}
-          INPUT_ASSET_BASENAME: ${{ inputs.asset_basename }}
-        run: |
-          set -euo pipefail
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            source_commit="$INPUT_SOURCE_COMMIT"
-            asset_basename="$INPUT_ASSET_BASENAME"
-          else
-            source_commit="9ee2e292335a4a5670c90c05b38b0b10f660bca9"
-            asset_basename="video-seedance-desk-hologram-ar-realdesk"
-          fi
-          if [ -z "$source_commit" ] || [ -z "$asset_basename" ]; then
-            echo "Missing source_commit or asset_basename" >&2
-            exit 1
-          fi
-          echo "source_commit=$source_commit" >> "$GITHUB_OUTPUT"
-          echo "asset_basename=$asset_basename" >> "$GITHUB_OUTPUT"
-
       - name: Extract preview assets from git history
         shell: bash
         env:
-          SOURCE_COMMIT: ${{ steps.publish.outputs.source_commit }}
-          ASSET_BASENAME: ${{ steps.publish.outputs.asset_basename }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          ASSET_BASENAME: ${{ inputs.asset_basename }}
         run: |
           set -euo pipefail
           video_path="assets/prompt-templates/video/${ASSET_BASENAME}.mp4"
@@ -76,7 +47,7 @@ jobs:
           CLOUDFLARE_R2_REPOSITORY_ASSETS_BUCKET: ${{ secrets.CLOUDFLARE_R2_REPOSITORY_ASSETS_BUCKET }}
           CLOUDFLARE_R2_REPOSITORY_ASSETS_PUBLIC_ORIGIN: ${{ vars.CLOUDFLARE_R2_REPOSITORY_ASSETS_PUBLIC_ORIGIN }}
           CLOUDFLARE_R2_REPOSITORY_ASSETS_URL: ${{ secrets.CLOUDFLARE_R2_REPOSITORY_ASSETS_URL }}
-          ASSET_BASENAME: ${{ steps.publish.outputs.asset_basename }}
+          ASSET_BASENAME: ${{ inputs.asset_basename }}
         shell: bash
         run: |
           set -euo pipefail
@@ -105,7 +76,7 @@ jobs:
       - name: Verify public URLs
         env:
           PUBLIC_ORIGIN: ${{ vars.CLOUDFLARE_R2_REPOSITORY_ASSETS_PUBLIC_ORIGIN }}
-          ASSET_BASENAME: ${{ steps.publish.outputs.asset_basename }}
+          ASSET_BASENAME: ${{ inputs.asset_basename }}
         shell: bash
         run: |
           set -euo pipefail
