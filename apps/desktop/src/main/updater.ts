@@ -2837,6 +2837,28 @@ export function createDesktopUpdater(
       return setState(DESKTOP_UPDATE_STATES.ERROR, createError("download-path-escaped", "download path is outside the update root"));
     }
     setState(DESKTOP_UPDATE_STATES.INSTALLING);
+    const installChecksum = activeRelease.ref.checksum;
+    if (installChecksum?.value == null) {
+      return setState(DESKTOP_UPDATE_STATES.ERROR, createError("checksum-missing", "downloaded update checksum is missing"));
+    }
+    let digest: string;
+    try {
+      digest = await hashFile(resolvedDownload, installChecksum.algorithm);
+    } catch (hashError) {
+      return setState(
+        DESKTOP_UPDATE_STATES.ERROR,
+        createError("download-unavailable", hashError instanceof Error ? hashError.message : String(hashError)),
+      );
+    }
+    if (digest.toLowerCase() !== installChecksum.value.toLowerCase()) {
+      return setState(
+        DESKTOP_UPDATE_STATES.ERROR,
+        createError("checksum-mismatch", "downloaded update checksum changed before install", {
+          actual: digest,
+          expected: installChecksum.value,
+        }),
+      );
+    }
     if (activeRelease.ref.artifact.type === "payload") {
       try {
         const appliedAt = now().toISOString();
@@ -2876,28 +2898,6 @@ export function createDesktopUpdater(
           createError("launcher-payload-apply-failed", applyError instanceof Error ? applyError.message : String(applyError)),
         );
       }
-    }
-    const installChecksum = activeRelease.ref.checksum;
-    if (installChecksum?.value == null) {
-      return setState(DESKTOP_UPDATE_STATES.ERROR, createError("checksum-missing", "downloaded update checksum is missing"));
-    }
-    let digest: string;
-    try {
-      digest = await hashFile(resolvedDownload, installChecksum.algorithm);
-    } catch (hashError) {
-      return setState(
-        DESKTOP_UPDATE_STATES.ERROR,
-        createError("download-unavailable", hashError instanceof Error ? hashError.message : String(hashError)),
-      );
-    }
-    if (digest.toLowerCase() !== installChecksum.value.toLowerCase()) {
-      return setState(
-        DESKTOP_UPDATE_STATES.ERROR,
-        createError("checksum-mismatch", "downloaded update checksum changed before install", {
-          actual: digest,
-          expected: installChecksum.value,
-        }),
-      );
     }
     let observation: InstallerObservationHandle | null = null;
     try {
