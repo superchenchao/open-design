@@ -2199,7 +2199,8 @@ process.stdin.on('end', () => {
           expect(statusBody.status).toBe('succeeded');
           expect(existsSync(capturePath)).toBe(true);
           const prompt = readFileSync(capturePath, 'utf8');
-          expect(prompt).toContain('- **imageModel**: gpt-image-2 (default');
+          expect(prompt).toContain('- **imageModel**: (unknown — ask: which image model/provider to use)');
+          expect(prompt).toContain('otherwise use `gpt-image-2`');
           expect(prompt).toContain('media generate --surface image --model <imageModel>');
         },
       );
@@ -2276,7 +2277,8 @@ process.stdin.on('end', () => {
           expect(statusBody.status).toBe('succeeded');
           expect(existsSync(capturePath)).toBe(true);
           const prompt = readFileSync(capturePath, 'utf8');
-          expect(prompt).toContain('- **imageModel**: gpt-image-2 (default');
+          expect(prompt).toContain('- **imageModel**: (unknown — ask: which image model/provider to use)');
+          expect(prompt).toContain('otherwise use `gpt-image-2`');
           expect(prompt).toContain('media generate --surface image --model <imageModel>');
         },
       );
@@ -2391,7 +2393,8 @@ process.stdin.on('end', () => {
           expect(statusBody.status).toBe('succeeded');
           expect(existsSync(capturePath)).toBe(true);
           const prompt = readFileSync(capturePath, 'utf8');
-          expect(prompt).toContain('- **imageModel**: gpt-image-2 (default');
+          expect(prompt).toContain('- **imageModel**: (unknown — ask: which image model/provider to use)');
+          expect(prompt).toContain('otherwise use `gpt-image-2`');
           expect(prompt).toContain('media generate --surface image --model <imageModel>');
         },
       );
