@@ -84,6 +84,26 @@ export function createClaudeStreamHandler(onEvent: EventSink) {
     return 'pending';
   }
 
+  function nextGeneratedRuntimeTaskId(): string {
+    while (runtimeTasks.has(String(nextRuntimeTaskId))) {
+      nextRuntimeTaskId += 1;
+    }
+    const id = String(nextRuntimeTaskId);
+    nextRuntimeTaskId += 1;
+    return id;
+  }
+
+  function runtimeTaskIdFromCreate(input: Record<string, unknown>): string {
+    if (typeof input.taskId === 'string' && input.taskId) {
+      const numericId = Number(input.taskId);
+      if (Number.isSafeInteger(numericId) && numericId >= nextRuntimeTaskId) {
+        nextRuntimeTaskId = numericId + 1;
+      }
+      return input.taskId;
+    }
+    return nextGeneratedRuntimeTaskId();
+  }
+
   function emitCanonicalTaskSnapshot(toolUseId: unknown, name: unknown, input: unknown): boolean {
     if (typeof toolUseId !== 'string' || typeof name !== 'string' || !isRecord(input)) return false;
     if (canonicalTaskToolUseIds.has(toolUseId)) return true;
@@ -95,9 +115,7 @@ export function createClaudeStreamHandler(onEvent: EventSink) {
           ? input.description
           : '';
       if (!content) return false;
-      const id = typeof input.taskId === 'string' && input.taskId
-        ? input.taskId
-        : String(nextRuntimeTaskId++);
+      const id = runtimeTaskIdFromCreate(input);
       const activeForm = typeof input.activeForm === 'string' ? input.activeForm : undefined;
       runtimeTasks.set(id, {
         id,

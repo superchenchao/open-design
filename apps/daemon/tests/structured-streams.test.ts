@@ -103,6 +103,58 @@ describe('structured agent stream fixtures', () => {
     }));
   });
 
+  it('keeps implicit Claude TaskCreate IDs distinct from explicit task IDs', () => {
+    const events: unknown[] = [];
+    const handler = createClaudeStreamHandler((event: unknown) => events.push(event));
+    handler.feed(`${JSON.stringify({
+      type: 'assistant',
+      message: {
+        id: 'msg-1',
+        content: [
+          {
+            type: 'tool_use',
+            id: 'toolu-create-1',
+            name: 'TaskCreate',
+            input: {
+              taskId: '1',
+              subject: 'Bind editorial tokens',
+            },
+          },
+          {
+            type: 'tool_use',
+            id: 'toolu-create-2',
+            name: 'TaskCreate',
+            input: {
+              subject: 'Write index.html',
+            },
+          },
+          {
+            type: 'tool_use',
+            id: 'toolu-update-2',
+            name: 'TaskUpdate',
+            input: {
+              taskId: '2',
+              status: 'completed',
+            },
+          },
+        ],
+      },
+    })}\n`);
+    handler.flush();
+
+    expect(events).toContainEqual({
+      type: 'tool_use',
+      id: 'toolu-update-2:todo-task',
+      name: 'TodoWrite',
+      input: {
+        todos: [
+          { content: 'Bind editorial tokens', status: 'pending' },
+          { content: 'Write index.html', status: 'completed' },
+        ],
+      },
+    });
+  });
+
   it('suppresses duplicate Claude artifact text after writing a file', () => {
     const events: unknown[] = [];
     const handler = createClaudeStreamHandler((event: unknown) => events.push(event));
