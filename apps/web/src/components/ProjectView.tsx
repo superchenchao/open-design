@@ -5654,6 +5654,7 @@ export function ProjectView({
           onClose={() => setContextPluginDetails(null)}
           onUse={() => setContextPluginDetails(null)}
           isApplying={false}
+          hideUseAction
         />
       ) : null}
       {contextDesignSystemDetails ? (
