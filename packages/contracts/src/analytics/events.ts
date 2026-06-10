@@ -128,6 +128,8 @@ export type TrackingAmrEntrySource =
   | 'inline_model_switcher_amr_row'
   | 'settings_amr_agent_card'
   | 'settings_amr_authorize'
+  | 'chat_preflight_amr_hint'
+  | 'chat_preflight_amr_continue'
   | 'chat_error_authorize_retry'
   | 'chat_error_recharge'
   | 'chat_error_switch_retry_card'

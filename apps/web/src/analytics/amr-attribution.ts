@@ -24,6 +24,8 @@ const ENTRY_PAGE_BY_SOURCE: Record<TrackingAmrEntrySource, TrackingPageName> = {
   inline_model_switcher_amr_row: 'chat_panel',
   settings_amr_agent_card: 'settings',
   settings_amr_authorize: 'settings',
+  chat_preflight_amr_hint: 'chat_panel',
+  chat_preflight_amr_continue: 'chat_panel',
   chat_error_authorize_retry: 'chat_panel',
   chat_error_recharge: 'chat_panel',
   chat_error_switch_retry_card: 'chat_panel',

@@ -36,12 +36,16 @@ import {
   isDesignSystemWorkspacePrompt,
 } from '../design-system-auto-prompt';
 import { isTodoWriteToolName, latestTodoWriteInputForPinnedCard } from '../runtime/todos';
-import type { AppConfig, ChatAttachment, ChatCommentAttachment, ChatMessage, ChatMessageFeedbackChange, Conversation, DesignSystemSummary, PreviewComment, Project, ProjectFile, ProjectMetadata, SkillSummary } from '../types';
+import type { AgentInfo, AppConfig, ChatAttachment, ChatCommentAttachment, ChatMessage, ChatMessageFeedbackChange, Conversation, DesignSystemSummary, PreviewComment, Project, ProjectFile, ProjectMetadata, SkillSummary } from '../types';
 import { exactDateTime, messageTime, shortTime } from '../utils/chatTime';
 import { commentTargetDisplayName, commentsToAttachments, simplePositionLabel } from '../comments';
 import { AssistantMessage, type QuestionFormOpenRequest } from './AssistantMessage';
 import { AmrGuidance } from './AmrGuidance';
 import { amrRechargeUrlForProfile, resolveRunFailureUi } from '../runtime/amr-guidance';
+import {
+  resolveAmrSendPreflightIssue,
+  type AmrSendPreflightIssueKind,
+} from '../runtime/amr-preflight';
 import { RESUME_CONTINUE_PROMPT } from '../runtime/resume';
 import {
   ChatComposer,
@@ -521,8 +525,10 @@ interface Props {
   onOpenSettings?: (section?: SettingsSection) => void;
   showByokRecoveryAction?: boolean;
   onSwitchToLocalCli?: () => void;
+  agents?: AgentInfo[];
   onOpenAmrSettings?: () => void;
   onSwitchToAmrAndRetry?: (failedAssistant: ChatMessage) => void;
+  onSwitchToAmrAndSend?: (draft: AmrPreflightSendDraft) => void;
   // PR #3157: Antigravity's `agy -p` can't complete OAuth on its own,
   // so the auth banner offers a "Sign in via terminal" button that
   // POSTs to /api/agents/antigravity/oauth-launch. Handler resolves
@@ -641,6 +647,17 @@ interface QueuedSendUpdate {
   meta?: ChatSendMeta;
 }
 
+export interface AmrPreflightSendDraft {
+  prompt: string;
+  attachments: ChatAttachment[];
+  commentAttachments: ChatCommentAttachment[];
+  meta?: ChatSendMeta;
+}
+
+interface AmrPreflightBlockedDraft extends AmrPreflightSendDraft {
+  issueKind: AmrSendPreflightIssueKind;
+}
+
 // Gap left above the anchored user message when it is pinned to the top.
 const ANCHOR_TOP_PADDING = 12;
 
@@ -703,8 +720,10 @@ export function ChatPane({
   onOpenSettings,
   showByokRecoveryAction = false,
   onSwitchToLocalCli,
+  agents = [],
   onOpenAmrSettings,
   onSwitchToAmrAndRetry,
+  onSwitchToAmrAndSend,
   onLaunchAntigravityOauth,
   onOpenMcpSettings,
   onBrowsePlugins,
@@ -941,6 +960,56 @@ export function ChatPane({
   const showByokRecoveryCta = showByokRecoveryAction && Boolean(onSwitchToLocalCli);
   const showErrorActions =
     showByokRecoveryCta || Boolean(retryAssistant && onRetry && runFailureUi);
+  const amrPreflightIssue = useMemo(
+    () => resolveAmrSendPreflightIssue(config, agents),
+    [agents, config],
+  );
+  const [amrPreflightDraft, setAmrPreflightDraft] =
+    useState<AmrPreflightBlockedDraft | null>(null);
+  const restoreBlockedSendToComposer = useCallback((draft: AmrPreflightSendDraft) => {
+    if (typeof window === 'undefined') return;
+    window.setTimeout(() => {
+      composerRef.current?.restoreDraft({
+        text: draft.prompt,
+        attachments: draft.attachments,
+        commentAttachments: draft.commentAttachments,
+        meta: draft.meta,
+      });
+    }, 0);
+  }, []);
+  const dismissAmrPreflight = useCallback(() => {
+    setAmrPreflightDraft(null);
+  }, []);
+  const configureBlockedModel = useCallback(() => {
+    setAmrPreflightDraft(null);
+    onOpenSettings?.('execution');
+  }, [onOpenSettings]);
+  const continueBlockedSendWithAmr = useCallback(() => {
+    if (!amrPreflightDraft) return;
+    const draft: AmrPreflightSendDraft = {
+      prompt: amrPreflightDraft.prompt,
+      attachments: amrPreflightDraft.attachments,
+      commentAttachments: amrPreflightDraft.commentAttachments,
+      ...(amrPreflightDraft.meta ? { meta: amrPreflightDraft.meta } : {}),
+    };
+    setAmrPreflightDraft(null);
+    recordAmrEntry(analytics.track, 'chat_preflight_amr_continue');
+    if (onSwitchToAmrAndSend) {
+      composerRef.current?.restoreDraft({
+        text: '',
+        attachments: [],
+        commentAttachments: [],
+      });
+      onSwitchToAmrAndSend(draft);
+      return;
+    }
+    onOpenAmrSettings?.();
+  }, [
+    amrPreflightDraft,
+    analytics.track,
+    onOpenAmrSettings,
+    onSwitchToAmrAndSend,
+  ]);
   useEffect(() => {
     if (!displayError || !failedRunErrorEvent?.code || !retryAssistant) return;
     // The hosted-AMR nudge owns this same surface_view when it renders below
@@ -1631,6 +1700,18 @@ export function ChatPane({
           setEditingQueuedSendId(null);
           return;
         }
+        if (amrPreflightIssue) {
+          const blockedDraft: AmrPreflightBlockedDraft = {
+            prompt,
+            attachments,
+            commentAttachments,
+            ...(meta ? { meta } : {}),
+            issueKind: amrPreflightIssue.kind,
+          };
+          setAmrPreflightDraft(blockedDraft);
+          restoreBlockedSendToComposer(blockedDraft);
+          return;
+        }
         // Arm "anchor to top": the messages effect promotes this once
         // the new user turn renders, pinning it to the top of the view.
         // Clear any stale reserve from the previous turn first so a resend
@@ -2148,10 +2229,105 @@ export function ChatPane({
                 composerPortalTarget,
               )
             : null}
+          {amrPreflightDraft && typeof document !== 'undefined'
+            ? createPortal(
+                <AmrPreflightDialog
+                  issueKind={amrPreflightDraft.issueKind}
+                  onClose={dismissAmrPreflight}
+                  onUseAmr={continueBlockedSendWithAmr}
+                  onConfigure={configureBlockedModel}
+                  t={t}
+                />,
+                document.body,
+              )
+            : null}
         </>
       ) : null}
     </div>
   );
+}
+
+interface AmrPreflightDialogProps {
+  issueKind: AmrSendPreflightIssueKind;
+  onClose: () => void;
+  onUseAmr: () => void;
+  onConfigure: () => void;
+  t: TranslateFn;
+}
+
+function AmrPreflightDialog({
+  issueKind,
+  onClose,
+  onUseAmr,
+  onConfigure,
+  t,
+}: AmrPreflightDialogProps) {
+  return (
+    <div
+      className="amr-preflight-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="amr-preflight-title"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div className="amr-preflight-dialog">
+        <header className="amr-preflight-head">
+          <div className="amr-preflight-head-copy">
+            <span className="amr-preflight-kicker">AMR</span>
+            <h2 id="amr-preflight-title">{t('chat.amrPreflight.title')}</h2>
+          </div>
+          <button
+            type="button"
+            className="amr-preflight-close"
+            onClick={onClose}
+            aria-label={t('chat.amrPreflight.closeAria')}
+            title={t('chat.amrPreflight.closeAria')}
+          >
+            <Icon name="close" size={14} />
+          </button>
+        </header>
+        <p className="amr-preflight-body">{t('chat.amrPreflight.body')}</p>
+        <p className="amr-preflight-detail">
+          {t(amrPreflightDetailKey(issueKind))}
+        </p>
+        <div className="amr-preflight-actions">
+          <button
+            type="button"
+            className="amr-preflight-secondary"
+            onClick={onConfigure}
+          >
+            {t('chat.amrPreflight.configureCta')}
+          </button>
+          <button
+            type="button"
+            className="amr-preflight-primary"
+            onClick={onUseAmr}
+          >
+            {t('chat.amrPreflight.useAmrCta')}
+            <Icon name="arrow-left" size={14} style={{ transform: 'rotate(180deg)' }} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function amrPreflightDetailKey(kind: AmrSendPreflightIssueKind): keyof Dict {
+  switch (kind) {
+    case 'byok-incomplete':
+      return 'chat.amrPreflight.detailByokIncomplete';
+    case 'agent-unselected':
+      return 'chat.amrPreflight.detailAgentUnselected';
+    case 'agent-auth-missing':
+      return 'chat.amrPreflight.detailAgentAuthMissing';
+    case 'model-unavailable':
+      return 'chat.amrPreflight.detailModelUnavailable';
+    case 'agent-unavailable':
+    default:
+      return 'chat.amrPreflight.detailAgentUnavailable';
+  }
 }
 
 interface AssistantCallbacks {

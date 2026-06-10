@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { useT } from '../i18n';
+import type { Dict } from '../i18n/types';
 import { AgentIcon } from './AgentIcon';
 import { RemixIcon } from './RemixIcon';
 import { SearchableModelSelect } from './modelOptions';
@@ -12,6 +13,7 @@ import { apiProtocolLabel } from '../utils/apiProtocol';
 import { fetchProviderModels } from '../providers/provider-models';
 import { isMacPlatform } from '../utils/platform';
 import { amrConsoleUrlForProfile } from '../runtime/amr-guidance';
+import type { AmrSendPreflightIssueKind } from '../runtime/amr-preflight';
 
 interface Props {
   config: AppConfig;
@@ -31,6 +33,8 @@ interface Props {
   placement?: 'down' | 'up';
   /** Fired when the dropdown transitions from closed to open. */
   onOpen?: () => void;
+  amrPreflightIssueKind?: AmrSendPreflightIssueKind | null;
+  onUseAmrPreflight?: () => void;
 }
 
 function displayAgentName(agent: Pick<AgentInfo, 'id' | 'name'>): string {
@@ -55,6 +59,8 @@ export function AvatarMenu({
   onBack,
   placement = 'down',
   onOpen,
+  amrPreflightIssueKind = null,
+  onUseAmrPreflight,
 }: Props) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -221,25 +227,50 @@ export function AvatarMenu({
     fetchedByokModels,
     SUGGESTED_MODELS_BY_PROTOCOL[apiProtocol] ?? [],
   );
+  const hasAmrPreflightWarning = Boolean(amrPreflightIssueKind);
+  const headerMeta =
+    config.mode === 'api'
+      ? amrPreflightIssueKind === 'byok-incomplete'
+        ? t('avatar.byokSetupRequired')
+        : t('avatar.byokAccountMeta')
+      : currentAgent
+        ? `${displayAgentName(currentAgent)}${
+            currentAgent.id !== 'amr' && currentAgent.version
+              ? ` · ${currentAgent.version}`
+              : ''
+          }${
+            currentModelLabel && currentModelId !== 'default'
+              ? ` · ${currentModelLabel}`
+              : ''
+          }`
+        : t('avatar.noAgentSelected');
+  const triggerLabel = hasAmrPreflightWarning
+    ? `${t('avatar.title')} · ${t('avatar.unconfigured')}`
+    : t('avatar.title');
 
   return (
     <div className={`avatar-menu avatar-menu--${placement}`} ref={wrapRef}>
       <button
         ref={triggerRef}
         type="button"
-        className="avatar-agent-trigger"
+        className={`avatar-agent-trigger${hasAmrPreflightWarning ? ' avatar-agent-trigger--warning' : ''}`}
         onClick={toggleOpen}
         aria-haspopup="menu"
         aria-expanded={open}
-        data-tooltip={t('avatar.title')}
-        title={t('avatar.title')}
-        aria-label={t('avatar.title')}
+        data-tooltip={triggerLabel}
+        title={triggerLabel}
+        aria-label={triggerLabel}
       >
-        {currentAgent ? (
+        {!hasAmrPreflightWarning && currentAgent ? (
           <AgentIcon id={currentAgent.id} size={20} />
         ) : (
           <RemixIcon name="link" size={20} />
         )}
+        {hasAmrPreflightWarning ? (
+          <span className="avatar-agent-trigger__status">
+            {t('avatar.unconfigured')}
+          </span>
+        ) : null}
         <RemixIcon name="arrow-down-s-line" size={14} />
       </button>
       {open && popoverStyle ? createPortal(
@@ -256,22 +287,41 @@ export function AvatarMenu({
                 ? t('avatar.localCli')
                 : apiProtocolLabel(config.apiProtocol)}
             </span>
-            <span className="where">
-              {config.mode === 'api'
-                ? safeHost(config.baseUrl)
-                : currentAgent
-                  ? `${displayAgentName(currentAgent)}${
-                      currentAgent.id !== 'amr' && currentAgent.version
-                        ? ` · ${currentAgent.version}`
-                        : ''
-                    }${
-                      currentModelLabel && currentModelId !== 'default'
-                        ? ` · ${currentModelLabel}`
-                        : ''
-                    }`
-                  : t('avatar.noAgentSelected')}
-            </span>
+            <span className="where">{headerMeta}</span>
           </div>
+          {amrPreflightIssueKind ? (
+            <div className="avatar-preflight-warning" role="status">
+              <span className="avatar-preflight-warning__icon" aria-hidden>
+                <RemixIcon name="error-warning-line" size={15} />
+              </span>
+              <span className="avatar-preflight-warning__copy">
+                <strong>{t('chat.amrPreflight.inlineTitle')}</strong>
+                <span>{t(avatarAmrPreflightDetailKey(amrPreflightIssueKind))}</span>
+              </span>
+              <span className="avatar-preflight-warning__actions">
+                <button
+                  type="button"
+                  className="avatar-preflight-warning__link"
+                  onClick={() => {
+                    setOpen(false);
+                    onOpenSettings('execution');
+                  }}
+                >
+                  {t('chat.amrPreflight.configureCta')}
+                </button>
+                <button
+                  type="button"
+                  className="avatar-preflight-warning__primary"
+                  onClick={() => {
+                    setOpen(false);
+                    onUseAmrPreflight?.();
+                  }}
+                >
+                  {t('chat.amrPreflight.useAmrNowCta')}
+                </button>
+              </span>
+            </div>
+          ) : null}
           {showAmrAccountShortcut ? (
             <a
               className="avatar-amr-account-link"
@@ -527,10 +577,18 @@ export function AvatarMenu({
   );
 }
 
-function safeHost(url: string): string {
-  try {
-    return new URL(url).host;
-  } catch {
-    return url;
+function avatarAmrPreflightDetailKey(kind: AmrSendPreflightIssueKind): keyof Dict {
+  switch (kind) {
+    case 'byok-incomplete':
+      return 'chat.amrPreflight.detailByokIncomplete';
+    case 'agent-unselected':
+      return 'chat.amrPreflight.detailAgentUnselected';
+    case 'agent-auth-missing':
+      return 'chat.amrPreflight.detailAgentAuthMissing';
+    case 'model-unavailable':
+      return 'chat.amrPreflight.detailModelUnavailable';
+    case 'agent-unavailable':
+    default:
+      return 'chat.amrPreflight.detailAgentUnavailable';
   }
 }

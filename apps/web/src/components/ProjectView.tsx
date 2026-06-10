@@ -72,6 +72,7 @@ import type {
   TrackingDesignSystemStatusValue,
 } from '@open-design/contracts/analytics';
 import { useAnalytics } from '../analytics/provider';
+import { recordAmrEntry } from '../analytics/amr-attribution';
 import {
   trackArtifactHeaderClick,
   trackComposerBarClick,
@@ -170,7 +171,7 @@ import { Icon } from './Icon';
 import { DesignSystemPicker } from './DesignSystemPicker';
 import { PluginDetailsModal } from './PluginDetailsModal';
 import { DesignSystemPreviewModal } from './DesignSystemPreviewModal';
-import { ChatPane } from './ChatPane';
+import { ChatPane, type AmrPreflightSendDraft } from './ChatPane';
 import type { QuestionFormOpenRequest } from './AssistantMessage';
 import type { ChatSendMeta } from './ChatComposer';
 import {
@@ -184,6 +185,7 @@ import {
 } from './auto-open-file';
 import { buildRepoImportPrompt, designSystemNeedsRepoConnect } from './design-system-github-evidence';
 import { collectReferencedJsxNames } from '../runtime/jsx-module-refs';
+import { resolveAmrSendPreflightIssue } from '../runtime/amr-preflight';
 import { FileWorkspace } from './FileWorkspace';
 import {
   type PluginFolderAgentAction,
@@ -3942,15 +3944,35 @@ export function ProjectView({
   // top up, and arm an auto-retry that fires once AMR is selected AND signed
   // in (see the effect below).
   const [pendingAmrRetry, setPendingAmrRetry] = useState<ChatMessage | null>(null);
+  const [pendingAmrSend, setPendingAmrSend] = useState<AmrPreflightSendDraft | null>(null);
+  const amrSendPreflightIssue = useMemo(
+    () => resolveAmrSendPreflightIssue(config, agents),
+    [config, agents],
+  );
+  const handleSwitchToAmr = useCallback(() => {
+    if (currentConversationActionDisabled) return false;
+    onModeChange('daemon');
+    onAgentChange('amr');
+    onOpenAmrSettings?.();
+    return true;
+  }, [currentConversationActionDisabled, onModeChange, onAgentChange, onOpenAmrSettings]);
+  const handleUseAmrFromPreflightHint = useCallback(() => {
+    recordAmrEntry(analytics.track, 'chat_preflight_amr_hint');
+    handleSwitchToAmr();
+  }, [analytics.track, handleSwitchToAmr]);
   const handleSwitchToAmrAndRetry = useCallback(
     (failedAssistant: ChatMessage) => {
-      if (currentConversationActionDisabled) return;
-      onModeChange('daemon');
-      onAgentChange('amr');
-      onOpenAmrSettings?.();
+      if (!handleSwitchToAmr()) return;
       setPendingAmrRetry(failedAssistant);
     },
-    [currentConversationActionDisabled, onModeChange, onAgentChange, onOpenAmrSettings],
+    [handleSwitchToAmr],
+  );
+  const handleSwitchToAmrAndSend = useCallback(
+    (draft: AmrPreflightSendDraft) => {
+      if (!handleSwitchToAmr()) return;
+      setPendingAmrSend(draft);
+    },
+    [handleSwitchToAmr],
   );
   // PR #3157: Antigravity's `agy -p` cannot complete OAuth on its own,
   // so the auth banner offers a one-click "Sign in via terminal"
@@ -4003,6 +4025,34 @@ export function ProjectView({
       clearTimeout(stop);
     };
   }, [pendingAmrRetry, config.mode, config.agentId, handleRetry]);
+
+  useEffect(() => {
+    if (!pendingAmrSend) return;
+    let cancelled = false;
+    const trySend = async () => {
+      if (cancelled) return;
+      if (!(config.mode === 'daemon' && config.agentId === 'amr')) return;
+      const status = await fetchVelaLoginStatus().catch(() => null);
+      if (cancelled || status?.loggedIn !== true) return;
+      setPendingAmrSend(null);
+      void handleSend(
+        pendingAmrSend.prompt,
+        pendingAmrSend.attachments,
+        pendingAmrSend.commentAttachments,
+        pendingAmrSend.meta,
+      );
+    };
+    void trySend();
+    const interval = setInterval(() => void trySend(), 2000);
+    const stop = setTimeout(() => {
+      if (!cancelled) setPendingAmrSend(null);
+    }, 5 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      clearTimeout(stop);
+    };
+  }, [pendingAmrSend, config.mode, config.agentId, handleSend]);
 
   useEffect(() => {
     if (!autoAuditRepairSeed) return;
@@ -5469,6 +5519,8 @@ export function ProjectView({
       onOpenSettings={onOpenSettings}
       onRefreshAgents={onRefreshAgents}
       onBack={onBack}
+      amrPreflightIssueKind={amrSendPreflightIssue?.kind ?? null}
+      onUseAmrPreflight={handleUseAmrFromPreflightHint}
       placement="up"
     />
   );
@@ -5577,8 +5629,10 @@ export function ProjectView({
                 setError(null);
                 onModeChange('daemon');
               }}
+              agents={agents}
               onOpenAmrSettings={onOpenAmrSettings}
               onSwitchToAmrAndRetry={handleSwitchToAmrAndRetry}
+              onSwitchToAmrAndSend={handleSwitchToAmrAndSend}
               onLaunchAntigravityOauth={handleLaunchAntigravityOauth}
               onOpenMcpSettings={onOpenMcpSettings}
               onBrowsePlugins={onBrowsePlugins}
