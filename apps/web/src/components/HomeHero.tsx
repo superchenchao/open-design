@@ -93,6 +93,9 @@ export interface HomeHeroSubmitHandler {
 export interface HomeHeroHandle {
   focus(): void;
   focusEnd(): void;
+  // Flash the send button twice — fired after a plugin Use action or an
+  // example-prompt card seeds the composer, to pull the eye to the next step.
+  pulseSend(): void;
 }
 
 export interface ExamplePromptInfo {
@@ -290,6 +293,9 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
   const [hoveredPlugin, setHoveredPlugin] = useState<InstalledPluginRecord | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // Two-flash attention pulse on the send button; armed via the
+  // imperative `pulseSend()` handle, cleared when the animation ends.
+  const [sendAttention, setSendAttention] = useState(false);
   // Selected second-level sub-category slug (Prototype / Slide deck rail).
   // Local-only: it filters the example-prompt cards below the rail. It never
   // binds a plugin or stamps an active badge.
@@ -642,6 +648,12 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
       },
       focusEnd() {
         editorRef.current?.focus();
+      },
+      pulseSend() {
+        // Drop the class for a frame so a pulse requested mid-animation
+        // restarts instead of being swallowed.
+        setSendAttention(false);
+        requestAnimationFrame(() => setSendAttention(true));
       },
     }),
     [],
@@ -1395,9 +1407,10 @@ export const HomeHero = forwardRef<HomeHeroHandle, Props>(function HomeHero(
             ) : null}
             <button
               type="button"
-              className="home-hero__submit od-tooltip"
+              className={`home-hero__submit od-tooltip${sendAttention ? ' home-hero__submit--attention' : ''}`}
               data-testid="home-hero-submit"
               onClick={onSubmit}
+              onAnimationEnd={() => setSendAttention(false)}
               disabled={!canSubmit}
               title={canSubmit ? t('homeHero.run') : t('homeHero.typeSomethingToRun')}
               data-tooltip={canSubmit ? t('homeHero.run') : t('homeHero.typeSomethingToRun')}

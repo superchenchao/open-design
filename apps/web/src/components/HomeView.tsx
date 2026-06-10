@@ -926,6 +926,7 @@ export function HomeView({
         explicitPick: true,
       });
       scrollHomeToTop();
+      inputRef.current?.pulseSend();
       return;
     }
     await usePlugin(record, undefined, {
@@ -934,6 +935,7 @@ export function HomeView({
       explicitPick: true,
     });
     scrollHomeToTop();
+    inputRef.current?.pulseSend();
   }
 
   function runWithReplacementConfirmation(
@@ -1025,6 +1027,7 @@ export function HomeView({
       explicitPick: true,
     });
     focusPromptAtEnd();
+    inputRef.current?.pulseSend();
   }
 
   function removePluginContext(pluginId: string) {

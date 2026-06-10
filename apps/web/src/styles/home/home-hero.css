@@ -1797,6 +1797,32 @@
   box-shadow: var(--shadow-xs);
   color: var(--accent);
 }
+/* Send-attention pulse — after a plugin Use action or an example-prompt
+   card seeds the composer, the send button flashes twice to pull the eye
+   to the next step. The 0.25s delay lets the scroll-back/seed settle so
+   the flash lands on a visible, resting button. */
+@keyframes home-hero-submit-attention {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent);
+    transform: scale(1);
+  }
+  35% {
+    box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent) 28%, transparent);
+    transform: scale(1.05);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent);
+    transform: scale(1);
+  }
+}
+.home-hero__submit--attention {
+  animation: home-hero-submit-attention 0.5s cubic-bezier(0.23, 1, 0.32, 1) 0.25s 2;
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-hero__submit--attention {
+    animation: none;
+  }
+}
 .home-hero__submit {
   appearance: none;
   display: inline-flex;
