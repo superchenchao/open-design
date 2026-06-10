@@ -364,6 +364,8 @@ function isAcpArtifactWriteUpdate(update: JsonObject, writeToolCallIds: Set<stri
   return isAcpArtifactWriteLabel(update) || (toolCallId ? writeToolCallIds.has(toolCallId) : false);
 }
 
+const ACP_ARTIFACT_ECHO_PREFIX_RE = /^\s*(?:<\s*\|?\s*DSML[\s,]+artifact\b|<\s*artifact\b)/i;
+
 export function createJsonLineStream(onMessage: (message: unknown, rawLine: string) => void) {
   let buffer = '';
   let pendingJson = '';
@@ -1006,7 +1008,8 @@ export function attachAcpSession({
       if (update.sessionUpdate === 'agent_message_chunk') {
         const text = asObject(update.content)?.text;
         if (typeof text === 'string' && text.length > 0) {
-          const delta = text.startsWith(emittedTextBuffer)
+          const isCumulativeSnapshot = text.startsWith(emittedTextBuffer);
+          const delta = isCumulativeSnapshot
             ? text.slice(emittedTextBuffer.length)
             : text;
           if (delta.length > 0) {
@@ -1021,12 +1024,29 @@ export function attachAcpSession({
               });
             }
             if (dsmlArtifactSuppressor) {
-              const strippedDelta = dsmlArtifactSuppressor.strip(delta);
+              const shouldPreserveIncrementalProse =
+                !isCumulativeSnapshot &&
+                !dsmlArtifactSuppressor.isSuppressing() &&
+                !dsmlArtifactSuppressor.hasPendingCandidate() &&
+                !ACP_ARTIFACT_ECHO_PREFIX_RE.test(delta);
+              const wasSuppressingArtifact = dsmlArtifactSuppressor.isSuppressing();
+              const strippedDelta = shouldPreserveIncrementalProse
+                ? delta
+                : dsmlArtifactSuppressor.strip(delta);
               if (strippedDelta) {
                 emittedVisibleTextChunk = true;
                 send('agent', { type: 'text_delta', delta: strippedDelta });
               }
-              if (!dsmlArtifactSuppressor.isSuppressing() && !dsmlArtifactSuppressor.hasPendingCandidate()) {
+              const consumedArtifactText =
+                !shouldPreserveIncrementalProse && (wasSuppressingArtifact || strippedDelta !== delta);
+              if (
+                shouldPreserveIncrementalProse ||
+                (
+                  consumedArtifactText &&
+                  !dsmlArtifactSuppressor.isSuppressing() &&
+                  !dsmlArtifactSuppressor.hasPendingCandidate()
+                )
+              ) {
                 dsmlArtifactSuppressor = null;
               }
             } else {
