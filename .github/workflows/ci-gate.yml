@@ -44,7 +44,7 @@ jobs:
     timeout-minutes: 90
     env:
       GITHUB_TOKEN: ${{ github.token }}
-      TARGET_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || (github.event_name != 'workflow_dispatch' && github.sha || '') }}
+      TARGET_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.target_sha || (github.event_name != 'workflow_dispatch' && (github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha) || '') }}
       TARGET_EVENT: ${{ github.event_name == 'workflow_dispatch' && inputs.target_event || (github.event_name != 'workflow_dispatch' && github.event_name || '') }}
       RUNNER_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.runner_run_id || '' }}
       HOSTED_RUN_ID: ${{ github.event_name == 'workflow_dispatch' && inputs.hosted_run_id || '' }}

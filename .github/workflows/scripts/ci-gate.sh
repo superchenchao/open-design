@@ -69,7 +69,7 @@ mkdir -p "$npm_config_store_dir"
 : > "$actions_jsonl"
 
 event_name="${GITHUB_EVENT_NAME:-unknown}"
-head_sha="${GITHUB_SHA:-unknown}"
+head_sha="${CI_GATE_HEAD_SHA:-${GITHUB_SHA:-unknown}}"
 run_id="${GITHUB_RUN_ID:-unknown}"
 run_attempt="${GITHUB_RUN_ATTEMPT:-unknown}"
 

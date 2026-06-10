@@ -22,6 +22,7 @@ jobs:
     timeout-minutes: 120
     env:
       CI_GATE_PLAYWRIGHT_INSTALL_FLAGS: chromium
+      CI_GATE_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
       COREPACK_HOME: /home/runner/.cache/open-design-ci/corepack
     steps:
