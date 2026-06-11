@@ -2223,11 +2223,11 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
     expect(screen.queryByText(/AMR \(vela\)/i)).toBeNull();
     expect(screen.queryByText(/vela/i)).toBeNull();
     expect(screen.queryByText(/Not signed in/i)).toBeNull();
-    expect(screen.getByText('Official')).toBeTruthy();
-    expect(screen.getByText('Lower cost')).toBeTruthy();
-    expect(screen.getByText('Many models')).toBeTruthy();
+    expect(screen.getByText('Officially recommended')).toBeTruthy();
+    expect(screen.getByText('No setup needed')).toBeTruthy();
+    expect(screen.getByText('Multiple models')).toBeTruthy();
     expect(screen.queryByText('Limited bonus: +100%')).toBeNull();
-    expect(await screen.findByRole('button', { name: 'Authorize' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Test' })).toBeNull();
   });
 
@@ -2261,7 +2261,7 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
     expect(screen.getByTestId('settings-agent-card-amr')).toBeTruthy();
     // The promoted card has no select step: the authorize action is the only
     // interaction and is available regardless of the current agent choice.
-    expect(await screen.findByRole('button', { name: 'Authorize' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeTruthy();
   });
 
   it('reveals AMR cancel only while hovering the active card during sign-in', async () => {
@@ -2309,7 +2309,7 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
     });
   });
 
-  it('cancels an in-flight AMR sign-in and returns to Authorize after a brief canceled state', async () => {
+  it('cancels an in-flight AMR sign-in and returns to Sign in after a brief canceled state', async () => {
     let statusStage: 'pending' | 'signed-out' = 'pending';
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -2368,7 +2368,7 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/integrations/vela/login/cancel', { method: 'POST' });
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Authorize' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy();
     }, { timeout: 3000 });
     expect(screen.queryByText('Canceled')).toBeNull();
   });
@@ -2439,9 +2439,9 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
     await new Promise((resolve) => setTimeout(resolve, 400));
     expect(screen.queryByText('Signing in…')).toBeNull();
 
-    // Eventually the Canceled UI window times out and Authorize re-appears.
+    // Eventually the Canceled UI window times out and Sign in re-appears.
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Authorize' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Sign in' })).toBeTruthy();
     }, { timeout: 3000 });
     // And still no bounce back to Signing in…
     expect(screen.queryByText('Signing in…')).toBeNull();
@@ -2651,7 +2651,7 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
       { agents: [amrAgent] },
     );
     fireEvent.click(screen.getByRole('tab', { name: /Local CLI.*1 installed/i }));
-    expect(await screen.findByRole('button', { name: 'Authorize' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Sign out' })).toBeNull();
     second.unmount();
   });
@@ -2699,7 +2699,7 @@ describe('SettingsDialog execution settings Local CLI interactions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
 
-    expect(await screen.findByRole('button', { name: 'Authorize' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Sign in' })).toBeTruthy();
     expect(screen.getByTestId('settings-agent-card-amr')).toBeTruthy();
     expect(
       onPersist.mock.calls.some(
