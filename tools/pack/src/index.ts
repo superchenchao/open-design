@@ -14,6 +14,7 @@ import {
 } from "./mac/index.js";
 import {
   cleanupPackedWinNamespace,
+  diagnosePackedWinIpc,
   installPackedWinApp,
   inspectPackedWinApp,
   listPackedWinNamespaces,
@@ -64,6 +65,7 @@ function addSharedOptions(command: CacCommand) {
   return command
     .option("--cache-dir <path>", "tools-pack cache directory")
     .option("--dir <path>", "tools-pack root directory")
+    .option("--diagnose-attempts <count>", "diagnose-ipc: start/poll/stop attempts")
     .option("--json", "print JSON")
     .option("--namespace <name>", "runtime namespace")
     .option("--expr <expression>", "desktop inspect eval expression")
@@ -147,7 +149,7 @@ addWinLifecycleOptions(
     addSharedOptions(
       cli.command(
         "win <action>",
-        "Windows packaging commands: build|install|start|stop|logs|uninstall|cleanup|list|reset|inspect",
+        "Windows packaging commands: build|install|start|stop|logs|uninstall|cleanup|list|reset|inspect|diagnose-ipc",
       ),
     ),
     "win",
@@ -184,6 +186,9 @@ addWinLifecycleOptions(
       return;
     case "inspect":
       printJson(await inspectPackedWinApp(config, options));
+      return;
+    case "diagnose-ipc":
+      printJson(await diagnosePackedWinIpc(config, options));
       return;
     default:
       throw new Error(`unsupported win action: ${action}`);

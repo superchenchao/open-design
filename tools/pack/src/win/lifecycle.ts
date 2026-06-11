@@ -43,6 +43,8 @@ import {
 import { cleanupWinRegistryResidues, queryWinRegistryEntries, resolveWinRegisteredPaths } from "./registry.js";
 import type {
   WinCleanupResult,
+  WinIpcDiagnoseAttempt,
+  WinIpcDiagnoseResult,
   WinInspectResult,
   WinInstallResult,
   WinInstallPayloadReport,
@@ -238,7 +240,7 @@ async function resolveStartTarget(config: ToolPackConfig): Promise<{ configPath:
   throw new Error(`no windows app executable found for namespace=${config.namespace}; run tools-pack win build first or tools-pack win install after building an NSIS installer`);
 }
 
-export async function startPackedWinApp(config: ToolPackConfig): Promise<WinStartResult> {
+export async function startPackedWinApp(config: ToolPackConfig, options: { waitForStatus?: boolean } = {}): Promise<WinStartResult> {
   const target = await resolveStartTarget(config);
   const stamp = desktopStamp(config);
   const logPath = desktopLogPath(config);
@@ -260,7 +262,14 @@ export async function startPackedWinApp(config: ToolPackConfig): Promise<WinStar
     }),
     logFd: null,
   });
-  return { executablePath: target.executablePath, logPath, namespace: config.namespace, pid: spawned.pid, source: target.source, status: await waitForDesktopStatus(config) };
+  return {
+    executablePath: target.executablePath,
+    logPath,
+    namespace: config.namespace,
+    pid: spawned.pid,
+    source: target.source,
+    status: options.waitForStatus === false ? null : await waitForDesktopStatus(config),
+  };
 }
 
 async function findManagedDesktopProcessTree(config: ToolPackConfig): Promise<number[]> {
@@ -585,5 +594,46 @@ export async function inspectPackedWinApp(
     }),
     webStatus: webSnapshot.status,
     ...(webSnapshot.error == null ? {} : { webStatusError: webSnapshot.error }),
+  };
+}
+
+export async function diagnosePackedWinIpc(
+  config: ToolPackConfig,
+  options: { diagnoseAttempts?: string | number; statusPollCount?: string | number; statusPollIntervalMs?: string | number },
+): Promise<WinIpcDiagnoseResult> {
+  const attempts = resolveOptionalPositiveInteger(options.diagnoseAttempts, "--diagnose-attempts") ?? 10;
+  const statusPollCount = resolveOptionalPositiveInteger(options.statusPollCount, "--status-poll-count") ?? 20;
+  const statusPollIntervalMs = resolveOptionalPositiveInteger(options.statusPollIntervalMs, "--status-poll-interval-ms") ?? 250;
+  const previousTrace = process.env.OD_JSON_IPC_TRACE;
+  process.env.OD_JSON_IPC_TRACE = "1";
+  const results: WinIpcDiagnoseAttempt[] = [];
+  try {
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      await stopPackedWinApp(config);
+      const startedAt = Date.now();
+      const start = await startPackedWinApp(config, { waitForStatus: false });
+      const statusPoll = await pollWinInspectStatus(config, statusPollCount, statusPollIntervalMs);
+      const stop = await stopPackedWinApp(config);
+      results.push({
+        attempt,
+        durationMs: Date.now() - startedAt,
+        start,
+        statusPoll,
+        stop,
+      });
+    }
+  } finally {
+    if (previousTrace == null) {
+      delete process.env.OD_JSON_IPC_TRACE;
+    } else {
+      process.env.OD_JSON_IPC_TRACE = previousTrace;
+    }
+  }
+  return {
+    attempts: results,
+    namespace: config.namespace,
+    statusPollCount,
+    statusPollIntervalMs,
+    traceEnabled: true,
   };
 }

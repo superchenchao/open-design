@@ -1,6 +1,6 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { SIDECAR_MESSAGES } from "@open-design/sidecar-proto";
 import { describe, expect, it, vi } from "vitest";
@@ -8,6 +8,9 @@ import { describe, expect, it, vi } from "vitest";
 import type { ToolPackConfig } from "../src/config.js";
 
 const requestJsonIpc = vi.hoisted(() => vi.fn());
+const listProcessSnapshots = vi.hoisted(() => vi.fn(async () => []));
+const spawnBackgroundProcess = vi.hoisted(() => vi.fn(async () => ({ pid: 12345 })));
+const stopProcesses = vi.hoisted(() => vi.fn(async () => undefined));
 
 vi.mock("@open-design/sidecar", async () => {
   const actual = await vi.importActual<typeof import("@open-design/sidecar")>("@open-design/sidecar");
@@ -17,7 +20,18 @@ vi.mock("@open-design/sidecar", async () => {
   };
 });
 
-const { inspectPackedWinApp } = await import("../src/win/lifecycle.js");
+vi.mock("@open-design/platform", async () => {
+  const actual = await vi.importActual<typeof import("@open-design/platform")>("@open-design/platform");
+  return {
+    ...actual,
+    listProcessSnapshots,
+    spawnBackgroundProcess,
+    stopProcesses,
+  };
+});
+
+const { diagnosePackedWinIpc, inspectPackedWinApp } = await import("../src/win/lifecycle.js");
+const { resolveWinPaths } = await import("../src/win/paths.js");
 
 function createConfig(root: string): ToolPackConfig {
   return {
@@ -55,6 +69,12 @@ function createConfig(root: string): ToolPackConfig {
     webOutputMode: "standalone",
     workspaceRoot: root,
   };
+}
+
+async function writeFakeUnpackedExe(config: ToolPackConfig): Promise<void> {
+  const paths = resolveWinPaths(config);
+  await mkdir(dirname(paths.unpackedExePath), { recursive: true });
+  await writeFile(paths.unpackedExePath, "", "utf8");
 }
 
 describe("inspectPackedWinApp", () => {
@@ -146,6 +166,52 @@ describe("inspectPackedWinApp", () => {
       expect(result.statusPoll?.samples[0]?.daemonStatus).toEqual({ state: "running", url: "http://127.0.0.1:1234" });
       expect(result.statusPoll?.samples[0]?.webStatus).toEqual({ state: "running", url: "http://127.0.0.1:5678" });
     } finally {
+      await rm(root, { force: true, recursive: true });
+    }
+  });
+
+  it("diagnoses Windows IPC by polling status during repeated fresh starts", async () => {
+    const root = await mkdtemp(join(tmpdir(), "open-design-win-lifecycle-"));
+    const config = createConfig(root);
+    const previousTrace = process.env.OD_JSON_IPC_TRACE;
+
+    try {
+      await writeFakeUnpackedExe(config);
+      requestJsonIpc.mockReset();
+      spawnBackgroundProcess.mockClear();
+      stopProcesses.mockClear();
+      listProcessSnapshots.mockClear();
+      process.env.OD_JSON_IPC_TRACE = "already-on";
+      requestJsonIpc.mockImplementation(async (ipc: string, payload: { type?: string }) => {
+        if (payload.type === SIDECAR_MESSAGES.STATUS) {
+          if (ipc.includes("daemon")) return { state: "running", url: "http://127.0.0.1:1234" };
+          if (ipc.includes("web")) return { state: "running", url: "http://127.0.0.1:5678" };
+          return { state: "running", url: "od://app/" };
+        }
+        if (payload.type === SIDECAR_MESSAGES.SHUTDOWN) return { accepted: true };
+        throw new Error(`unexpected IPC message: ${String(payload.type)}`);
+      });
+
+      const result = await diagnosePackedWinIpc(config, {
+        diagnoseAttempts: 2,
+        statusPollCount: 2,
+        statusPollIntervalMs: 1,
+      });
+
+      expect(result.namespace).toBe("test");
+      expect(result.traceEnabled).toBe(true);
+      expect(result.attempts).toHaveLength(2);
+      expect(result.attempts[0]?.start.status).toBeNull();
+      expect(result.attempts[0]?.statusPoll.samples).toHaveLength(2);
+      expect(result.attempts[0]?.statusPoll.samples[0]?.status).toEqual({ state: "running", url: "od://app/" });
+      expect(spawnBackgroundProcess).toHaveBeenCalledTimes(2);
+      expect(process.env.OD_JSON_IPC_TRACE).toBe("already-on");
+    } finally {
+      if (previousTrace == null) {
+        delete process.env.OD_JSON_IPC_TRACE;
+      } else {
+        process.env.OD_JSON_IPC_TRACE = previousTrace;
+      }
       await rm(root, { force: true, recursive: true });
     }
   });

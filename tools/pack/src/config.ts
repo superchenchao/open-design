@@ -25,6 +25,7 @@ export type ToolPackCliOptions = {
   cacheDir?: string;
   containerized?: boolean;
   dir?: string;
+  diagnoseAttempts?: string | number;
   expr?: string;
   headless?: boolean;
   json?: boolean;

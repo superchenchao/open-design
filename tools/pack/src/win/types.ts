@@ -229,6 +229,22 @@ export type WinStartResult = {
   status: DesktopStatusSnapshot | null;
 };
 
+export type WinIpcDiagnoseAttempt = {
+  attempt: number;
+  durationMs: number;
+  start: WinStartResult;
+  statusPoll: WinInspectStatusPollResult;
+  stop: WinStopResult;
+};
+
+export type WinIpcDiagnoseResult = {
+  attempts: WinIpcDiagnoseAttempt[];
+  namespace: string;
+  statusPollCount: number;
+  statusPollIntervalMs: number;
+  traceEnabled: boolean;
+};
+
 export type WinStopResult = {
   gracefulRequested: boolean;
   namespace: string;

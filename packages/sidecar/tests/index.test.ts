@@ -116,10 +116,10 @@ describe("generic sidecar JSON IPC", () => {
     const root = await mkdtemp(join(tmpdir(), "open-design-sidecar-ipc-"));
     const socketPath = testIpcPath(root);
     const previousTrace = process.env.OD_JSON_IPC_TRACE;
-    const previousInfo = console.info;
+    const previousError = console.error;
     const logs: unknown[] = [];
     process.env.OD_JSON_IPC_TRACE = "1";
-    console.info = (...args: unknown[]) => {
+    console.error = (...args: unknown[]) => {
       logs.push(args);
     };
 
@@ -136,7 +136,7 @@ describe("generic sidecar JSON IPC", () => {
       });
     } finally {
       await server.close();
-      console.info = previousInfo;
+      console.error = previousError;
       if (previousTrace == null) {
         delete process.env.OD_JSON_IPC_TRACE;
       } else {

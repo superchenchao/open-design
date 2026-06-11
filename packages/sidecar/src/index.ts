@@ -148,7 +148,7 @@ function summarizeJsonIpcMessage(message: unknown): Record<string, unknown> {
 
 function traceJsonIpc(event: string, details: Record<string, unknown>): void {
   if (!jsonIpcTraceEnabled()) return;
-  console.info("[open-design sidecar] json ipc trace", { event, ...details });
+  console.error("[open-design sidecar] json ipc trace", { event, ...details });
 }
 
 export function isWindowsNamedPipePath(value: unknown): boolean {
