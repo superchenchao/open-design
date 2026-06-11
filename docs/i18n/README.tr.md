@@ -2,7 +2,7 @@
 
 > 🔥 **Open Design 0.10.0 burada: hepsi bir arada Agentic tasarım çalışma alanı.** Zanaatın tamamı artık tek pencerede — belirsiz bir fikirden referans keşfine, malzeme toplamaya, etkileşimli düzenlemeye, yorumları kuyruğa almaya, animasyonları cilalamaya ve sonucu bir editöre ya da Code Agent'a devretmeye kadar — uygulamadan hiç çıkmadan. Paralel oturumlarla artık tek bir asistan gibi değil, sizin için çalışan yerel bir tasarım ekibi gibi hissettiriyor. [0.10.0'ı indir](https://github.com/nexu-io/open-design/releases) · [Tartışmaya katıl](https://github.com/nexu-io/open-design/discussions/4153)
 >
-> ⚡ **Open Design AMR — resmî model servisi.** Tek bir yüklemeyle GPT, Claude, Gemini ve DeepSeek'i doğrudan Open Design içinde kullanın: 20+ amiral gemisi model, sıfır yapılandırma, gerçek token kullanımına göre faturalandırma. [AMR'yi dene](https://open-design.ai/amr/)
+> ⚡ **Open Design AMR (Open Design Model Router) — resmî model servisi.** Tek bir yüklemeyle GPT, Claude, Gemini ve DeepSeek'i doğrudan Open Design içinde kullanın: 20+ amiral gemisi model, sıfır yapılandırma, gerçek token kullanımına göre faturalandırma. [AMR'yi dene](https://open-design.ai/amr/)
 >
 > 🏅 **Open Design Fellow programı artık açık.** Siz de tasarımın açık olması gerektiğine inanıyorsanız — bir Open Design Fellow olun, ürünü çekirdek ekiple birlikte şekillendirin ve daha fazla insanın tasarımın geleceğini tanımlamaya katılmasına yardımcı olun. Ayrıntılar → [`MAINTAINERS.md`](../../MAINTAINERS.md) ve [Discord](https://discord.gg/qhbcCH8Am4).
 
