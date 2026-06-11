@@ -158,7 +158,8 @@ every deck.
 - Single self-contained HTML file: all CSS and JS inline; only the Google
   Fonts stylesheet may be external. No Chart.js, no mermaid, no CDN scripts,
   no remote images; icons and diagram art are inline SVG or pure CSS.
-- 8-11 slides for a standard deck; split content into more slides instead of
+- Default 8-11 slides for a standard deck; honor the requested slide count
+  when the user picks one. Split content into more slides instead of
   shrinking type or letting a slide scroll.
 - Only the spec colors: the two greens (`#50fa7b` dark / `#0d7a3e` light),
   the listed surfaces and text tones. No red/blue/yellow semantic colors —

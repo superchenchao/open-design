@@ -101,8 +101,9 @@ purples, or teals. Cards use 16px border-radius; chips use pill radius.
 
 - `.deck` is a `100dvh` scroll container with `scroll-snap-type: y mandatory`;
   each page is one `<section class="slide">` at `100dvh`,
-  `scroll-snap-align: start`. 8–11 slides; split content into more slides
-  instead of shrinking type. No internal scrolling except `.table-scroll`.
+  `scroll-snap-align: start`. Default 8–11 slides; honor the requested slide
+  count when the user picks one. Split content into more slides instead of
+  shrinking type. No internal scrolling except `.table-scroll`.
 - An `IntersectionObserver` (threshold 0.5) adds `.visible`; slides enter via
   fade + `translateY(40px) scale(0.98)`; `.reveal` children stagger with
   `transition-delay` steps of 0.1s. Only easing:
