@@ -54,7 +54,7 @@ customizable HTML seed agents copy to `index.html`.
 ## Resource map
 
 ```text
-fable-5-liquid-landing/
+design-templates/fable-5-liquid-landing/
 ├── SKILL.md
 ├── example.html              # self-contained preview demo
 ├── open-design.png           # Open Design logo asset
@@ -69,13 +69,14 @@ fable-5-liquid-landing/
 1. Read the user brief: product name, headline, model ID (if any), hero video URL,
    stat cards, showcase items, partners, and pricing.
 2. **Fast path (HTML seed):** Copy `assets/template.html` to `index.html`. Replace
-   `{{PLACEHOLDER}}` tokens and section copy. Keep liquid-glass CSS and FadingVideo
-   logic intact.
+   `{{PLACEHOLDER}}` tokens and section copy. Rewrite `#seed-data` as valid JSON;
+   set `sitePrompt` with `JSON.stringify(prompt)` — never splice raw prompt text into
+   `<script>` or HTML attributes. Keep liquid-glass CSS and FadingVideo logic intact.
 3. **Full path (React):** Scaffold Vite + React 18 + TypeScript + Tailwind 3 +
    framer-motion + lucide-react. Reuse the design tokens from `example.html` /
    `assets/template.html` and ship with `base: './'` and CDN video URLs. Do not
-   commit bundled `.js` into the skill directory — Open Design guard rejects
-   residual JavaScript under `skills/`.
+   commit bundled `.js` into `design-templates/` — Open Design guard rejects residual
+   JavaScript in the repo.
 4. Preserve interaction patterns:
    - `FadingVideo`: rAF crossfade (500ms), manual loop, no CSS opacity transitions
    - `SpotlightCard`: mouse-following radial highlight + hover lift

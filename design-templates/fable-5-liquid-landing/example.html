@@ -4,8 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="./open-design.png" />
-    <title>{{PRODUCT_NAME}} — {{HEADLINE}}</title>
-    <meta name="description" content="{{META_DESCRIPTION}}" />
+    <title>Claude Fable 5 — Built for the curious</title>
+    <meta
+      name="description"
+      content="Cinematic landing for Claude Fable 5 — capabilities, community showcase, partners, and pricing. Designed with Open Design."
+    />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -71,8 +74,22 @@
         background-size: 56px 56px;
         mask-image: radial-gradient(ellipse 90% 80% at 50% 40%, #000 30%, transparent 75%);
       }
-      .bg-noise {
+      .section-noise {
+        position: relative;
+        overflow: hidden;
+      }
+      .section-noise::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        opacity: 0.04;
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      }
+      .section-noise > * {
+        position: relative;
+        z-index: 1;
       }
       @keyframes marquee {
         from {
@@ -263,7 +280,7 @@
   </head>
   <body>
     <nav class="liquid-glass">
-      <span>{{PRODUCT_NAME}}</span>
+      <span>Claude Fable 5</span>
       <a class="nav-cta liquid-glass" href="#capabilities">Explore</a>
     </nav>
 
@@ -274,7 +291,7 @@
         muted
         playsinline
         autoplay
-        src="{{HERO_VIDEO_URL}}"
+        src="https://video.twimg.com/amplify_video/2064389698190012416/vid/avc1/2160x2160/cRYBJVhIVvopbO92.mp4?tag=27"
       ></video>
       <video
         id="heroVideoB"
@@ -282,18 +299,19 @@
         muted
         playsinline
         style="opacity: 0"
-        src="{{HERO_VIDEO_URL}}"
+        src="https://video.twimg.com/amplify_video/2064389698190012416/vid/avc1/2160x2160/cRYBJVhIVvopbO92.mp4?tag=27"
       ></video>
       <div class="hero-overlay"></div>
       <div class="hero-seam"></div>
       <div class="hero-content">
-        <p class="section-label">{{PRODUCT_TAGLINE}}</p>
-        <h1 class="font-display">{{HEADLINE}}</h1>
-        <p>{{HERO_SUBCOPY}}</p>
+        <p class="section-label">Mythos-class frontier model</p>
+        <h1 class="font-display">Built for the curious</h1>
+        <p>
+          The most complete guide to Claude Fable 5 — capabilities, benchmarks, community
+          showcase, safety design, partners, and pricing, all in one place.
+        </p>
         <div class="pill-row">
-          <button class="pill liquid-glass" type="button" data-copy="{{MODEL_ID}}">
-            {{MODEL_ID}}
-          </button>
+          <button class="pill liquid-glass" type="button" id="modelIdPill">claude-fable-5</button>
           <button class="pill liquid-glass" type="button" data-copy-prompt>
             Copy site prompt
           </button>
@@ -304,47 +322,50 @@
     <section id="capabilities" class="bg-grid-faint">
       <div class="section-inner">
         <p class="section-label">Capabilities</p>
-        <h2 class="section-title font-display">{{CAPABILITIES_HEADLINE}}</h2>
+        <h2 class="section-title font-display">What Fable 5 unlocks</h2>
         <div class="stat-grid">
           <article class="stat-card liquid-glass">
-            <div class="stat-value">{{STAT_1_VALUE}}</div>
-            <div class="stat-label">{{STAT_1_LABEL}}</div>
+            <div class="stat-value">1M</div>
+            <div class="stat-label">Context window tokens</div>
           </article>
           <article class="stat-card liquid-glass">
-            <div class="stat-value">{{STAT_2_VALUE}}</div>
-            <div class="stat-label">{{STAT_2_LABEL}}</div>
+            <div class="stat-value">8×</div>
+            <div class="stat-label">Faster agentic loops</div>
           </article>
           <article class="stat-card liquid-glass">
-            <div class="stat-value">{{STAT_3_VALUE}}</div>
-            <div class="stat-label">{{STAT_3_LABEL}}</div>
+            <div class="stat-value">94%</div>
+            <div class="stat-label">SWE-bench verified</div>
           </article>
           <article class="stat-card liquid-glass">
-            <div class="stat-value">{{STAT_4_VALUE}}</div>
-            <div class="stat-label">{{STAT_4_LABEL}}</div>
+            <div class="stat-value">∞</div>
+            <div class="stat-label">Community demos shipped</div>
           </article>
         </div>
       </div>
     </section>
 
-    <section id="showcase" class="bg-noise" style="opacity: 0.04">
+    <section id="showcase" class="section-noise">
       <div class="section-inner">
         <p class="section-label">Showcase</p>
-        <h2 class="section-title font-display">{{SHOWCASE_HEADLINE}}</h2>
+        <h2 class="section-title font-display">Built by the community</h2>
       </div>
       <div class="marquee-fade marquee-row" style="margin-top: 2.5rem; overflow: hidden">
         <div class="marquee-track" id="marqueeTrack">
-          <!-- Duplicate items for seamless loop; customize titles and video URLs -->
           <figure class="showcase-card">
-            <video muted playsinline loop src="{{SHOWCASE_VIDEO_1}}"></video>
-            <figcaption>{{SHOWCASE_TITLE_1}}</figcaption>
+            <video muted playsinline loop src="https://video.twimg.com/amplify_video/2064420518942437376/vid/avc1/1920x1080/BzMywrZ4K5_h3aoK.mp4?tag=27"></video>
+            <figcaption>Minecraft in HTML</figcaption>
           </figure>
           <figure class="showcase-card">
-            <video muted playsinline loop src="{{SHOWCASE_VIDEO_2}}"></video>
-            <figcaption>{{SHOWCASE_TITLE_2}}</figcaption>
+            <video muted playsinline loop src="https://video.twimg.com/amplify_video/2064496512973803520/vid/avc1/1920x1076/xHpwIXZBfPJ-0V_3.mp4?tag=27"></video>
+            <figcaption>Skyrim world gen</figcaption>
           </figure>
           <figure class="showcase-card">
-            <video muted playsinline loop src="{{SHOWCASE_VIDEO_3}}"></video>
-            <figcaption>{{SHOWCASE_TITLE_3}}</figcaption>
+            <video muted playsinline loop src="https://video.twimg.com/amplify_video/2064397274609033216/vid/avc1/1280x720/O58ETHyremKTPAeZ.mp4?tag=27"></video>
+            <figcaption>Pokémon battle</figcaption>
+          </figure>
+          <figure class="showcase-card">
+            <video muted playsinline loop src="https://video.twimg.com/amplify_video/2064458963957985280/vid/avc1/1724x1080/5XDvsMcK1iOIwWOd.mp4?tag=27"></video>
+            <figcaption>Self-building site</figcaption>
           </figure>
         </div>
       </div>
@@ -353,25 +374,32 @@
     <section id="partners">
       <div class="section-inner">
         <p class="section-label">Partners</p>
-        <h2 class="section-title font-display">{{PARTNERS_HEADLINE}}</h2>
+        <h2 class="section-title font-display">Ecosystem partners</h2>
         <div class="partner-grid">
           <article class="partner-card liquid-glass">
-            <strong>{{PARTNER_1_NAME}}</strong>
-            <span class="stat-label">{{PARTNER_1_DESC}}</span>
+            <strong>Open Design</strong>
+            <span class="stat-label">Design-forward agent workspace — try this template live</span>
           </article>
           <article class="partner-card liquid-glass">
-            <strong>{{PARTNER_2_NAME}}</strong>
-            <span class="stat-label">{{PARTNER_2_DESC}}</span>
+            <strong>Anthropic</strong>
+            <span class="stat-label">Fable 5 and Mythos safety research</span>
           </article>
           <article class="partner-card liquid-glass">
-            <strong>{{PARTNER_3_NAME}}</strong>
-            <span class="stat-label">{{PARTNER_3_DESC}}</span>
+            <strong>Community builders</strong>
+            <span class="stat-label">Demos shipped in the first 48 hours of launch</span>
           </article>
         </div>
       </div>
     </section>
 
-    <footer>Designed with Open Design · {{FOOTER_CREDIT}}</footer>
+    <footer>Designed with Open Design · Claude Fable 5 launch site</footer>
+
+    <script type="application/json" id="seed-data">
+      {
+        "modelId": "claude-fable-5",
+        "sitePrompt": "Build a cinematic Claude Fable 5 landing with liquid-glass UI, full-screen video hero, marquee showcase, and Open Design integration."
+      }
+    </script>
 
     <script>
       (function () {
@@ -420,18 +448,26 @@
         }
 
         /* Sandbox-safe copy buttons */
-        document.querySelectorAll('[data-copy]').forEach(function (btn) {
-          btn.addEventListener('click', function () {
-            var text = btn.getAttribute('data-copy') || '';
+        var seed = { modelId: '', sitePrompt: '' };
+        var seedEl = document.getElementById('seed-data');
+        if (seedEl) {
+          try {
+            seed = JSON.parse(seedEl.textContent || '{}');
+          } catch (e) {}
+        }
+        var modelBtn = document.getElementById('modelIdPill');
+        if (modelBtn) {
+          modelBtn.addEventListener('click', function () {
+            var text = String(seed.modelId || '');
             if (navigator.clipboard && navigator.clipboard.writeText) {
               navigator.clipboard.writeText(text).catch(function () {});
             }
           });
-        });
+        }
         var promptBtn = document.querySelector('[data-copy-prompt]');
         if (promptBtn) {
           promptBtn.addEventListener('click', function () {
-            var text = '{{SITE_PROMPT}}';
+            var text = String(seed.sitePrompt || '');
             if (navigator.clipboard && navigator.clipboard.writeText) {
               navigator.clipboard.writeText(text).catch(function () {});
             }
