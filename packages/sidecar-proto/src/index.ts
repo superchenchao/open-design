@@ -184,6 +184,7 @@ export type DesktopStatusSnapshot = {
   state: DesktopRuntimeState;
   title?: string | null;
   update?: DesktopUpdateStatusSnapshot;
+  updateStatusError?: string;
   updatedAt?: string;
   url?: string | null;
   windowVisible?: boolean;

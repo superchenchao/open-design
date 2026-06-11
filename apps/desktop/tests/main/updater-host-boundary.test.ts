@@ -41,8 +41,18 @@ describe("desktop updater host boundary", () => {
     expect(ipcStart).toBeGreaterThanOrEqual(0);
     expect(runtimeStart).toBeGreaterThan(ipcStart);
     const startupIpcBody = main.slice(ipcStart, runtimeStart);
-    expect(startupIpcBody).toContain('state: "idle"');
+    expect(main).toContain('state: "idle"');
+    expect(startupIpcBody).toContain("desktopStatusSnapshot(activeDesktop)");
     expect(startupIpcBody).toContain("desktop runtime is not initialized");
+  });
+
+  it("keeps desktop STATUS responsive when updater status is slow", () => {
+    const main = source("src/main/index.ts");
+    expect(main).toContain("async function snapshotUpdateForStatus()");
+    expect(main).toContain("desktop updater status timed out after ${timeoutMs}ms");
+    expect(main).toContain("update: updater.snapshot()");
+    expect(main).toContain("return await desktopStatusSnapshot(activeDesktop)");
+    expect(main).not.toContain("return await updater.status()");
   });
 
   it("keeps updater actions out of native desktop menus", () => {

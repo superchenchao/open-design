@@ -46,6 +46,8 @@ import type {
   WinInspectResult,
   WinInstallResult,
   WinInstallPayloadReport,
+  WinInspectStatusPollResult,
+  WinInspectStatusPollSample,
   WinLifecycleTiming,
   WinListResult,
   WinResetResult,
@@ -489,7 +491,50 @@ async function requestStatusSnapshot<T>(ipc: string): Promise<{ error?: string; 
   }
 }
 
-export async function inspectPackedWinApp(config: ToolPackConfig, options: { expr?: string; path?: string; updateAction?: string }): Promise<WinInspectResult> {
+function resolveOptionalPositiveInteger(value: string | number | undefined, label: string): number | null {
+  if (value == null) return null;
+  const parsed = typeof value === "number" ? value : Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 1) throw new Error(`${label} must be a positive integer`);
+  return parsed;
+}
+
+async function delay(ms: number): Promise<void> {
+  await new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
+}
+
+async function pollWinInspectStatus(config: ToolPackConfig, count: number, intervalMs: number): Promise<WinInspectStatusPollResult> {
+  const samples: WinInspectStatusPollSample[] = [];
+  const desktopIpc = desktopStamp(config).ipc;
+  const daemonIpc = appIpcPath(config, APP_KEYS.DAEMON);
+  const webIpc = appIpcPath(config, APP_KEYS.WEB);
+  for (let attempt = 1; attempt <= count; attempt += 1) {
+    const startedAtMs = Date.now();
+    const startedAt = new Date(startedAtMs).toISOString();
+    const [desktopSnapshot, daemonSnapshot, webSnapshot] = await Promise.all([
+      requestStatusSnapshot<DesktopStatusSnapshot>(desktopIpc),
+      requestStatusSnapshot<DaemonStatusSnapshot>(daemonIpc),
+      requestStatusSnapshot<WebStatusSnapshot>(webIpc),
+    ]);
+    samples.push({
+      attempt,
+      daemonStatus: daemonSnapshot.status,
+      ...(daemonSnapshot.error == null ? {} : { daemonStatusError: daemonSnapshot.error }),
+      durationMs: Date.now() - startedAtMs,
+      startedAt,
+      status: desktopSnapshot.status,
+      ...(desktopSnapshot.error == null ? {} : { statusError: desktopSnapshot.error }),
+      webStatus: webSnapshot.status,
+      ...(webSnapshot.error == null ? {} : { webStatusError: webSnapshot.error }),
+    });
+    if (attempt < count) await delay(intervalMs);
+  }
+  return { count, intervalMs, samples };
+}
+
+export async function inspectPackedWinApp(
+  config: ToolPackConfig,
+  options: { expr?: string; path?: string; statusPollCount?: string | number; statusPollIntervalMs?: string | number; updateAction?: string },
+): Promise<WinInspectResult> {
   const stamp = desktopStamp(config);
   const [desktopSnapshot, daemonSnapshot, webSnapshot] = await Promise.all([
     requestStatusSnapshot<DesktopStatusSnapshot>(stamp.ipc),
@@ -497,6 +542,8 @@ export async function inspectPackedWinApp(config: ToolPackConfig, options: { exp
     requestStatusSnapshot<WebStatusSnapshot>(appIpcPath(config, APP_KEYS.WEB)),
   ]);
   const updateAction = resolveUpdateAction(options.updateAction);
+  const statusPollCount = resolveOptionalPositiveInteger(options.statusPollCount, "--status-poll-count");
+  const statusPollIntervalMs = resolveOptionalPositiveInteger(options.statusPollIntervalMs, "--status-poll-interval-ms") ?? 500;
   const launcher = await readToolPackLauncherRuntimeSnapshot(config);
   const updateCache = await readToolPackUpdateCacheLifecycleSnapshot(config);
   return {
@@ -533,6 +580,9 @@ export async function inspectPackedWinApp(config: ToolPackConfig, options: { exp
     }),
     status: desktopSnapshot.status,
     ...(desktopSnapshot.error == null ? {} : { statusError: desktopSnapshot.error }),
+    ...(statusPollCount == null ? {} : {
+      statusPoll: await pollWinInspectStatus(config, statusPollCount, statusPollIntervalMs),
+    }),
     webStatus: webSnapshot.status,
     ...(webSnapshot.error == null ? {} : { webStatusError: webSnapshot.error }),
   };

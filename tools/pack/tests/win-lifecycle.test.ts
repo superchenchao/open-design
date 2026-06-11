@@ -117,4 +117,36 @@ describe("inspectPackedWinApp", () => {
       await rm(root, { force: true, recursive: true });
     }
   });
+
+  it("polls status diagnostics when requested", async () => {
+    const root = await mkdtemp(join(tmpdir(), "open-design-win-lifecycle-"));
+
+    try {
+      requestJsonIpc.mockReset();
+      requestJsonIpc.mockImplementation(async (ipc: string, payload: { type?: string }) => {
+        if (payload.type === SIDECAR_MESSAGES.STATUS) {
+          if (ipc.includes("daemon")) return { state: "running", url: "http://127.0.0.1:1234" };
+          if (ipc.includes("web")) return { state: "running", url: "http://127.0.0.1:5678" };
+          throw new Error("IPC request timed out: test-pipe");
+        }
+        throw new Error(`unexpected IPC message: ${String(payload.type)}`);
+      });
+
+      const result = await inspectPackedWinApp(createConfig(root), {
+        statusPollCount: 2,
+        statusPollIntervalMs: 1,
+      });
+
+      expect(result.statusPoll?.count).toBe(2);
+      expect(result.statusPoll?.intervalMs).toBe(1);
+      expect(result.statusPoll?.samples).toHaveLength(2);
+      expect(result.statusPoll?.samples.map((sample) => sample.attempt)).toEqual([1, 2]);
+      expect(result.statusPoll?.samples[0]?.status).toBeNull();
+      expect(result.statusPoll?.samples[0]?.statusError).toBe("IPC request timed out: test-pipe");
+      expect(result.statusPoll?.samples[0]?.daemonStatus).toEqual({ state: "running", url: "http://127.0.0.1:1234" });
+      expect(result.statusPoll?.samples[0]?.webStatus).toEqual({ state: "running", url: "http://127.0.0.1:5678" });
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
+  });
 });

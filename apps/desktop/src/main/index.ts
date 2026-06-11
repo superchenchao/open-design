@@ -15,6 +15,8 @@ import {
   type DesktopEvalInput,
   type DesktopExportPdfInput,
   type DesktopScreenshotInput,
+  type DesktopStatusSnapshot,
+  type DesktopUpdateStatusSnapshot,
   type DesktopUpdateInput,
   type RegisterDesktopAuthResult,
   type SidecarStamp,
@@ -651,6 +653,47 @@ export async function runDesktopMain(
   let ipcServer: JsonIpcServerHandle | null = null;
   let shuttingDown = false;
 
+  async function snapshotUpdateForStatus(): Promise<{
+    update: DesktopUpdateStatusSnapshot;
+    updateStatusError?: string;
+  }> {
+    const timeoutMs = 250;
+    let timeout: NodeJS.Timeout | null = null;
+    try {
+      const update = await Promise.race([
+        updater.status(),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => {
+            reject(new Error(`desktop updater status timed out after ${timeoutMs}ms`));
+          }, timeoutMs);
+        }),
+      ]);
+      return { update };
+    } catch (error) {
+      return {
+        update: updater.snapshot(),
+        updateStatusError: error instanceof Error ? error.message : String(error),
+      };
+    } finally {
+      if (timeout != null) clearTimeout(timeout);
+    }
+  }
+
+  async function desktopStatusSnapshot(activeDesktop: DesktopRuntime | null): Promise<DesktopStatusSnapshot> {
+    const update = await snapshotUpdateForStatus();
+    if (activeDesktop == null) {
+      return {
+        pid: process.pid,
+        state: "idle",
+        updatedAt: new Date().toISOString(),
+        url: null,
+        windowVisible: false,
+        ...update,
+      };
+    }
+    return { ...activeDesktop.status(), ...update };
+  }
+
   async function shutdown(): Promise<void> {
     if (shuttingDown) return;
     shuttingDown = true;
@@ -681,16 +724,7 @@ export async function runDesktopMain(
         const activeDesktop = desktop;
         switch (request.type) {
           case SIDECAR_MESSAGES.STATUS:
-            return activeDesktop == null
-              ? {
-                  pid: process.pid,
-                  state: "idle",
-                  updatedAt: new Date().toISOString(),
-                  url: null,
-                  update: await updater.status(),
-                  windowVisible: false,
-                }
-              : { ...activeDesktop.status(), update: await updater.status() };
+            return await desktopStatusSnapshot(activeDesktop);
           case SIDECAR_MESSAGES.SHUTDOWN:
             setImmediate(() => {
               shutdownAndExit();

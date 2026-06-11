@@ -40,6 +40,8 @@ export type ToolPackCliOptions = {
   requireVelaCli?: boolean;
   signed?: boolean;
   silent?: boolean;
+  statusPollCount?: string | number;
+  statusPollIntervalMs?: string | number;
   to?: string;
   updateAction?: string;
 };

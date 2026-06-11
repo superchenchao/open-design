@@ -348,6 +348,7 @@ export type WinInspectResult = {
   screenshot?: DesktopScreenshotResult;
   status: DesktopStatusSnapshot | null;
   statusError?: string;
+  statusPoll?: WinInspectStatusPollResult;
   updateCache: ToolPackUpdateCacheLifecycleSnapshot;
   updateCacheSource: {
     kind: "tools-pack-runtime";
@@ -357,4 +358,22 @@ export type WinInspectResult = {
   update?: DesktopUpdateResult;
   webStatus: WebStatusSnapshot | null;
   webStatusError?: string;
+};
+
+export type WinInspectStatusPollSample = {
+  attempt: number;
+  daemonStatus: DaemonStatusSnapshot | null;
+  daemonStatusError?: string;
+  durationMs: number;
+  startedAt: string;
+  status: DesktopStatusSnapshot | null;
+  statusError?: string;
+  webStatus: WebStatusSnapshot | null;
+  webStatusError?: string;
+};
+
+export type WinInspectStatusPollResult = {
+  count: number;
+  intervalMs: number;
+  samples: WinInspectStatusPollSample[];
 };
