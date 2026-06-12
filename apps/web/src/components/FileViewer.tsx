@@ -5247,6 +5247,8 @@ function HtmlViewer({
     forceInline: forceInline || needsSandboxShim,
     needsFocusGuard,
   }) && !manualEditRequiresSrcDoc;
+  const activePreviewUrlLoadRef = useRef(useUrlLoadPreview);
+  activePreviewUrlLoadRef.current = useUrlLoadPreview;
   const basePreviewSrcUrl = useMemo(
     () => `${projectRawUrl(projectId, file.name)}?v=${Math.round(file.mtime)}&r=${reloadKey}&odPreviewBridge=scroll&odPreviewBridge=selection&odPreviewBridge=snapshot`,
     [projectId, file.name, file.mtime, reloadKey],
@@ -5262,12 +5264,12 @@ function HtmlViewer({
     setPreviewSrcUrl(basePreviewSrcUrl);
     setUrlSelectionBridgeReady(false);
   }, [basePreviewSrcUrl]);
-  const activePreviewIframe = useCallback((urlLoadActive = useUrlLoadPreview): HTMLIFrameElement | null => (
+  const activePreviewIframe = useCallback((urlLoadActive = activePreviewUrlLoadRef.current): HTMLIFrameElement | null => (
     urlLoadActive ? urlPreviewIframeRef.current : srcDocPreviewIframeRef.current
-  ), [useUrlLoadPreview]);
+  ), []);
   useEffect(() => {
     iframeRef.current = activePreviewIframe();
-  }, [activePreviewIframe]);
+  }, [activePreviewIframe, useUrlLoadPreview]);
 
   useEffect(() => {
     if (filesRefreshKey === 0) return;

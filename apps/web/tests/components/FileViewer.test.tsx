@@ -1481,6 +1481,54 @@ describe('FileViewer SVG artifacts', () => {
     expect(postMessage).toHaveBeenCalledWith({ type: 'od:slide', action: 'next' }, '*');
   });
 
+  it('sends deck keyboard navigation to the active preview frame after Mark mode opens', () => {
+    const file = baseFile({
+      name: 'deck.html',
+      path: 'deck.html',
+      mime: 'text/html',
+      kind: 'html',
+      artifactManifest: {
+        version: 1,
+        kind: 'html',
+        title: 'Deck',
+        entry: 'deck.html',
+        renderer: 'html',
+        exports: ['html'],
+      },
+    });
+
+    render(
+      <FileViewer
+        projectId="project-1"
+        projectKind="prototype"
+        file={file}
+        isDeck
+        liveHtml={'<html><body><section class="slide">one</section><section class="slide">two</section></body></html>'}
+      />,
+    );
+
+    const inactiveUrlFrame = screen.getByTestId('artifact-preview-frame-url-load') as HTMLIFrameElement;
+    const activeFrame = screen.getByTestId('artifact-preview-frame') as HTMLIFrameElement;
+    const inactivePostMessage = vi.fn();
+    const activePostMessage = vi.fn();
+    Object.defineProperty(inactiveUrlFrame, 'contentWindow', {
+      configurable: true,
+      value: { postMessage: inactivePostMessage },
+    });
+    Object.defineProperty(activeFrame, 'contentWindow', {
+      configurable: true,
+      value: { postMessage: activePostMessage },
+    });
+
+    fireEvent.click(screen.getByTestId('draw-overlay-toggle'));
+    expect(screen.getByTestId('artifact-preview-frame')).toBe(activeFrame);
+
+    fireEvent.keyDown(window, { key: 'PageDown' });
+
+    expect(activePostMessage).toHaveBeenCalledWith({ type: 'od:slide', action: 'next' }, '*');
+    expect(inactivePostMessage).not.toHaveBeenCalledWith({ type: 'od:slide', action: 'next' }, '*');
+  });
+
   it('falls back to preview scrolling at deck boundaries while Mark mode is open', async () => {
     const file = baseFile({
       name: 'deck.html',
