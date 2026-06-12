@@ -460,7 +460,7 @@ jobs:
       - change_scopes
     if: ${{ needs.change_scopes.outputs.workspace_validation_required == 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: Checkout
@@ -488,6 +488,46 @@ jobs:
         run: |
           pnpm -C e2e exec tsx scripts/playwright.ts clean
           pnpm -C e2e run test:ui:critical
+
+      - name: Collect changed files for impact UI P0 shards
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --paginate \
+            "repos/${GITHUB_REPOSITORY}/pulls/${{ github.event.pull_request.number }}/files" \
+            --jq '.[] | .filename, (.previous_filename // empty) | select(. != "")' \
+            | sort -u > "$RUNNER_TEMP/changed-files.txt"
+
+      - name: Select impact UI P0 shards
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          set -euo pipefail
+          if pnpm exec tsx scripts/pr-impact-analysis.ts analyze --json \
+            < "$RUNNER_TEMP/changed-files.txt" > "$RUNNER_TEMP/impact.json"; then
+            pnpm exec tsx scripts/pr-impact-analysis.ts required-ui-p0-shards \
+              "$RUNNER_TEMP/impact.json" > "$RUNNER_TEMP/impact-ui-p0-shards.txt"
+          else
+            echo "Impact analysis failed; falling back to all UI P0 domain shards." >&2
+            printf '%s\n' entry-onboarding project-workspace runtime-recovery settings-connectors > "$RUNNER_TEMP/impact-ui-p0-shards.txt"
+          fi
+
+      - name: Run impact UI P0 shards
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          set -euo pipefail
+          shards_file="$RUNNER_TEMP/impact-ui-p0-shards.txt"
+          if [ ! -s "$shards_file" ]; then
+            echo "No additional impact UI P0 shards selected."
+            exit 0
+          fi
+          while IFS= read -r shard; do
+            [ -n "$shard" ] || continue
+            echo "Running impact UI P0 shard: $shard"
+            pnpm -C e2e exec tsx scripts/playwright.ts clean
+            pnpm -C e2e exec tsx scripts/ui-p0-shards.ts "$shard"
+          done < "$shards_file"
 
   build_workspaces:
     name: Build workspaces

@@ -107,6 +107,19 @@ async function main(): Promise<void> {
     await analyze(args);
     return;
   }
+  if (command === "format-github-comment") {
+    const [analysisPath] = args;
+    if (analysisPath == null) throw new Error("format-github-comment requires an analysis JSON path.");
+    console.log(formatGithubComment(await readAnalysisResult(analysisPath)));
+    return;
+  }
+  if (command === "required-ui-p0-shards") {
+    const [analysisPath] = args;
+    if (analysisPath == null) throw new Error("required-ui-p0-shards requires an analysis JSON path.");
+    const knownShards = await readKnownUiP0Shards();
+    for (const shard of requiredUiP0Shards(await readAnalysisResult(analysisPath), knownShards)) console.log(shard);
+    return;
+  }
   printUsage();
 }
 
@@ -196,7 +209,7 @@ async function validateRules(): Promise<string[]> {
 
 async function analyze(args: string[]): Promise<void> {
   const json = args.includes("--json");
-  const changedPaths = (await readChangedPaths(args.filter((arg) => arg !== "--json"))).map(normalizeRepoPath);
+  const changedPaths = uniqueStrings((await readChangedPaths(args.filter((arg) => arg !== "--json"))).map(normalizeRepoPath)).sort();
   if (changedPaths.length === 0) {
     throw new Error("No changed paths supplied. Pass paths as arguments or via stdin.");
   }
@@ -325,6 +338,116 @@ function printReport(result: AnalysisResult): void {
     console.log("\nRecommended validation:");
     for (const command of result.recommendedCommands) console.log(`- ${command}`);
   }
+}
+
+async function readAnalysisResult(filePath: string): Promise<AnalysisResult> {
+  return JSON.parse(await readFile(filePath, "utf8")) as AnalysisResult;
+}
+
+function formatGithubComment(result: AnalysisResult): string {
+  const lines = [
+    "<!-- pr-impact-analysis -->",
+    "## PR impact analysis",
+    "",
+    "> Advisory only. Required CI remains authoritative; this tool does not downgrade required validation or approve overrides.",
+    "",
+    `Risk tier: \`${result.tier}\``,
+    "",
+  ];
+
+  if (result.capabilities.length === 0 && result.globalRiskSignals.length === 0 && result.testCoverageEvidence.length === 0) {
+    lines.push("No impact rules matched the changed files.", "");
+  }
+
+  if (result.capabilities.length > 0) {
+    lines.push("### Matched capabilities", "", "| Capability | Group | Confidence | Matched files |", "| --- | --- | --- | --- |");
+    for (const capability of result.capabilities) {
+      lines.push(
+        `| \`${markdownEscape(capability.id)}\` | \`${markdownEscape(capability.groupId)}\` | ${markdownEscape(capability.confidence)} | ${matchedFilesSummary(capability.matchedFiles)} |`,
+      );
+    }
+    lines.push("");
+  }
+
+  if (result.globalRiskSignals.length > 0) {
+    lines.push("### Global risk signals", "", "| Signal | Matched files |", "| --- | --- |");
+    for (const signal of result.globalRiskSignals) {
+      lines.push(`| \`${markdownEscape(signal.id)}\` | ${matchedFilesSummary(signal.matchedFiles)} |`);
+    }
+    lines.push("");
+  }
+
+  if (result.commands.length > 0) {
+    lines.push("### Required validation", "");
+    for (const command of result.commands) lines.push(`- \`${markdownEscape(command)}\``);
+    lines.push("");
+  }
+
+  if (result.recommendedCommands.length > 0) {
+    lines.push("### Recommended validation", "");
+    for (const command of result.recommendedCommands) lines.push(`- \`${markdownEscape(command)}\``);
+    lines.push("");
+  }
+
+  const manualQaItems = uniqueStrings(result.capabilities.flatMap((capability) => capability.manualQa?.checklist ?? []));
+  if (manualQaItems.length > 0) {
+    lines.push("### Manual QA checklist", "");
+    for (const item of manualQaItems) lines.push(`- ${markdownEscape(item)}`);
+    lines.push("");
+  }
+
+  if (result.testCoverageEvidence.length > 0) {
+    lines.push("### Changed mapped E2E tests", "");
+    for (const evidence of result.testCoverageEvidence) {
+      lines.push(`- \`${markdownEscape(evidence.capabilityId)}\`: ${matchedFilesSummary(evidence.changedTestEvidence)}`);
+    }
+    lines.push("");
+  }
+
+  lines.push(`<sub>Analyzed ${result.changedPaths.length} changed path${result.changedPaths.length === 1 ? "" : "s"}. Generated from deterministic rules in \`docs/testing/pr-impact-analysis/\`.</sub>`);
+  return lines.join("\n");
+}
+
+function requiredUiP0Shards(result: AnalysisResult, knownShards: Set<string>): string[] {
+  const shards = result.commands
+    .map((command) => command.match(/ui-p0-shards\.ts (?<shard>[a-z0-9-]+)/u)?.groups?.shard)
+    .filter((shard): shard is string => shard != null && knownShards.has(shard));
+  return uniqueStrings(shards);
+}
+
+function matchedFilesSummary(matches: Match[]): string {
+  const files = uniqueStrings(matches.map((match) => match.path)).sort();
+  if (files.length === 0) return "n/a";
+  const visible = files.slice(0, 4).map(codeTag).join("<br>");
+  const hiddenCount = files.length - 4;
+  return hiddenCount > 0 ? `${visible}<br>+${hiddenCount} more` : visible;
+}
+
+function codeTag(value: string): string {
+  return `<code>${htmlEscape(value)}</code>`;
+}
+
+function htmlEscape(value: string): string {
+  return value.replace(/[&<>"']/gu, (character) => {
+    switch (character) {
+      case "&":
+        return "&amp;";
+      case "<":
+        return "&lt;";
+      case ">":
+        return "&gt;";
+      case '"':
+        return "&quot;";
+      case "'":
+        return "&#39;";
+      default:
+        return character;
+    }
+  });
+}
+
+function markdownEscape(value: string): string {
+  return value.replace(/\|/gu, "\\|").replace(/`/gu, "\\`");
 }
 
 async function readChangedPaths(args: string[]): Promise<string[]> {
@@ -459,6 +582,8 @@ function printUsage(): void {
   console.log(`Usage:
   pnpm exec tsx scripts/pr-impact-analysis.ts validate
   pnpm exec tsx scripts/pr-impact-analysis.ts analyze [--json] <changed-path>...
+  pnpm exec tsx scripts/pr-impact-analysis.ts format-github-comment <analysis-json>
+  pnpm exec tsx scripts/pr-impact-analysis.ts required-ui-p0-shards <analysis-json>
   git diff --name-only main...HEAD | pnpm exec tsx scripts/pr-impact-analysis.ts analyze
 `);
 }
