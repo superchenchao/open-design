@@ -1085,6 +1085,13 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
       }
       sse.send('start', { model });
       const runOpenAITurn = async (messagesForTurn: any[]): Promise<TurnResult> => {
+        let slowStartTimer: ReturnType<typeof setTimeout> | null = null;
+        const clearSlowStartTimer = () => {
+          if (slowStartTimer) {
+            clearTimeout(slowStartTimer);
+            slowStartTimer = null;
+          }
+        };
         const payload: any = {
           model,
           messages: messagesForTurn,
@@ -1097,6 +1104,20 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
             ? { tools: [BYOK_MEDIA_IMAGE_TOOL], tool_choice: 'auto' }
             : {}),
         };
+        if (openAIImageToolContext) {
+          sendOpenAIImageToolProgress(sse, 'tool_injected', {
+            model,
+            mediaModel: openAIImageToolContext.mediaModel,
+          });
+          sendOpenAIImageToolProgress(sse, 'waiting_for_tool_call', { model });
+          slowStartTimer = setTimeout(() => {
+            sendOpenAIImageToolProgress(sse, 'slow_tool_call_start', {
+              model,
+              thresholdMs: OPENAI_IMAGE_TOOL_SLOW_START_MS,
+            });
+          }, OPENAI_IMAGE_TOOL_SLOW_START_MS);
+          slowStartTimer.unref?.();
+        }
         const response = await fetch(url, {
           ...requestInit,
           method: 'POST',
@@ -1113,6 +1134,7 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
         });
 
         if (!response.ok) {
+          clearSlowStartTimer();
           const errorText = await response.text();
           console.error(
             `[proxy:openai] upstream error: ${response.status} ${redactAuthTokens(errorText)}`,
@@ -1134,6 +1156,7 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
           if (!data) return false;
           const streamError = extractStreamErrorMessage(data);
           if (streamError) {
+            clearSlowStartTimer();
             providerError = streamError;
             return true;
           }
@@ -1142,6 +1165,7 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
           const choice = choices[0] || {};
           const delta = choice.delta || {};
           if (typeof delta.content === 'string' && delta.content) {
+            clearSlowStartTimer();
             guard.sendDelta(delta.content);
             if (guard.contaminated) {
               sse.send('end', {});
@@ -1149,6 +1173,7 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
             }
           }
           if (Array.isArray(delta.tool_calls)) {
+            clearSlowStartTimer();
             for (const tc of delta.tool_calls) {
               const idx = typeof tc?.index === 'number' ? tc.index : 0;
               if (!accum[idx]) {
@@ -1169,6 +1194,7 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
           }
           return false;
         });
+        clearSlowStartTimer();
 
         if (providerError) {
           sendProxyError(sse, `Provider error: ${providerError}`, { details: providerError });
@@ -1215,15 +1241,29 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
         }
         payloadMessages.push(turn.assistantMessage);
         for (const call of turn.toolCalls) {
+          sendOpenAIImageToolProgress(sse, 'generate_image_started', {
+            toolCallId: call.id,
+          });
           let args: any = {};
           try {
             args = JSON.parse(call.function.arguments || '{}');
           } catch {
             args = { __toolParseError: true };
           }
+          if (!args.__toolParseError) {
+            sendOpenAIImageToolProgress(sse, 'image_request_running', {
+              toolCallId: call.id,
+            });
+          }
           const result = args.__toolParseError
             ? { ok: false, error: 'tool arguments were not valid JSON' }
             : await executeGenerateMediaImage(args, openAIImageToolContext);
+          if (result.ok) {
+            sendOpenAIImageToolProgress(sse, 'file_written', {
+              toolCallId: call.id,
+              url: result.url,
+            });
+          }
           payloadMessages.push({
             role: 'tool',
             tool_call_id: call.id,
@@ -1537,6 +1577,7 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
   // the CLI agent path. Loop is bounded by MAX_BYOK_TOOL_LOOPS so a
   // misbehaving model can't pin the daemon in an infinite tool dance.
   const MAX_BYOK_TOOL_LOOPS = 3;
+  const OPENAI_IMAGE_TOOL_SLOW_START_MS = 30_000;
 
   type AccumulatedToolCall = { id: string; name: string; arguments: string };
   type TurnResult =
@@ -1547,6 +1588,24 @@ export function registerChatRoutes(app: Express, ctx: RegisterChatRoutesDeps) {
         assistantMessage: any;
         toolCalls: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>;
       };
+
+  function sendOpenAIImageToolProgress(
+    sse: ReturnType<typeof createSseResponse>,
+    stage:
+      | 'tool_injected'
+      | 'waiting_for_tool_call'
+      | 'slow_tool_call_start'
+      | 'generate_image_started'
+      | 'image_request_running'
+      | 'file_written',
+    data: Record<string, unknown> = {},
+  ): void {
+    sse.send('progress', {
+      scope: 'openai_image_tool',
+      stage,
+      ...data,
+    });
+  }
 
   function openAIImageToolOverride(imageModel: string, aspect?: string): string {
     const aspectNote = typeof aspect === 'string' && aspect.trim() ? aspect.trim() : '1:1';

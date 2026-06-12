@@ -9,7 +9,7 @@
  */
 import Anthropic from '@anthropic-ai/sdk';
 import { effectiveMaxTokens } from '../state/maxTokens';
-import type { AppConfig, ChatMessage } from '../types';
+import type { AgentEvent, AppConfig, ChatMessage } from '../types';
 import { streamMessageAnthropicProxy } from './anthropic-compatible';
 import type { ProxyContext } from './api-proxy';
 import { streamMessageAzure } from './azure-compatible';
@@ -27,6 +27,7 @@ export interface StreamHandlers {
   onDelta: (textDelta: string) => void;
   onDone: (fullText: string) => void;
   onError: (err: Error) => void;
+  onAgentEvent?: (event: AgentEvent) => void;
 }
 
 export function makeClient(cfg: AppConfig): Anthropic {

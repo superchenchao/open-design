@@ -1707,6 +1707,58 @@ describe('streamMessageOpenAI', () => {
     expect(handlers.onDone).toHaveBeenCalledWith('hi');
   });
 
+  it('surfaces OpenAI image tool progress frames as status events', async () => {
+    const handlers = createStreamHandlers();
+    const fetchMock = vi.fn(async () =>
+      sseResponse(
+        [
+          'event: progress',
+          'data: {"scope":"openai_image_tool","stage":"waiting_for_tool_call","model":"gpt-5"}',
+          '',
+          'event: progress',
+          'data: {"scope":"openai_image_tool","stage":"image_request_running","toolCallId":"call_1"}',
+          '',
+          'event: delta',
+          'data: {"delta":"done"}',
+          '',
+          'event: end',
+          'data: {}',
+          '',
+        ].join('\n'),
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await streamMessageOpenAI(
+      {
+        mode: 'api',
+        apiKey: 'test-key',
+        baseUrl: 'https://example.test',
+        model: 'gpt-5',
+        agentId: null,
+        skillId: null,
+        designSystemId: null,
+      },
+      '',
+      [{ id: '1', role: 'user', content: 'generate image' }],
+      new AbortController().signal,
+      handlers,
+    );
+
+    expect(handlers.onAgentEvent).toHaveBeenCalledWith({
+      kind: 'status',
+      label: 'openai_image_tool',
+      detail: 'Waiting for the model to call generate_image',
+    });
+    expect(handlers.onAgentEvent).toHaveBeenCalledWith({
+      kind: 'status',
+      label: 'openai_image_tool',
+      detail: 'Image request is running',
+    });
+    expect(handlers.onDelta).toHaveBeenCalledWith('done');
+    expect(handlers.onDone).toHaveBeenCalledWith('done');
+  });
+
   it('threads proxy context through the web OpenAI chat path', async () => {
     const handlers = createStreamHandlers();
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
@@ -1756,6 +1808,7 @@ function createStreamHandlers() {
     onDelta: vi.fn(),
     onDone: vi.fn(),
     onError: vi.fn(),
+    onAgentEvent: vi.fn(),
   };
 }
 

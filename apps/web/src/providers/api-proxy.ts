@@ -1,5 +1,5 @@
 import { effectiveMaxTokens } from '../state/maxTokens';
-import type { AppConfig, ChatMessage } from '../types';
+import type { AgentEvent, AppConfig, ChatMessage } from '../types';
 import type {
   ProxyImageContentBlock,
   ProxyMessage,
@@ -115,6 +115,12 @@ export async function streamProxyEndpoint(
           return;
         }
 
+        if (parsed.event === 'progress') {
+          const event = proxyProgressToAgentEvent(parsed.data);
+          if (event) handlers.onAgentEvent?.(event);
+          continue;
+        }
+
         if (parsed.event === 'end') {
           handlers.onDone(acc);
           return;
@@ -126,6 +132,36 @@ export async function streamProxyEndpoint(
   } catch (err) {
     if ((err as Error).name === 'AbortError') return;
     handlers.onError(err instanceof Error ? err : new Error(String(err)));
+  }
+}
+
+function proxyProgressToAgentEvent(data: Record<string, unknown>): AgentEvent | null {
+  if (data.scope !== 'openai_image_tool') return null;
+  const detail = openAIImageToolProgressDetail(data.stage);
+  if (!detail) return null;
+  return {
+    kind: 'status',
+    label: 'openai_image_tool',
+    detail,
+  };
+}
+
+function openAIImageToolProgressDetail(stage: unknown): string | null {
+  switch (stage) {
+    case 'tool_injected':
+      return 'Image tool is available';
+    case 'waiting_for_tool_call':
+      return 'Waiting for the model to call generate_image';
+    case 'slow_tool_call_start':
+      return 'Still waiting for the model to call generate_image';
+    case 'generate_image_started':
+      return 'Starting generate_image';
+    case 'image_request_running':
+      return 'Image request is running';
+    case 'file_written':
+      return 'Generated image file is ready';
+    default:
+      return null;
   }
 }
 

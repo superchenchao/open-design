@@ -99,6 +99,8 @@ describe('API proxy routes', () => {
         chatCallIndex += 1;
         if (chatCallIndex === 1) {
           return sseResponse([
+            'data: {"choices":[{"index":0,"delta":{"content":"I am preparing the image tool. "},"finish_reason":null}]}',
+            '',
             'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_img","type":"function","function":{"name":"generate_image","arguments":"{\\"prompt\\":\\"A dramatic Open Design poster\\"}"}}]},"finish_reason":null}]}',
             '',
             'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}',
@@ -148,7 +150,13 @@ describe('API proxy routes', () => {
 
     expect(res.status).toBe(200);
     const body = await res.text();
+    expect(body).toContain('I am preparing the image tool.');
     expect(body).toContain('Here is the render');
+    expect(body).toContain('"scope":"openai_image_tool","stage":"tool_injected"');
+    expect(body).toContain('"scope":"openai_image_tool","stage":"waiting_for_tool_call"');
+    expect(body).toContain('"scope":"openai_image_tool","stage":"generate_image_started"');
+    expect(body).toContain('"scope":"openai_image_tool","stage":"image_request_running"');
+    expect(body).toContain('"scope":"openai_image_tool","stage":"file_written"');
     expect(body).toContain('event: end');
     expect(upstreamChatBodies).toHaveLength(2);
     expect(upstreamChatBodies[0].tools).toMatchObject([
@@ -164,6 +172,100 @@ describe('API proxy routes', () => {
       tool_call_id: 'call_img',
       content: expect.stringMatching(/Image generated successfully\. URL: \/api\/projects\/openai-image-project\/files\//),
     });
+  });
+
+  it('streams OpenAI image-tool progress while a GPT-5 tool-call turn is delayed', async () => {
+    const configDir = await mkdtemp(path.join(tmpdir(), 'od-openai-image-progress-'));
+    process.env.OD_MEDIA_CONFIG_DIR = configDir;
+    await mkdir(configDir, { recursive: true });
+
+    const projectId = 'openai-image-progress-project';
+    const projectResponse = await realFetch(`${baseUrl}/api/projects`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        id: projectId,
+        name: 'OpenAI image progress project',
+        metadata: { kind: 'image', imageModel: 'gpt-image-2' },
+      }),
+    });
+    expect(projectResponse.status).toBe(200);
+
+    let firstChatController: ReadableStreamDefaultController<Uint8Array> | null = null;
+    let chatCallIndex = 0;
+    const pngBase64 = Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString('base64');
+    const fetchMock = vi.fn(async (input: FetchInput, init?: FetchInit) => {
+      const url = String(input);
+      if (url.startsWith(baseUrl)) return realFetch(input, init);
+      if (url === 'https://api.openai.com/v1/chat/completions') {
+        chatCallIndex += 1;
+        if (chatCallIndex === 1) {
+          return new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                firstChatController = controller;
+              },
+            }),
+            { status: 200, headers: { 'content-type': 'text/event-stream' } },
+          );
+        }
+        return sseResponse([
+          'data: {"choices":[{"index":0,"delta":{"content":"Done: ![generated image](generated)"}}]}',
+          '',
+          'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}',
+          '',
+          'data: [DONE]',
+          '',
+        ].join('\n'));
+      }
+      if (url === 'https://api.openai.com/v1/images/generations') {
+        return new Response(
+          JSON.stringify({ data: [{ b64_json: pngBase64 }] }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        );
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const res = await realFetch(`${baseUrl}/api/proxy/openai/stream`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        baseUrl: 'https://api.openai.com',
+        apiKey: 'sk-openai',
+        model: 'gpt-5',
+        projectId,
+        messages: [{ role: 'user', content: 'Generate a launch image.' }],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const reader = res.body?.getReader();
+    expect(reader).toBeDefined();
+    const initialBody = await readUntil(reader!, '"stage":"waiting_for_tool_call"');
+    expect(initialBody).toContain('"stage":"tool_injected"');
+    expect(initialBody).toContain('"stage":"waiting_for_tool_call"');
+    expect(initialBody).not.toContain('Done: ![generated image]');
+    expect(firstChatController).toBeTruthy();
+
+    const encoder = new TextEncoder();
+    firstChatController!.enqueue(encoder.encode([
+      'data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_delayed","type":"function","function":{"name":"generate_image","arguments":"{\\"prompt\\":\\"Launch image\\"}"}}]},"finish_reason":null}]}',
+      '',
+      'data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}',
+      '',
+      'data: [DONE]',
+      '',
+    ].join('\n')));
+    firstChatController!.close();
+
+    const finalBody = initialBody + await readRemaining(reader!);
+    expect(finalBody).toContain('"stage":"generate_image_started"');
+    expect(finalBody).toContain('"stage":"image_request_running"');
+    expect(finalBody).toContain('"stage":"file_written"');
+    expect(finalBody).toContain('Done: ![generated image]');
+    expect(finalBody).toContain('event: end');
   });
 
   it.each([
@@ -2033,4 +2135,32 @@ function sseResponse(text: string): Response {
       headers: { 'content-type': 'text/event-stream' },
     },
   );
+}
+
+async function readUntil(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  marker: string,
+): Promise<string> {
+  const decoder = new TextDecoder();
+  let body = '';
+  while (!body.includes(marker)) {
+    const next = await reader.read();
+    if (next.done) break;
+    body += decoder.decode(next.value, { stream: true });
+  }
+  return body;
+}
+
+async function readRemaining(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+): Promise<string> {
+  const decoder = new TextDecoder();
+  let body = '';
+  while (true) {
+    const next = await reader.read();
+    if (next.done) break;
+    body += decoder.decode(next.value, { stream: true });
+  }
+  body += decoder.decode();
+  return body;
 }
