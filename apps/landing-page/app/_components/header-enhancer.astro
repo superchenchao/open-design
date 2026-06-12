@@ -210,8 +210,13 @@
     // method="dialog" submit (the × button) or Escape key.
     // Build real platform share-intent URLs from the dialog's message + link so
     // the social buttons pre-fill the post instead of opening an empty composer.
+    // Recomputes on EVERY call (no one-time guard): grid pages such as
+    // plugins/templates reuse a single dialog across cards, overwriting the
+    // textarea + copy-link per click, so the intents must be rebuilt from the
+    // dialog's current payload each time it reopens. Exposed on `window` so
+    // those per-card handlers can re-wire after they swap the payload.
     const wireSharePlatforms = (dialog) => {
-      if (!dialog || dialog.dataset.sharePlatformsWired === 'true') return;
+      if (!dialog) return;
       const ta = dialog.querySelector('[data-share-text]');
       const linkBtn = dialog.querySelector('[data-copy-link]');
       const message = ta ? (ta.value || ta.textContent || '').trim() : '';
@@ -230,8 +235,8 @@
         const label = btn.getAttribute('aria-label');
         if (label && intents[label]) btn.setAttribute('href', intents[label]);
       });
-      dialog.dataset.sharePlatformsWired = 'true';
     };
+    window.__odWireShareIntents = wireSharePlatforms;
 
     document.querySelectorAll('[data-share-open]').forEach((trigger) => {
       trigger.addEventListener('click', () => {
