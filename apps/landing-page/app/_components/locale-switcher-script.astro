@@ -12,6 +12,16 @@ const script = `
   const DEFAULT_LOCALE = ${JSON.stringify(DEFAULT_LOCALE)};
   const LOCALES = ${JSON.stringify(localeRoutes)};
   const codes = new Set(LOCALES.map((locale) => locale.code));
+  // Legacy alias prefixes the catch-all route still emits (zh-CN, es-ES, fa,
+  // hu, th) that are NOT canonical LANDING_LOCALES. They must count as a
+  // strippable locale segment, or switching language on an alias page like
+  // /zh-CN/blog/ would rebuild a nested, non-existent /<locale>/zh-CN/blog/.
+  // Mirrors LEGACY_LOCALE_PREFIXES in app/i18n.ts.
+  const legacyAliases = new Set(['zh-cn', 'es-es', 'fa', 'hu', 'th']);
+  const isLocaleSegment = (segment) => {
+    const value = (segment || '').toLowerCase();
+    return value !== '' && (codes.has(value) || legacyAliases.has(value));
+  };
 
   const normalizeLocale = (value) => {
     if (typeof value !== 'string' || value.trim() === '') return null;
@@ -39,7 +49,7 @@ const script = `
 
   const basePathFromCurrent = () => {
     const parts = window.location.pathname.split('/').filter(Boolean);
-    if (parts[0] && codes.has(parts[0].toLowerCase())) parts.shift();
+    if (parts[0] && isLocaleSegment(parts[0])) parts.shift();
     return parts.length > 0 ? \`/\${parts.join('/')}/\` : '/';
   };
 
