@@ -3,15 +3,10 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Open Design 真香笔记 · 小红书图文</title>
-<style>/* html-ppt :: shared webfonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700;800;900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@200;300;400;500;600;700;900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,800;1,400&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&display=swap');
+<style>/* html-ppt :: shared webfonts — only the families this deck actually uses */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
 
 </style>
 <style>/* html-ppt :: base.css — reset + shared tokens + layout primitives */
@@ -26,22 +21,22 @@
   --text-1: #111216;
   --text-2: #55596a;
   --text-3: #8a8f9e;
-  --accent: #3b6cff;
-  --accent-2: #7a5cff;
-  --accent-3: #ff5c8a;
+  --accent: #d63a63;
+  --accent-2: #f08c3a;
+  --accent-3: #f7c948;
   --good: #1aaf6c;
   --warn: #f5a524;
   --bad:  #e0445a;
-  --grad: linear-gradient(135deg,#3b6cff,#7a5cff 55%,#ff5c8a);
-  --grad-soft: linear-gradient(135deg,#eef2ff,#f5ecff 55%,#ffeef5);
+  --grad: linear-gradient(135deg,#d63a63,#f08c3a);
+  --grad-soft: linear-gradient(135deg,#fff1ea,#fff7ec);
   --radius: 18px;
   --radius-sm: 12px;
   --radius-lg: 26px;
   --shadow: 0 10px 30px rgba(18,24,40,.08), 0 2px 6px rgba(18,24,40,.04);
   --shadow-lg: 0 24px 60px rgba(18,24,40,.14), 0 6px 16px rgba(18,24,40,.06);
-  --font-sans: 'Inter','Noto Sans SC',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;
-  --font-serif: 'Playfair Display','Noto Serif SC',Georgia,serif;
-  --font-mono: 'JetBrains Mono','IBM Plex Mono',SFMono-Regular,Menlo,monospace;
+  --font-sans: 'Noto Sans SC','PingFang SC',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;
+  --font-serif: 'Noto Serif SC',Georgia,serif;
+  --font-mono: 'JetBrains Mono',SFMono-Regular,Menlo,monospace;
   --font-display: var(--font-sans);
   --letter-tight: -.03em;
   --letter-normal: -.01em;
@@ -306,17 +301,20 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
 }
 
 </style>
-<style>/* xhs-post — 小红书 3:4 九宫格 */
+<style>/* xhs-post — 小红书 3:4 九宫格 · 手账贴纸风
+ * family signature: cream paper / hand-drawn boxes with hard offset shadows /
+ * dashed stickers / candy sticker palette. Accent locked to one deep rose. */
 .tpl-xhs-post{
   --bg:#fef7f3;--bg-soft:#fff1ea;--surface:#ffffff;--surface-2:#fff5ef;
   --border:rgba(90,40,30,.12);--border-strong:rgba(90,40,30,.24);
-  --text-1:#3a1f18;--text-2:#6f4a3e;--text-3:#a68676;
-  --accent:#ff6b8b;--accent-2:#ffa94d;--accent-3:#ffd166;
-  --grad:linear-gradient(135deg,#ffd3e0,#ffe5c7 50%,#d6f0ff);
-  --good:#7bc67b;--warn:#ffb547;--bad:#ff6b6b;
+  --text-1:#38201a;--text-2:#69463a;--text-3:#6d4a3c;
+  --accent:#d6336c;--accent-2:#f08c3a;--accent-3:#ffd166;
+  --grad:linear-gradient(135deg,#ffd3e0,#ffe5c7);
+  --good:#2f9e63;--warn:#f5a524;--bad:#e0445a;
   --radius:24px;--radius-lg:32px;
   --shadow:0 14px 36px rgba(90,40,30,.08);
-  font-family:'Inter','Noto Sans SC','PingFang SC',sans-serif;
+  font-family:'Noto Sans SC','PingFang SC',sans-serif;
+  letter-spacing:0; /* CJK body text reads better without negative tracking */
 }
 .tpl-xhs-post{background:#f0eae2;display:flex;align-items:center;justify-content:center;min-height:100vh}
 .tpl-xhs-post .deck{width:810px;height:1080px;position:relative;background:transparent}
@@ -325,17 +323,17 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
   padding:70px 64px;border-radius:28px;overflow:hidden;
   background:var(--bg);
 }
-.tpl-xhs-post .slide::before{content:"";position:absolute;inset:0;background:
-  radial-gradient(45% 30% at 80% 10%,rgba(255,209,102,.35),transparent 70%),
-  radial-gradient(50% 35% at 10% 95%,rgba(255,107,139,.22),transparent 70%),
-  radial-gradient(40% 30% at 90% 85%,rgba(122,200,255,.18),transparent 70%);
+/* journal dot-grid paper instead of soft color washes */
+.tpl-xhs-post .slide::before{content:"";position:absolute;inset:0;
+  background-image:radial-gradient(rgba(90,40,30,.09) 1.3px,transparent 1.3px);
+  background-size:28px 28px;background-position:14px 14px;
   pointer-events:none;z-index:0}
 .tpl-xhs-post .slide > *{position:relative;z-index:1}
-.tpl-xhs-post .h1{font-size:72px;line-height:1.1;font-weight:900;letter-spacing:-.02em;color:var(--text-1)}
-.tpl-xhs-post .h2{font-size:54px;line-height:1.15;font-weight:800;letter-spacing:-.015em;color:var(--text-1)}
+.tpl-xhs-post .h1{font-size:72px;line-height:1.14;font-weight:900;letter-spacing:0;color:var(--text-1)}
+.tpl-xhs-post .h2{font-size:54px;line-height:1.18;font-weight:900;letter-spacing:0;color:var(--text-1)}
 .tpl-xhs-post .h3{font-size:36px;font-weight:800;color:var(--text-1)}
 .tpl-xhs-post .page-dot{position:absolute;top:40px;right:48px;background:var(--text-1);color:#fff;border-radius:999px;padding:6px 14px;font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;z-index:2}
-.tpl-xhs-post .sticker{position:absolute;padding:10px 18px;background:#fff;border:2.5px dashed var(--text-1);border-radius:18px;font-weight:800;font-size:18px;color:var(--text-1);transform:rotate(-3deg);box-shadow:4px 4px 0 var(--text-1)}
+.tpl-xhs-post .sticker{position:absolute;padding:10px 20px;background:#fff;border:2.5px dashed var(--text-1);border-radius:18px;font-family:'ZCOOL KuaiLe','Noto Sans SC',sans-serif;font-weight:400;font-size:21px;color:var(--text-1);transform:rotate(-3deg);box-shadow:4px 4px 0 var(--text-1)}
 .tpl-xhs-post .sticker.pink{background:#ffd3e0}
 .tpl-xhs-post .sticker.yellow{background:#ffe788}
 .tpl-xhs-post .sticker.blue{background:#cfeaff}
@@ -343,16 +341,20 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
 .tpl-xhs-post .hand-box{background:#fff;border:2.5px solid var(--text-1);border-radius:22px;padding:24px 28px;box-shadow:5px 5px 0 var(--text-1)}
 .tpl-xhs-post .lede{color:var(--text-2);font-size:26px;line-height:1.55}
 .tpl-xhs-post .big-emoji{font-size:180px;line-height:1;text-align:center}
-.tpl-xhs-post .num-circle{display:inline-flex;align-items:center;justify-content:center;width:72px;height:72px;border-radius:50%;background:var(--accent);color:#fff;font-weight:900;font-size:36px;border:3px solid var(--text-1);box-shadow:4px 4px 0 var(--text-1)}
+.tpl-xhs-post .num-circle{display:inline-flex;align-items:center;justify-content:center;width:72px;height:72px;border-radius:50% 46% 52% 48% / 48% 52% 46% 54%;background:var(--accent);color:#fff;font-family:'ZCOOL KuaiLe','Noto Sans SC',sans-serif;font-weight:400;font-size:38px;border:3px solid var(--text-1);box-shadow:4px 4px 0 var(--text-1);transform:rotate(-2deg)}
 .tpl-xhs-post .step-card{background:#fff;border:2.5px solid var(--text-1);border-radius:22px;padding:26px 28px;box-shadow:5px 5px 0 var(--text-1);margin-bottom:24px}
 .tpl-xhs-post .step-card h4{font-size:28px;font-weight:800;margin:0 0 6px}
 .tpl-xhs-post .step-card p{font-size:18px;color:var(--text-2);margin:0}
 .tpl-xhs-post .tag-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px}
-.tpl-xhs-post .ht{background:#fff;color:var(--accent);border:2px solid var(--text-1);padding:6px 14px;border-radius:999px;font-weight:700;font-size:16px}
+.tpl-xhs-post .ht{background:#fff;color:var(--accent);border:2px solid var(--text-1);padding:6px 16px;border-radius:999px;font-family:'ZCOOL KuaiLe','Noto Sans SC',sans-serif;font-weight:400;font-size:18px;box-shadow:2px 2px 0 var(--text-1)}
 .tpl-xhs-post .cover-title{background:linear-gradient(180deg,transparent 60%,var(--accent-3) 60%,var(--accent-3) 92%,transparent 92%);padding:0 10px}
 .tpl-xhs-post .heart{color:var(--accent);font-size:28px}
 .tpl-xhs-post .bottom-bar{position:absolute;bottom:40px;left:64px;right:64px;display:flex;justify-content:space-between;align-items:center;font-size:15px;color:var(--text-3);font-family:'JetBrains Mono',monospace;z-index:2}
-.tpl-xhs-post .avatar{width:54px;height:54px;border-radius:50%;background:var(--grad);border:2.5px solid var(--text-1);box-shadow:3px 3px 0 var(--text-1);display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:20px;color:var(--text-1)}
+.tpl-xhs-post .avatar{width:54px;height:54px;border-radius:50%;background:#ffd3e0;border:2.5px solid var(--text-1);box-shadow:3px 3px 0 var(--text-1);display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:20px;color:var(--text-1)}
+/* washi tape strip: pure decoration, journal family signature */
+.tpl-xhs-post .tape{position:absolute;width:150px;height:34px;background:rgba(255,211,224,.75);
+  border-left:2px dashed rgba(90,40,30,.25);border-right:2px dashed rgba(90,40,30,.25);
+  transform:rotate(-5deg);z-index:2;pointer-events:none}
 
 </style>
 <style>
@@ -361,6 +363,10 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
 .slide{position:relative;inset:auto;opacity:1;pointer-events:auto;transform:none;height:100vh;page-break-after:always}
 .deck-header,.deck-footer,.slide-number,.progress-bar,.notes-overlay,.overview{pointer-events:none}
 .notes{display:none!important}
+/* xhs 3:4 cards stack vertically in static preview instead of overlapping */
+.tpl-xhs-post{align-items:flex-start}
+.tpl-xhs-post .deck{width:810px;height:auto;display:flex;flex-direction:column;gap:36px;padding:36px 0}
+.tpl-xhs-post .slide{position:relative;inset:auto;width:810px;height:1080px;flex:none}
 </style></head>
 <body class="tpl-xhs-post">
 <div class="deck">
@@ -368,10 +374,11 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
   <!-- 1. Cover -->
   <section class="slide" data-title="Cover">
     <div class="page-dot">1 / 9</div>
-    <div class="sticker pink" style="top:120px;left:48px;transform:rotate(-6deg)">🎨 真香</div>
-    <div class="sticker yellow" style="top:140px;right:64px;transform:rotate(5deg)">Apache-2.0</div>
-    <div style="margin-top:200px">
-      <p class="lede" style="font-size:24px;color:var(--text-1);font-weight:600">创作者 AI 设计自救手册</p>
+    <div class="tape" style="top:54px;left:330px"></div>
+    <div class="sticker pink" style="top:150px;left:64px;transform:rotate(-6deg)">🎨 真香</div>
+    <div class="sticker yellow" style="top:250px;right:72px;transform:rotate(5deg)">Apache-2.0</div>
+    <div style="margin-top:120px">
+      <p class="lede" style="font-size:24px;color:var(--text-2);font-weight:700">创作者 AI 设计自救手册</p>
       <h1 class="h1 mt-s">AI 帮我做设计<br>还<span class="cover-title">开源免费</span><br>数据<span class="cover-title">全在本地</span></h1>
     </div>
     <div class="bottom-bar"><div><span class="avatar">O</span> <b style="color:var(--text-1);margin-left:8px">@Open Design</b></div><div>← 左滑 查看</div></div>
@@ -426,7 +433,7 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
   <!-- 6. Step 2 -->
   <section class="slide" data-title="Step 2">
     <div class="page-dot">6 / 9</div>
-    <div class="num-circle" style="background:var(--accent-2)">2</div>
+    <div class="num-circle">2</div>
     <h2 class="h2 mt-m">确定视觉方向</h2>
     <div class="hand-box mt-l">
       <p style="font-size:22px;margin:0;color:var(--text-1);font-weight:700">🎨 选定方向后自动带入</p>
@@ -442,7 +449,7 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
   <!-- 7. Step 3 -->
   <section class="slide" data-title="Step 3">
     <div class="page-dot">7 / 9</div>
-    <div class="num-circle" style="background:var(--accent-3);color:var(--text-1)">3</div>
+    <div class="num-circle">3</div>
     <h2 class="h2 mt-m">生成 Artifact<br>沙盒即时预览</h2>
     <div class="hand-box mt-l">
       <p style="font-size:20px;margin:0;color:var(--text-2);line-height:1.6"><b style="color:var(--text-1)">🤖 Agent 读取全部上下文，</b>产出真实可运行的文件，沙盒内即时预览和修改。</p>

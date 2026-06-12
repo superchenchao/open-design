@@ -5,14 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dir-Key Nav Minimal</title>
 <style>/* html-ppt :: shared webfonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600;700;800;900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@200;300;400;500;600;700;900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,800;1,400&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap');
 
 </style>
 <style>/* html-ppt :: base.css — reset + shared tokens + layout primitives */
@@ -27,26 +22,24 @@
   --text-1: #111216;
   --text-2: #55596a;
   --text-3: #8a8f9e;
-  --accent: #3b6cff;
-  --accent-2: #7a5cff;
-  --accent-3: #ff5c8a;
+  --accent: #c0331c;
+  --accent-2: #ff5642;
+  --accent-3: #8a2412;
   --good: #1aaf6c;
   --warn: #f5a524;
   --bad:  #e0445a;
-  --grad: linear-gradient(135deg,#3b6cff,#7a5cff 55%,#ff5c8a);
-  --grad-soft: linear-gradient(135deg,#eef2ff,#f5ecff 55%,#ffeef5);
   --radius: 18px;
   --radius-sm: 12px;
   --radius-lg: 26px;
   --shadow: 0 10px 30px rgba(18,24,40,.08), 0 2px 6px rgba(18,24,40,.04);
   --shadow-lg: 0 24px 60px rgba(18,24,40,.14), 0 6px 16px rgba(18,24,40,.06);
-  --font-sans: 'Inter','Noto Sans SC',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;
-  --font-serif: 'Playfair Display','Noto Serif SC',Georgia,serif;
-  --font-mono: 'JetBrains Mono','IBM Plex Mono',SFMono-Regular,Menlo,monospace;
-  --font-display: var(--font-sans);
-  --letter-tight: -.03em;
-  --letter-normal: -.01em;
-  --ease: cubic-bezier(.4,0,.2,1);
+  --font-sans: 'Noto Sans SC',-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;
+  --font-serif: Georgia,'Songti SC',serif;
+  --font-mono: 'IBM Plex Mono',SFMono-Regular,Menlo,monospace;
+  --font-display: 'Archivo','Noto Sans SC',sans-serif;
+  --letter-tight: -.02em;
+  --letter-normal: -.005em;
+  --ease: cubic-bezier(.16,1,.3,1);
 }
 
 *,*::before,*::after{box-sizing:border-box}
@@ -89,7 +82,6 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
 .dim2{color:var(--text-3)}
 .mono{font-family:var(--font-mono)}
 .serif{font-family:var(--font-serif)}
-.gradient-text{background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
 
 /* ================= LAYOUT PRIMITIVES ================= */
 .stack>*+*{margin-top:14px}
@@ -169,64 +161,91 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
 </style>
 <style>/* dir-key-nav-minimal — 方向键极简 · 8 种 mono-background 切换 */
 .tpl-dir-key-nav-minimal{
-  --dk-font:'Inter','Noto Sans SC','PingFang SC',-apple-system,sans-serif;
-  --dk-mono:'JetBrains Mono',monospace;
-  background:#000;
+  --dk-font:'Noto Sans SC','PingFang SC',-apple-system,sans-serif;
+  --dk-display:'Archivo','Noto Sans SC','PingFang SC',sans-serif;
+  --dk-mono:'IBM Plex Mono',SFMono-Regular,Menlo,monospace;
+  background:#0b0c0e;
   color:#fff;
   font-family:var(--dk-font);
 }
 .tpl-dir-key-nav-minimal .slide{padding:80px 104px;overflow:hidden;position:absolute;inset:0}
-/* 8 background themes */
-.tpl-dir-key-nav-minimal .t-indigo{background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 100%);color:#fff}
-.tpl-dir-key-nav-minimal .t-cream{background:#F5F0E8;color:#1a1a1a}
-.tpl-dir-key-nav-minimal .t-crimson{background:linear-gradient(135deg,#7f1d1d 0%,#991b1b 100%);color:#fff}
-.tpl-dir-key-nav-minimal .t-emerald{background:linear-gradient(135deg,#052e16 0%,#064e3b 100%);color:#ecfdf5}
-.tpl-dir-key-nav-minimal .t-slate{background:linear-gradient(135deg,#0f1923 0%,#1a2942 100%);color:#e6edf3}
-.tpl-dir-key-nav-minimal .t-violet{background:linear-gradient(135deg,#1e0a2e 0%,#2e1065 100%);color:#f5f3ff}
-.tpl-dir-key-nav-minimal .t-white{background:#ffffff;color:#111216}
-.tpl-dir-key-nav-minimal .t-charcoal{background:linear-gradient(135deg,#111827 0%,#1f2937 100%);color:#f3f4f6}
+/* 8 background themes — flat mono fields, one tuned accent each (--dk-ac) */
+.tpl-dir-key-nav-minimal .t-indigo{background:#151736;color:#f2f3fb;--dk-ac:#a5b4fc}
+.tpl-dir-key-nav-minimal .t-cream{background:#F5F0E8;color:#1a1a1a;--dk-ac:#B5392A}
+.tpl-dir-key-nav-minimal .t-crimson{background:#871c1c;color:#fdf3f0;--dk-ac:#fecaca}
+.tpl-dir-key-nav-minimal .t-emerald{background:#07402e;color:#ecfdf5;--dk-ac:#6ee7b7}
+.tpl-dir-key-nav-minimal .t-slate{background:#15212f;color:#e6edf3;--dk-ac:#7dd3fc}
+.tpl-dir-key-nav-minimal .t-violet{background:#270e4d;color:#f5f3ff;--dk-ac:#c4b5fd}
+.tpl-dir-key-nav-minimal .t-white{background:#fafaf8;color:#16171b;--dk-ac:#2334b8}
+.tpl-dir-key-nav-minimal .t-charcoal{background:#181f2d;color:#f3f4f6;--dk-ac:#fbbf24}
 
-.tpl-dir-key-nav-minimal .dk-snum{position:absolute;top:30px;right:48px;font-size:11px;font-weight:700;letter-spacing:3px;text-transform:uppercase;font-family:var(--dk-mono)}
+.tpl-dir-key-nav-minimal .dk-snum{position:absolute;top:30px;right:48px;font-size:11px;font-weight:500;letter-spacing:3px;text-transform:uppercase;font-family:var(--dk-mono)}
 .tpl-dir-key-nav-minimal .t-cream .dk-snum,
-.tpl-dir-key-nav-minimal .t-white .dk-snum{color:#999}
+.tpl-dir-key-nav-minimal .t-white .dk-snum{color:#73736d}
 .tpl-dir-key-nav-minimal .t-indigo .dk-snum,
 .tpl-dir-key-nav-minimal .t-crimson .dk-snum,
 .tpl-dir-key-nav-minimal .t-emerald .dk-snum,
 .tpl-dir-key-nav-minimal .t-slate .dk-snum,
 .tpl-dir-key-nav-minimal .t-violet .dk-snum,
-.tpl-dir-key-nav-minimal .t-charcoal .dk-snum{color:rgba(255,255,255,.38)}
+.tpl-dir-key-nav-minimal .t-charcoal .dk-snum{color:rgba(255,255,255,.56)}
 
-.tpl-dir-key-nav-minimal .dk-eyebrow{font-size:12px;font-weight:700;letter-spacing:3.5px;text-transform:uppercase;opacity:.55;margin-bottom:22px;display:flex;align-items:center;gap:14px}
-.tpl-dir-key-nav-minimal .dk-eyebrow::after{content:'';flex:1;max-width:120px;height:1px;background:currentColor;opacity:.3}
-.tpl-dir-key-nav-minimal .dk-h0{font-size:160px;font-weight:900;line-height:.9;letter-spacing:-5px;margin:0 0 20px}
-.tpl-dir-key-nav-minimal .dk-h1{font-size:100px;font-weight:900;line-height:.98;letter-spacing:-3px;margin:0 0 18px}
-.tpl-dir-key-nav-minimal .dk-h2{font-size:72px;font-weight:800;line-height:1.05;letter-spacing:-2px;margin:0 0 16px}
-.tpl-dir-key-nav-minimal .dk-lede{font-size:26px;line-height:1.45;opacity:.72;max-width:900px;font-weight:300}
+.tpl-dir-key-nav-minimal .dk-eyebrow{font-family:var(--dk-mono);font-size:12px;font-weight:500;letter-spacing:3px;text-transform:uppercase;opacity:.72;margin-bottom:26px;display:flex;align-items:center;gap:14px}
+.tpl-dir-key-nav-minimal .dk-eyebrow::after{content:'';flex:1;max-width:120px;height:1px;background:currentColor;opacity:.35}
+.tpl-dir-key-nav-minimal .dk-h0{font-family:var(--dk-display);font-size:160px;font-weight:900;line-height:.92;letter-spacing:-4px;margin:0 0 20px}
+.tpl-dir-key-nav-minimal .dk-h1{font-family:var(--dk-display);font-size:96px;font-weight:900;line-height:1;letter-spacing:-2.5px;margin:0 0 18px}
+.tpl-dir-key-nav-minimal .dk-h2{font-family:var(--dk-display);font-size:70px;font-weight:900;line-height:1.06;letter-spacing:-1.5px;margin:0 0 16px}
+.tpl-dir-key-nav-minimal .dk-lede{font-size:25px;line-height:1.5;opacity:.8;max-width:62ch;font-weight:300}
 .tpl-dir-key-nav-minimal .dk-lede strong{font-weight:700;opacity:1}
-.tpl-dir-key-nav-minimal .dk-big{font-family:var(--dk-mono);font-size:240px;font-weight:800;line-height:.9;letter-spacing:-10px}
+.tpl-dir-key-nav-minimal .dk-big{font-family:var(--dk-display);font-size:224px;font-weight:900;line-height:.9;letter-spacing:-8px}
 
-.tpl-dir-key-nav-minimal .dk-line{display:block;width:90px;height:4px;background:currentColor;margin:30px 0;opacity:.85}
-.tpl-dir-key-nav-minimal .t-indigo .dk-accent{color:#a5b4fc}
-.tpl-dir-key-nav-minimal .t-cream .dk-accent{color:#B5392A}
-.tpl-dir-key-nav-minimal .t-crimson .dk-accent{color:#fecaca}
-.tpl-dir-key-nav-minimal .t-emerald .dk-accent{color:#6ee7b7}
-.tpl-dir-key-nav-minimal .t-slate .dk-accent{color:#7dd3fc}
-.tpl-dir-key-nav-minimal .t-violet .dk-accent{color:#c4b5fd}
-.tpl-dir-key-nav-minimal .t-white .dk-accent{color:#6366f1}
-.tpl-dir-key-nav-minimal .t-charcoal .dk-accent{color:#fbbf24}
+.tpl-dir-key-nav-minimal .dk-line{display:block;width:90px;height:4px;background:var(--dk-ac,currentColor);margin:30px 0}
+.tpl-dir-key-nav-minimal .dk-accent{color:var(--dk-ac)}
 
-.tpl-dir-key-nav-minimal .dk-list{list-style:none;padding:0;margin:28px 0 0;font-family:var(--dk-mono);font-size:22px;line-height:2}
-.tpl-dir-key-nav-minimal .dk-list li{padding-left:30px;position:relative;font-weight:400;opacity:.85}
-.tpl-dir-key-nav-minimal .dk-list li::before{content:'→';position:absolute;left:0;opacity:.5}
+.tpl-dir-key-nav-minimal .dk-list{list-style:none;padding:0;margin:28px 0 0;font-family:var(--dk-mono);font-size:21px;line-height:1.6}
+.tpl-dir-key-nav-minimal .dk-list li{padding-left:32px;position:relative;font-weight:400;opacity:.92;margin-top:16px}
+.tpl-dir-key-nav-minimal .dk-list li::before{content:'→';position:absolute;left:0;color:var(--dk-ac,currentColor);opacity:.8}
 .tpl-dir-key-nav-minimal .dk-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:56px;margin-top:36px}
-.tpl-dir-key-nav-minimal .dk-col h3{font-size:28px;font-weight:700;margin-bottom:10px}
-.tpl-dir-key-nav-minimal .dk-col p{font-size:19px;line-height:1.55;opacity:.72;font-weight:300}
-.tpl-dir-key-nav-minimal .dk-code{font-family:var(--dk-mono);font-size:16px;line-height:1.9;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:24px 28px;margin-top:24px;white-space:pre}
+.tpl-dir-key-nav-minimal .dk-col h3{font-size:27px;font-weight:700;margin:0 0 10px}
+.tpl-dir-key-nav-minimal .dk-col p{font-size:19px;line-height:1.55;opacity:.84;font-weight:300;margin:0;max-width:34ch}
+.tpl-dir-key-nav-minimal .dk-code{font-family:var(--dk-mono);font-size:16px;line-height:1.9;background:rgba(255,255,255,.06);border-left:3px solid var(--dk-ac,currentColor);padding:24px 28px;margin-top:24px;white-space:pre}
 .tpl-dir-key-nav-minimal .t-cream .dk-code,
-.tpl-dir-key-nav-minimal .t-white .dk-code{background:rgba(0,0,0,.05);border-color:rgba(0,0,0,.1)}
-.tpl-dir-key-nav-minimal .dk-keyhint{position:absolute;bottom:34px;left:104px;font-family:var(--dk-mono);font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:.45}
-.tpl-dir-key-nav-minimal .dk-keyhint kbd{display:inline-block;padding:2px 10px;margin:0 3px;border:1px solid currentColor;border-radius:4px;font-size:12px}
-.tpl-dir-key-nav-minimal .dk-page{position:absolute;bottom:34px;right:48px;font-family:var(--dk-mono);font-size:12px;letter-spacing:2px;opacity:.45}
+.tpl-dir-key-nav-minimal .t-white .dk-code{background:rgba(0,0,0,.045)}
+.tpl-dir-key-nav-minimal .dk-keyhint{position:absolute;bottom:34px;left:104px;font-family:var(--dk-mono);font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:.6}
+.tpl-dir-key-nav-minimal .dk-keyhint kbd{display:inline-block;padding:2px 10px;margin:0 3px;border:1px solid currentColor;border-radius:4px;font-size:12px;font-family:var(--dk-mono)}
+.tpl-dir-key-nav-minimal .dk-page{position:absolute;bottom:34px;right:48px;font-family:var(--dk-mono);font-size:12px;letter-spacing:2px;opacity:.6}
+
+/* slide entrance: stagger headline block children, transform+opacity only */
+.tpl-dir-key-nav-minimal .slide.is-active .dk-eyebrow,
+.tpl-dir-key-nav-minimal .slide.is-active .dk-h0,
+.tpl-dir-key-nav-minimal .slide.is-active .dk-h1,
+.tpl-dir-key-nav-minimal .slide.is-active .dk-h2,
+.tpl-dir-key-nav-minimal .slide.is-active .dk-big,
+.tpl-dir-key-nav-minimal .slide.is-active .dk-lede,
+.tpl-dir-key-nav-minimal .slide.is-active .dk-list,
+.tpl-dir-key-nav-minimal .slide.is-active .dk-grid-2,
+.tpl-dir-key-nav-minimal .slide.is-active .dk-code{
+  animation:dk-rise .6s cubic-bezier(.16,1,.3,1) both}
+.tpl-dir-key-nav-minimal .slide.is-active .dk-h0,
+.tpl-dir-key-nav-minimal .slide.is-active .dk-h1,
+.tpl-dir-key-nav-minimal .slide.is-active .dk-h2,
+.tpl-dir-key-nav-minimal .slide.is-active .dk-big{animation-delay:.06s}
+.tpl-dir-key-nav-minimal .slide.is-active .dk-lede,
+.tpl-dir-key-nav-minimal .slide.is-active .dk-list{animation-delay:.14s}
+.tpl-dir-key-nav-minimal .slide.is-active .dk-grid-2,
+.tpl-dir-key-nav-minimal .slide.is-active .dk-code{animation-delay:.2s}
+@keyframes dk-rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+@media (prefers-reduced-motion: reduce){
+  .tpl-dir-key-nav-minimal .slide.is-active .dk-eyebrow,
+  .tpl-dir-key-nav-minimal .slide.is-active .dk-h0,
+  .tpl-dir-key-nav-minimal .slide.is-active .dk-h1,
+  .tpl-dir-key-nav-minimal .slide.is-active .dk-h2,
+  .tpl-dir-key-nav-minimal .slide.is-active .dk-big,
+  .tpl-dir-key-nav-minimal .slide.is-active .dk-lede,
+  .tpl-dir-key-nav-minimal .slide.is-active .dk-list,
+  .tpl-dir-key-nav-minimal .slide.is-active .dk-grid-2,
+  .tpl-dir-key-nav-minimal .slide.is-active .dk-code{animation:none}
+  .tpl-dir-key-nav-minimal .slide{transition:none}
+}
 
 </style>
 <style>
@@ -322,9 +341,9 @@ h4,.h4{font-size:22px;line-height:1.3;font-weight:600;margin:0 0 8px}
       <div class="dk-big dk-accent">-80%</div>
       <p class="dk-lede" style="margin-top:14px;font-size:26px">的月成本降幅。从 <strong>$500</strong> 降到 <strong>~$73</strong>——前沿设计能力，不再跟着账单走。</p>
       <svg viewBox="0 0 900 80" style="width:100%;max-width:900px;margin-top:30px">
-        <rect x="0" y="30" width="900" height="22" rx="11" fill="rgba(255,255,255,.12)"/>
-        <rect x="0" y="30" width="720" height="22" rx="11" fill="#c4b5fd"/>
-        <text x="729" y="47" font-family="JetBrains Mono" font-size="16" fill="#c4b5fd" font-weight="700">-80%</text>
+        <rect x="0" y="30" width="900" height="22" fill="rgba(255,255,255,.12)"/>
+        <rect x="0" y="30" width="720" height="22" fill="#c4b5fd"/>
+        <text x="729" y="47" font-family="IBM Plex Mono" font-size="16" fill="#c4b5fd" font-weight="700">-80%</text>
       </svg>
     </div>
     <div class="dk-keyhint">chart · big-num</div>
