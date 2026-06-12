@@ -383,11 +383,11 @@ export function Header({
               </ul>
             </li>
 
-            {/* Community — Contributors / Ambassadors / Moderators each
-                have a dedicated static page under `/community/`, so the
-                items link straight to those pages (opening at the top)
-                instead of anchoring into the hub. The community pages are
-                non-locale-aware, so no `href()` localization here. */}
+            {/* Community — Contributors / Ambassadors / Moderators anchor
+                into the `/community/` hub's sections (same destinations as
+                upstream main's header), not the standalone static pages.
+                The community pages are non-locale-aware, so no `href()`
+                localization here. */}
             <li className='has-dropdown'>
               <a
                 href='/community/'
@@ -398,21 +398,21 @@ export function Header({
               </a>
               <ul className='nav-dropdown' aria-label={productMenuCopy.community}>
                 <li>
-                  <a href='/community/contributors/'>
+                  <a href='/community/#contributors'>
                     <span className='dropdown-name'>
                       {productMenuCopy.communityItems.contributors}
                     </span>
                   </a>
                 </li>
                 <li>
-                  <a href='/community/ambassadors/'>
+                  <a href='/community/#ambassadors'>
                     <span className='dropdown-name'>
                       {productMenuCopy.communityItems.ambassadors}
                     </span>
                   </a>
                 </li>
                 <li>
-                  <a href='/community/moderators/'>
+                  <a href='/community/#moderators'>
                     <span className='dropdown-name'>
                       {productMenuCopy.communityItems.moderators}
                     </span>
