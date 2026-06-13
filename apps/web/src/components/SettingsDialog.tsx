@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, Dispatch, SetStateAction } from 'react';
-import { Button, VisuallyHidden } from '@open-design/components';
+import { Button, Input, Select, Textarea, VisuallyHidden } from '@open-design/components';
 import { validateBaseUrl } from '@open-design/contracts/api/connectionTest';
 import {
   agentIdToTracking,
@@ -2962,7 +2962,7 @@ export function SettingsDialog({
             <span className="field-label">
               {t('settings.modelCustomLabel')}
             </span>
-            <input
+            <Input
               type="text"
               value={modelValue}
               placeholder={t('settings.modelCustomPlaceholder')}
@@ -2978,7 +2978,7 @@ export function SettingsDialog({
               {t('settings.reasoningPicker')}
             </span>
             <div className="agent-model-select-wrap">
-              <select
+              <Select
                 value={reasoningValue}
                 onChange={(e) =>
                   setChoice({ reasoning: e.target.value })
@@ -2989,7 +2989,7 @@ export function SettingsDialog({
                     {r.label}
                   </option>
                 ))}
-              </select>
+              </Select>
               <Icon
                 name="chevron-down"
                 size={12}
@@ -3049,7 +3049,7 @@ export function SettingsDialog({
               </>
             ) : null}
           </div>
-          <button
+          <Button
             type="button"
             className="settings-close"
             onClick={onClose}
@@ -3057,7 +3057,7 @@ export function SettingsDialog({
             title={t('common.close')}
           >
             <Icon name="close" size={16} strokeWidth={2} />
-          </button>
+          </Button>
         </div>
         <header className="modal-head" id="settings-dialog-title">
           {welcome ? (
@@ -3079,7 +3079,7 @@ export function SettingsDialog({
 
         <div className="modal-body">
           <aside className="settings-sidebar" aria-label="Settings sections">
-            <button
+            <Button
               type="button"
               className={`settings-nav-item${activeSection === 'execution' ? ' active' : ''}`}
               onClick={() => setActiveSection('execution')}
@@ -3089,8 +3089,8 @@ export function SettingsDialog({
                 <strong>{t('settings.envConfigure')}</strong>
                 <small>{`${t('settings.localCli')} / ${t('settings.modeApiMeta')}`}</small>
               </span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               className={`settings-nav-item${activeSection === 'instructions' ? ' active' : ''}`}
               onClick={() => setActiveSection('instructions')}
@@ -3100,8 +3100,8 @@ export function SettingsDialog({
                 <strong>{t('settings.instructionsTitle')}</strong>
                 <small>{t('settings.instructionsNavSub')}</small>
               </span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               className={`settings-nav-item${activeSection === 'memory' ? ' active' : ''}`}
               onClick={() => setActiveSection('memory')}
@@ -3111,8 +3111,8 @@ export function SettingsDialog({
                 <strong>{t('settings.memory')}</strong>
                 <small>{t('settings.memoryHint')}</small>
               </span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               className={`settings-nav-item${activeSection === 'media' ? ' active' : ''}`}
               onClick={() => setActiveSection('media')}
@@ -3122,8 +3122,8 @@ export function SettingsDialog({
                 <strong>{t('settings.mediaProviders')}</strong>
                 <small>Image / video / audio</small>
               </span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               className={`settings-nav-item${activeSection === 'skills' ? ' active' : ''}`}
               onClick={() => setActiveSection('skills')}
@@ -3133,8 +3133,8 @@ export function SettingsDialog({
                 <strong>{t('settings.skills')}</strong>
                 <small>{t('settings.skillsHint')}</small>
               </span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               className={`settings-nav-item${activeSection === 'mcpClient' ? ' active' : ''}`}
               onClick={() => setActiveSection('mcpClient')}
@@ -3144,8 +3144,8 @@ export function SettingsDialog({
                 <strong>{t('settings.externalMcpTitle')}</strong>
                 <small>{t('settings.externalMcpHint')}</small>
               </span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               className={`settings-nav-item${activeSection === 'composio' ? ' active' : ''}`}
               onClick={() => setActiveSection('composio')}
@@ -3155,8 +3155,8 @@ export function SettingsDialog({
                 <strong>{t('connectors.title')}</strong>
                 <small>{t('settings.connectorsNavHint')}</small>
               </span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               className={`settings-nav-item${activeSection === 'integrations' ? ' active' : ''}`}
               onClick={() => setActiveSection('integrations')}
@@ -3166,8 +3166,8 @@ export function SettingsDialog({
                 <strong>{t('settings.mcpServerTitle')}</strong>
                 <small>{t('settings.mcpServerHint')}</small>
               </span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               className={`settings-nav-item${activeSection === 'language' ? ' active' : ''}`}
               onClick={() => setActiveSection('language')}
@@ -3177,8 +3177,8 @@ export function SettingsDialog({
                 <strong>{t('settings.language')}</strong>
                 <small>{t('settings.languageHint')}</small>
               </span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               className={`settings-nav-item${activeSection === 'appearance' ? ' active' : ''}`}
               onClick={() => setActiveSection('appearance')}
@@ -3188,8 +3188,8 @@ export function SettingsDialog({
                 <strong>{t('settings.appearance')}</strong>
                 <small>{t('settings.appearanceHint')}</small>
               </span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               className={`settings-nav-item${activeSection === 'critiqueTheater' ? ' active' : ''}`}
               onClick={() => setActiveSection('critiqueTheater')}
@@ -3199,8 +3199,8 @@ export function SettingsDialog({
                 <strong>{t('critiqueTheater.settingsNav')}</strong>
                 <small>{t('critiqueTheater.settingsNavHint')}</small>
               </span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               className={`settings-nav-item${activeSection === 'notifications' ? ' active' : ''}`}
               onClick={() => setActiveSection('notifications')}
@@ -3210,8 +3210,8 @@ export function SettingsDialog({
                 <strong>{t('settings.notifications')}</strong>
                 <small>{t('settings.notificationsHint')}</small>
               </span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               className={`settings-nav-item${activeSection === 'pet' ? ' active' : ''}`}
               onClick={() => setActiveSection('pet')}
@@ -3221,8 +3221,8 @@ export function SettingsDialog({
                 <strong>{t('pet.navTitle')}</strong>
                 <small>{t('pet.navHint')}</small>
               </span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               className={`settings-nav-item${activeSection === 'designSystems' ? ' active' : ''}`}
               onClick={() => setActiveSection('designSystems')}
@@ -3232,8 +3232,8 @@ export function SettingsDialog({
                 <strong>{t('settings.designSystems')}</strong>
                 <small>{t('settings.designSystemsHint')}</small>
               </span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               className={`settings-nav-item${activeSection === 'projectLocations' ? ' active' : ''}`}
               onClick={() => setActiveSection('projectLocations')}
@@ -3243,8 +3243,8 @@ export function SettingsDialog({
                 <strong>{t('settings.projectLocations')}</strong>
                 <small>{t('settings.projectLocationsHint')}</small>
               </span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               className={`settings-nav-item${activeSection === 'privacy' ? ' active' : ''}`}
               onClick={() => setActiveSection('privacy')}
@@ -3254,8 +3254,8 @@ export function SettingsDialog({
                 <strong>{t('settings.privacy')}</strong>
                 <small>{t('settings.privacyHint')}</small>
               </span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               className={`settings-nav-item${activeSection === 'about' ? ' active' : ''}`}
               onClick={() => setActiveSection('about')}
@@ -3265,7 +3265,7 @@ export function SettingsDialog({
                 <strong>{t('settings.about')}</strong>
                 <small>{t('settings.aboutHint')}</small>
               </span>
-            </button>
+            </Button>
           </aside>
           <div className="settings-content" ref={settingsContentRef}>
           {activeSection === 'execution' ? (
@@ -3276,7 +3276,7 @@ export function SettingsDialog({
                 aria-label={t('settings.modeAria')}
                 style={{ ['--seg-cols' as string]: 2 } as CSSProperties}
               >
-                <button
+                <Button
                   type="button"
                   role="tab"
                   aria-selected={cfg.mode === 'daemon'}
@@ -3298,8 +3298,8 @@ export function SettingsDialog({
                       ? t('settings.modeDaemonInstalledMeta', { count: installedCount })
                       : t('settings.modeDaemonOfflineMeta')}
                   </span>
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   role="tab"
                   aria-selected={cfg.mode === 'api'}
@@ -3311,7 +3311,7 @@ export function SettingsDialog({
                 >
                   <span className="seg-title">{t('settings.modeApiMeta')}</span>
                   <span className="seg-meta">{t('settings.modeApi')}</span>
-                </button>
+                </Button>
               </div>
               {cfg.mode === 'api' ? (
                 <div
@@ -3326,7 +3326,7 @@ export function SettingsDialog({
                       </span>
                       <div className="protocol-chip-group-options">
                         {group.tabs.map((tab) => (
-                          <button
+                          <Button
                             key={tab.id}
                             type="button"
                             role="tab"
@@ -3348,7 +3348,7 @@ export function SettingsDialog({
                             }}
                           >
                             {tab.title}
-                          </button>
+                          </Button>
                         ))}
                       </div>
                     </div>
@@ -3411,10 +3411,12 @@ export function SettingsDialog({
                               : t('settings.rescanFailed')}
                           </span>
                         ) : null}
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="icon"
                           className={
-                            'ghost icon-btn settings-rescan-btn agent-group-rescan-btn' +
+                            'settings-rescan-btn agent-group-rescan-btn' +
                             (agentRescanRunning ? ' loading' : '')
                           }
                           onClick={() => void handleRefreshAgents()}
@@ -3433,7 +3435,7 @@ export function SettingsDialog({
                           ) : (
                             t('settings.rescan')
                           )}
-                        </button>
+                        </Button>
                       </div>
                     </div>
                     {installedAgents.length > 0 ? (
@@ -3506,7 +3508,7 @@ export function SettingsDialog({
                               }}
                             >
                               <div className="agent-card-main">
-                                <button
+                                <Button
                                   type="button"
                                   className="agent-card-select"
                                   data-testid={`settings-agent-select-${a.id}`}
@@ -3592,7 +3594,7 @@ export function SettingsDialog({
                                         </div>
                                       ) : null}
                                   </div>
-                                </button>
+                                </Button>
                                 {isAmrAgent ? (
                                   active && amrCardStatusReady ? (
                                     <span
@@ -3642,10 +3644,12 @@ export function SettingsDialog({
                                   )
                                 ) : null}
                                 {active && !isAmrAgent ? (
-                                  <button
+                                  <Button
                                     type="button"
+                                    variant="ghost"
+                                    size="icon"
                                     className={
-                                      'ghost icon-btn settings-test-btn agent-card-test-btn' +
+                                      'settings-test-btn agent-card-test-btn' +
                                       (running ? ' loading' : '')
                                     }
                                     onClick={() => void handleTestAgent()}
@@ -3664,7 +3668,7 @@ export function SettingsDialog({
                                     ) : (
                                       t('settings.test')
                                     )}
-                                  </button>
+                                  </Button>
                                 ) : null}
                               </div>
                               {(a.diagnostics ?? []).map((diagnostic, i) => (
@@ -3712,14 +3716,16 @@ export function SettingsDialog({
                                     {!agentTestState.result.ok ? (
                                       <div className="settings-test-actions">
                                         <div className="settings-test-actions-row">
-                                          <button
+                                          <Button
                                             type="button"
-                                            className="ghost icon-btn settings-test-btn"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="settings-test-btn"
                                             onClick={() => void handleTestAgent()}
                                           >
                                             <Icon name="reload" size={13} />
                                             <span>{t('settings.testRetry')}</span>
-                                          </button>
+                                          </Button>
                                         </div>
                                       </div>
                                     ) : null}
@@ -3736,7 +3742,7 @@ export function SettingsDialog({
                                           </span>
                                           <div className="settings-test-actions-row">
                                             {repair.canUseDetected ? (
-                                              <button
+                                              <Button
                                                 type="button"
                                                 className="settings-test-btn"
                                                 onClick={() =>
@@ -3746,15 +3752,17 @@ export function SettingsDialog({
                                                 }
                                               >
                                                 {codexStrings.useDetected}
-                                              </button>
+                                              </Button>
                                             ) : null}
-                                            <button
+                                            <Button
                                               type="button"
-                                              className="ghost icon-btn settings-rescan-btn"
+                                              variant="ghost"
+                                              size="icon"
+                                              className="settings-rescan-btn"
                                               onClick={clearCodexCustomPath}
                                             >
                                               {codexStrings.clearCustom}
-                                            </button>
+                                            </Button>
                                           </div>
                                         </div>
                                       );
@@ -3979,7 +3987,7 @@ export function SettingsDialog({
                                 ? ` (${field.labelSuffix})`
                                 : ''}
                             </span>
-                            <input
+                            <Input
                               type={
                                 'secret' in field && field.secret
                                   ? 'password'
@@ -4030,7 +4038,7 @@ export function SettingsDialog({
                   <div className="settings-byok-title">
                     <h3>{API_PROTOCOL_LABELS[apiProtocol]}</h3>
                     <span className="settings-byok-info-wrap">
-                      <button
+                      <Button
                         type="button"
                         className="settings-byok-info-button"
                         aria-label={t('settings.byokNoFileToolsNotice')}
@@ -4038,7 +4046,7 @@ export function SettingsDialog({
                         data-testid="settings-byok-no-file-tools-trigger"
                       >
                         <Icon name="info" size={13} />
-                      </button>
+                      </Button>
                       <span
                         id="settings-byok-no-file-tools-tooltip"
                         className="settings-byok-info-tooltip"
@@ -4194,7 +4202,7 @@ export function SettingsDialog({
               ) : null}
               <label className="field">
                 <span className="field-label">{t('settings.maxTokens')}</span>
-                <input
+                <Input
                   type="number"
                   min={MIN_MAX_TOKENS}
                   max={MAX_MAX_TOKENS}
@@ -4306,7 +4314,7 @@ export function SettingsDialog({
               {apiProtocol === 'azure' ? (
                 <label className="field">
                   <span className="field-label">{t('settings.apiVersion')}</span>
-                  <input
+                  <Input
                     type="text"
                     value={cfg.apiVersion ?? ''}
                     placeholder="2024-10-21"
@@ -4347,7 +4355,7 @@ export function SettingsDialog({
               {apiProtocol === 'aihubmix' ? (
                 <label className="field">
                   <span className="field-label">{t('settings.byokVideoModel')}</span>
-                  <select
+                  <Select
                     value={cfg.byokVideoModel ?? ''}
                     onChange={(e) =>
                       updateApiConfig({ byokVideoModel: e.target.value })
@@ -4366,13 +4374,13 @@ export function SettingsDialog({
                         {m.label}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
               ) : null}
               {apiProtocol === 'aihubmix' ? (
                 <label className="field">
                   <span className="field-label">{t('settings.byokSpeechModel')}</span>
-                  <select
+                  <Select
                     value={cfg.byokSpeechModel ?? ''}
                     onChange={(e) => updateApiConfig({ byokSpeechModel: e.target.value })}
                   >
@@ -4386,13 +4394,13 @@ export function SettingsDialog({
                         {m.label}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
               ) : null}
               {apiProtocol === 'aihubmix' ? (
                 <label className="field">
                   <span className="field-label">{t('settings.byokSpeechVoice')}</span>
-                  <select
+                  <Select
                     value={cfg.byokSpeechVoice ?? ''}
                     onChange={(e) => updateApiConfig({ byokSpeechVoice: e.target.value })}
                   >
@@ -4402,7 +4410,7 @@ export function SettingsDialog({
                         {v}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
               ) : null}
             </section>
@@ -4480,7 +4488,7 @@ export function SettingsDialog({
               {LOCALES.map((code) => {
                 const active = locale === code;
                 return (
-                  <button
+                  <Button
                     key={code}
                     type="button"
                     role="radio"
@@ -4507,7 +4515,7 @@ export function SettingsDialog({
                       </span>
                     </span>
                     {active ? <Icon name="check" size={16} /> : null}
-                  </button>
+                  </Button>
                 );
               })}
             </div>
@@ -4563,7 +4571,7 @@ export function SettingsDialog({
                     </p>
                   </div>
                 </div>
-                <textarea
+                <Textarea
                   className="custom-instructions-input memory-global-rules-input instructions-rules-input"
                   rows={5}
                   maxLength={5000}
@@ -4601,14 +4609,14 @@ export function SettingsDialog({
                       <dt>{t('settings.appVersion')}</dt>
                       <span className="settings-about-version-num">{appVersionInfo.version}</span>
                     </div>
-                    <button
+                    <Button
                       type="button"
                       className="settings-about-download-link"
                       disabled={versionChecking}
                       onClick={handleInstallLatest}
                     >
                       {versionChecking ? t('common.loading') : t('settings.installLatest')}
-                    </button>
+                    </Button>
                   </div>
                   <div>
                     <dt>{t('settings.appChannel')}</dt>
@@ -4948,7 +4956,7 @@ export function ConnectorSection({
               browser keeps any in-progress autofill, focus, and
               accessibility tree intact when hydration completes. */}
           <span className="field-input-skeleton-wrap">
-            <input
+            <Input
               type="password"
               value={composio.apiKey ?? ''}
               placeholder={
@@ -4981,9 +4989,9 @@ export function ConnectorSection({
               <span className="field-input-skeleton-shimmer" aria-hidden="true" />
             ) : null}
           </span>
-          <button
-            type="button"
-            className={'primary settings-connectors-save' + (keySaveStatus === 'saving' ? ' is-busy' : '')}
+          <Button
+            variant="primary"
+            className={'settings-connectors-save' + (keySaveStatus === 'saving' ? ' is-busy' : '')}
             disabled={saveDisabled}
             onClick={() => {
               onConnectorsTabClick?.('save_key');
@@ -5008,11 +5016,11 @@ export function ConnectorSection({
             ) : (
               t('settings.connectorsSaveKey')
             )}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="ghost"
             className={
-              'ghost settings-connectors-clear'
+              'settings-connectors-clear'
               + (clearStage !== 'idle' ? ' is-arming' : '')
             }
             disabled={clearDisabled}
@@ -5029,7 +5037,7 @@ export function ConnectorSection({
             }}
           >
             {t('settings.connectorsClear')}
-          </button>
+          </Button>
         </div>
         {/* Two-stage destructive confirmation panel. Lives inside the
             credentials field so it visually grows out of the row that
@@ -5065,24 +5073,23 @@ export function ConnectorSection({
               </span>
             </div>
             <div className="settings-connectors-clear-confirm-actions">
-              <button
-                type="button"
-                className="ghost"
+              <Button
+                variant="ghost"
                 onClick={handleClearAbort}
               >
                 {t('settings.connectorsClearCancel')}
-              </button>
+              </Button>
               {clearStage === 'confirm' ? (
-                <button
+                <Button
                   type="button"
                   className="settings-connectors-clear-step"
                   onClick={handleClearContinue}
                 >
                   {t('settings.connectorsClearConfirmContinue')}
                   <Icon name="chevron-right" size={12} />
-                </button>
+                </Button>
               ) : (
-                <button
+                <Button
                   ref={finalConfirmButtonRef}
                   type="button"
                   className={
@@ -5104,7 +5111,7 @@ export function ConnectorSection({
                       </>
                     )}
                   </span>
-                </button>
+                </Button>
               )}
             </div>
           </div>
@@ -5525,7 +5532,7 @@ function OrbitSection({
               ? t('settings.orbit.statusActive')
               : t('settings.orbit.statusOff')}
           </span>
-          <button
+          <Button
             type="button"
             className={'orbit-run-cta' + (isBusy ? ' is-busy' : '')}
             onClick={() => void triggerNow()}
@@ -5543,7 +5550,7 @@ function OrbitSection({
                 <span>{t('settings.orbit.runOpen')}</span>
               </>
             )}
-          </button>
+          </Button>
         </div>
       </header>
 
@@ -5584,7 +5591,7 @@ function OrbitSection({
             </p>
           </div>
           <div className="orbit-config-gate-actions">
-            <button
+            <Button
               type="button"
               className="orbit-config-gate-action"
               onClick={onOpenComposioSection}
@@ -5592,7 +5599,7 @@ function OrbitSection({
             >
               <span>{t(gateActionKey)}</span>
               <Icon name="chevron-right" size={13} />
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}
@@ -5632,7 +5639,7 @@ function OrbitSection({
               {t('settings.orbit.dailySummarySub')}
             </span>
           </div>
-          <button
+          <Button
             type="button"
             role="switch"
             aria-checked={orbit.enabled}
@@ -5648,7 +5655,7 @@ function OrbitSection({
             <span className="orbit-switch-text">
               {orbit.enabled ? t('settings.orbit.on') : t('settings.orbit.off')}
             </span>
-          </button>
+          </Button>
         </div>
 
         <div className="orbit-automation-divider" aria-hidden="true" />
@@ -5661,7 +5668,7 @@ function OrbitSection({
             </span>
           </div>
           <div className="orbit-automation-schedule-controls">
-            <input
+            <Input
               type="time"
               className="orbit-time-input"
               value={orbit.time}
@@ -5734,7 +5741,7 @@ function OrbitSection({
                 </span>
                 {DEFAULT_ORBIT.templateSkillId &&
                 effectiveTemplateSkillId !== DEFAULT_ORBIT.templateSkillId ? (
-                  <button
+                  <Button
                     type="button"
                     className="orbit-automation-sub-action"
                     disabled={controlsLocked}
@@ -5751,7 +5758,7 @@ function OrbitSection({
                     }
                   >
                     {t('settings.orbit.templateReset')}
-                  </button>
+                  </Button>
                 ) : null}
               </span>
             ) : (
@@ -5763,7 +5770,7 @@ function OrbitSection({
           <div className="orbit-automation-template-controls">
             <div className="orbit-template-select">
               <div className="orbit-template-select-wrap">
-                <select
+                <Select
                   id="orbit-template-select"
                   className="orbit-template-select-input"
                   aria-label={t('settings.orbit.templateAria')}
@@ -5819,7 +5826,7 @@ function OrbitSection({
                       ))}
                     </optgroup>
                   ) : null}
-                </select>
+                </Select>
                 <Icon
                   name="chevron-down"
                   size={12}
@@ -5955,7 +5962,7 @@ function OrbitSection({
           </div>
           <div className="orbit-artifact-strip-actions">
             {lastRun.markdown ? (
-              <button
+              <Button
                 type="button"
                 className="orbit-artifact-ghost"
                 onClick={() => void copyMarkdown()}
@@ -5972,7 +5979,7 @@ function OrbitSection({
                     <span>{t('settings.orbit.copy')}</span>
                   </>
                 )}
-              </button>
+              </Button>
             ) : null}
             {liveArtifactHref ? (
               <a
@@ -6150,9 +6157,9 @@ function MediaProvidersSection({
       ) : null}
       {onReloadMediaProviders ? (
         <div className="media-provider-reload-row">
-          <button
-            type="button"
-            className={`ghost media-provider-reload-btn${
+          <Button
+            variant="ghost"
+            className={`media-provider-reload-btn${
               reloadNotice?.kind === 'success' ? ' is-success-flash' : ''
             }`}
             onClick={() => {
@@ -6179,7 +6186,7 @@ function MediaProvidersSection({
                 <span style={{ marginLeft: 4 }}>{t('settings.mediaProviderReload')}</span>
               </>
             )}
-          </button>
+          </Button>
         </div>
       ) : null}
       <div className="media-provider-list">
@@ -6237,7 +6244,7 @@ function MediaProvidersSection({
               {provider.id === 'grok' ? <XaiOAuthControl /> : null}
               <div className="media-provider-body">
                 <div className="media-provider-secret-field">
-                  <input
+                  <Input
                     type={apiKeyVisible ? 'text' : 'password'}
                     value={entry.apiKey}
                     placeholder={isSavedState ? t('settings.connectorsReplaceKeyPlaceholder') : t('settings.mediaProviderPlaceholder')}
@@ -6254,7 +6261,7 @@ function MediaProvidersSection({
                     }}
                     onChange={(e) => updateProvider(provider, { apiKey: e.target.value })}
                   />
-                  <button
+                  <Button
                     type="button"
                     className="secret-visibility-button"
                     disabled={disabled}
@@ -6266,10 +6273,10 @@ function MediaProvidersSection({
                     aria-pressed={apiKeyVisible}
                     onClick={() => toggleApiKeyVisibility(provider.id)}
                   >
-                      <Icon name={apiKeyVisible ? 'eye' : 'eye-off'} size={15} />
-                    </button>
-                  </div>
-                <input
+                    <Icon name={apiKeyVisible ? 'eye' : 'eye-off'} size={15} />
+                  </Button>
+                </div>
+                <Input
                   value={entry.baseUrl}
                   placeholder={provider.defaultBaseUrl || t('settings.mediaProviderBaseUrlPlaceholder')}
                   aria-label={`${provider.label} ${t('settings.mediaProviderBaseUrl')}`}
@@ -6286,7 +6293,7 @@ function MediaProvidersSection({
                   onChange={(e) => updateProvider(provider, { baseUrl: e.target.value })}
                 />
                 {supportsCustomModel ? (
-                  <input
+                  <Input
                     value={entry.model ?? ''}
                     placeholder="gemini-3.1-flash-image-preview"
                     aria-label={`${provider.label} model`}
@@ -6294,9 +6301,8 @@ function MediaProvidersSection({
                     onChange={(e) => updateProvider(provider, { model: e.target.value })}
                   />
                 ) : null}
-                <button
-                  type="button"
-                  className="ghost"
+                <Button
+                  variant="ghost"
                   disabled={!clearable}
                   onClick={() => {
                     trackSettingsMediaProvidersClick(analytics.track, {
@@ -6334,7 +6340,7 @@ function MediaProvidersSection({
                   }}
                 >
                   {t('settings.mediaProviderClear')}
-                </button>
+                </Button>
               </div>
             </div>
           );
@@ -6583,13 +6589,12 @@ function CodexInstallToggle(): JSX.Element | null {
   if (!available) {
     return (
       <div style={{ marginBottom: 12 }}>
-        <button
-          type="button"
+        <Button
           disabled
           style={{ padding: '6px 14px', fontSize: 13, opacity: 0.6 }}
         >
           {t('settings.mcpCodexOneClickInstall')}
-        </button>
+        </Button>
         <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--fg-2, #9aa0a6)' }}>
           {t('settings.mcpCodexOneClickUnavailable')}
         </span>
@@ -6610,15 +6615,14 @@ function CodexInstallToggle(): JSX.Element | null {
 
   return (
     <div style={{ marginBottom: 12 }}>
-      <button
-        type="button"
-        className={installed ? '' : 'primary'}
+      <Button
+        variant={installed ? 'default' : 'primary'}
         disabled={busy}
         onClick={onClick}
         style={{ padding: '6px 14px', fontSize: 13 }}
       >
         {busy ? t('settings.mcpCodexBusy') : label}
-      </button>
+      </Button>
       {message ? (
         <span
           style={{
@@ -6845,7 +6849,7 @@ function IntegrationsSection() {
             className="ds-picker"
             ref={pickerRef}
           >
-          <button
+          <Button
             type="button"
             className={`ds-picker-trigger${pickerOpen ? ' open' : ''}`}
             onClick={() => setPickerOpen((v) => !v)}
@@ -6864,14 +6868,14 @@ function IntegrationsSection() {
               className="ds-picker-chevron"
               style={{ transform: pickerOpen ? 'rotate(180deg)' : undefined }}
             />
-          </button>
+          </Button>
           {pickerOpen ? (
             <div className="ds-picker-popover" role="listbox">
               <div className="ds-picker-list">
                 {MCP_CLIENTS.map((c) => {
                   const active = c.id === clientId;
                   return (
-                    <button
+                    <Button
                       key={c.id}
                       type="button"
                       role="option"
@@ -6893,7 +6897,7 @@ function IntegrationsSection() {
                           {info ? c.buildMethod(info) : ''}
                         </span>
                       </span>
-                    </button>
+                    </Button>
                   );
                 })}
               </div>
@@ -6909,9 +6913,9 @@ function IntegrationsSection() {
 
         {client.buildDeeplink && info ? (
           <div style={{ marginBottom: 12 }}>
-            <button
+            <Button
               type="button"
-              className="primary"
+              variant="primary"
               onClick={() => {
                 // Use a hidden anchor so the cursor:// scheme is
                 // handled the same way as a normal link click; some
@@ -6928,7 +6932,7 @@ function IntegrationsSection() {
             >
               <Icon name="link" size={14} />
               <span style={{ marginLeft: 6 }}>{client.deeplinkLabel ? client.deeplinkLabel() : ''}</span>
-            </button>
+            </Button>
             <span
               style={{
                 marginLeft: 10,
@@ -6976,9 +6980,10 @@ function IntegrationsSection() {
                   : t('settings.mcpLoadingPaths'))}
             </code>
           </pre>
-          <button
+          <Button
             type="button"
-            className="ghost mcp-copy-btn"
+            variant="ghost"
+            className="mcp-copy-btn"
             onClick={onCopy}
             disabled={!snippet}
             style={{
@@ -6992,7 +6997,7 @@ function IntegrationsSection() {
           >
             <Icon name={copied ? 'check' : 'copy'} size={14} />
             <span style={{ marginLeft: 6 }}>{copied ? t('settings.mcpCopied') : t('settings.mcpCopy')}</span>
-          </button>
+          </Button>
         </div>
 
         {/* "Build the daemon first" lives here — next to the code
@@ -7080,7 +7085,7 @@ function AppearanceSection({
     <section className="settings-section">
       <div className="seg-control" role="group" aria-label={t('settings.appearance')} style={{ '--seg-cols': THEMES.length } as React.CSSProperties}>
         {THEMES.map(({ value, labelKey, icon }) => (
-          <button
+          <Button
             key={value}
             type="button"
             className={'seg-btn' + (current === value ? ' active' : '')}
@@ -7101,7 +7106,7 @@ function AppearanceSection({
           >
             {icon ? <Icon name={icon} size={14} aria-hidden="true" /> : null}
             <span className="seg-title">{t(labelKey)}</span>
-          </button>
+          </Button>
         ))}
       </div>
       <div className="field">
@@ -7110,7 +7115,7 @@ function AppearanceSection({
           {ACCENT_SWATCHES.map((color) => {
             const active = currentAccent === color;
             return (
-              <button
+              <Button
                 key={color}
                 type="button"
                 className={`pet-swatch${active ? ' active' : ''}`}
@@ -7352,14 +7357,14 @@ function NotificationsSection({
             <h4>{t('settings.notifyCompletionSound')}</h4>
             <div className="section-head-actions">
               <div className="seg-control" role="group" aria-label={t('settings.notifyCompletionSound')} style={{ '--seg-cols': 1 } as React.CSSProperties}>
-                <button
+                <Button
                   type="button"
                   className={'seg-btn' + (notif.soundEnabled ? ' active' : '')}
                   aria-pressed={notif.soundEnabled}
                   onClick={toggleSound}
                 >
                   <span className="seg-title">{notif.soundEnabled ? t('common.active') : t('common.offline')}</span>
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -7372,7 +7377,7 @@ function NotificationsSection({
               <label>{t('settings.notifySuccessSound')}</label>
               <div className="seg-control" role="group" aria-label={t('settings.notifySuccessSound')} style={{ '--seg-cols': SUCCESS_SOUNDS.length } as React.CSSProperties}>
                 {SUCCESS_SOUNDS.map((sound) => (
-                  <button
+                  <Button
                     key={sound.id}
                     type="button"
                     className={'seg-btn' + (notif.successSoundId === sound.id ? ' active' : '')}
@@ -7390,7 +7395,7 @@ function NotificationsSection({
                     }}
                   >
                     <span className="seg-title">{t(sound.labelKey)}</span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -7399,7 +7404,7 @@ function NotificationsSection({
               <label>{t('settings.notifyFailureSound')}</label>
               <div className="seg-control" role="group" aria-label={t('settings.notifyFailureSound')} style={{ '--seg-cols': FAILURE_SOUNDS.length } as React.CSSProperties}>
                 {FAILURE_SOUNDS.map((sound) => (
-                  <button
+                  <Button
                     key={sound.id}
                     type="button"
                     className={'seg-btn' + (notif.failureSoundId === sound.id ? ' active' : '')}
@@ -7417,7 +7422,7 @@ function NotificationsSection({
                     }}
                   >
                     <span className="seg-title">{t(sound.labelKey)}</span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
@@ -7431,7 +7436,7 @@ function NotificationsSection({
             <h4>{t('settings.notifyDesktop')}</h4>
             <div className="section-head-actions">
               <div className="seg-control" role="group" aria-label={t('settings.notifyDesktop')} style={{ '--seg-cols': 1 } as React.CSSProperties}>
-                <button
+                <Button
                   type="button"
                   className={'seg-btn' + (notif.desktopEnabled ? ' active' : '')}
                   aria-pressed={notif.desktopEnabled}
@@ -7439,7 +7444,7 @@ function NotificationsSection({
                   onClick={() => { void toggleDesktop(); }}
                 >
                   <span className="seg-title">{notif.desktopEnabled ? t('common.active') : t('common.offline')}</span>
-                </button>
+                </Button>
               </div>
             </div>
           </div>

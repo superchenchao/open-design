@@ -1,3 +1,4 @@
+import { Button, Input } from '@open-design/components';
 import { useState, type Ref } from 'react';
 import { API_KEY_PLACEHOLDERS } from '../../state/apiProtocols';
 import type { ApiProtocol } from '../../types';
@@ -85,7 +86,7 @@ export function ByokKeyField({
         ) : null}
       </span>
       <div className="field-row">
-        <input
+        <Input
           ref={inputRef}
           aria-label={labels.apiKey}
           type={showApiKey ? 'text' : 'password'}
@@ -97,16 +98,16 @@ export function ByokKeyField({
           onFocus={onFocus}
           autoFocus
         />
-        <button
-          type="button"
-          className="ghost icon-btn"
+        <Button
+          variant="ghost"
+          className="icon-btn"
           onClick={onToggleShowApiKey}
           title={
             showApiKey ? labels.hideKey : labels.showKey
           }
         >
           {showApiKey ? labels.hide : labels.show}
-        </button>
+        </Button>
       </div>
       {apiKeyCleanedNotice && !showApiKeyInvalid ? (
         <span className="field-inline-status success" role="status">

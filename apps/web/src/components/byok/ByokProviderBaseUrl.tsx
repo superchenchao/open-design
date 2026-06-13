@@ -1,3 +1,4 @@
+import { Button, Input } from '@open-design/components';
 import type { Ref } from 'react';
 import type { ApiProtocol } from '../../types';
 
@@ -62,7 +63,7 @@ export function ByokProviderBaseUrl({
         ) : null}
       </span>
       <div className="field-row">
-        <input
+        <Input
           ref={inputRef}
           aria-label={labels.baseUrl}
           type="url"
@@ -79,13 +80,13 @@ export function ByokProviderBaseUrl({
           onChange={(e) => onChange(e.target.value)}
         />
         {baseUrlReadOnly ? (
-          <button
-            type="button"
-            className="ghost icon-btn settings-base-url-customize"
+          <Button
+            variant="ghost"
+            className="icon-btn settings-base-url-customize"
             onClick={onCustomize}
           >
             {labels.customize}
-          </button>
+          </Button>
         ) : null}
       </div>
       {baseUrlReadOnly ? (

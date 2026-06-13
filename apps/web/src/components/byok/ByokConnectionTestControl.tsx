@@ -1,3 +1,4 @@
+import { Button } from '@open-design/components';
 import type { ConnectionTestResponse } from '../../types';
 import { Icon } from '../Icon';
 
@@ -73,10 +74,10 @@ export function ByokConnectionTestControl({
         ) : null}
       </div>
       {showTestButton ? (
-        <button
-          type="button"
+        <Button
+          variant="ghost"
           className={
-            'ghost icon-btn settings-test-btn' +
+            'icon-btn settings-test-btn' +
             (providerTestState.status === 'running' ? ' loading' : '')
           }
           onClick={() => void onTestProvider()}
@@ -101,7 +102,7 @@ export function ByokConnectionTestControl({
           ) : (
             labels.test
           )}
-        </button>
+        </Button>
       ) : null}
     </div>
   );

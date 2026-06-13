@@ -1,3 +1,4 @@
+import { Input } from '@open-design/components';
 import type { Ref } from 'react';
 import type { AgentModelOption } from '../../types';
 import {
@@ -111,7 +112,7 @@ export function ByokModelField({
               *
             </span>
           </span>
-          <input
+          <Input
             ref={customInputRef}
             aria-label={labels.customModelLabel}
             type="text"
