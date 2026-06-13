@@ -13076,21 +13076,41 @@ export async function startServer({
       // a Claude Code (anthropic) chat from triggering OpenAI/gpt-4o-
       // mini extraction in the background just because the user has
       // an OpenAI key parked in media-config.
+      const memoryOptions = {
+        projectRoot: PROJECT_ROOT,
+        chatAgentId: typeof agentId === 'string' ? agentId : null,
+        chatModel: typeof safeModel === 'string' ? safeModel : null,
+      };
       void import('./memory-llm.js')
-        .then(({ extractWithLLM }) =>
-          extractWithLLM(
+        .then(({ extractWithLLM, distillAnnotationsToMemory }) => {
+          const generalPass = extractWithLLM(
             RUNTIME_DATA_DIR,
             {
               userMessage: userMsg,
               assistantMessage: captured,
             },
-              {
-                projectRoot: PROJECT_ROOT,
-                chatAgentId: typeof agentId === 'string' ? agentId : null,
-                chatModel: typeof safeModel === 'string' ? safeModel : null,
-              },
-            ),
-        )
+            memoryOptions,
+          );
+          // Auto-distill any inline preview feedback (comments / highlights /
+          // drawn marks) from this turn into durable feedback + rule memory.
+          // This closes the "interaction → memory" loop automatically: the
+          // agent no longer has to propose a rule and the user no longer has
+          // to click Keep — a review turn that carried annotations mines
+          // itself in the background and writes straight to the store.
+          const annotationPass =
+            safeCommentAttachments.length > 0
+              ? distillAnnotationsToMemory(
+                  RUNTIME_DATA_DIR,
+                  {
+                    annotations: safeCommentAttachments,
+                    userMessage: userMsg,
+                    assistantMessage: captured,
+                  },
+                  memoryOptions,
+                )
+              : Promise.resolve([]);
+          return Promise.allSettled([generalPass, annotationPass]);
+        })
         .catch((err) => console.warn('[memory-llm] background failed', err));
     });
 
