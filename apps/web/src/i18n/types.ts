@@ -3328,4 +3328,5 @@ export interface Dict {
   'brandPicker.allCategories': string;
   'brandPicker.extractAction': string;
   'brandPicker.showMore': string;
+  'brandPicker.opening': string;
 }

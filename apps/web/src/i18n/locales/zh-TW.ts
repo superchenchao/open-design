@@ -3188,11 +3188,12 @@ export const zhTW: Dict = {
   'onboarding.brandSubtitle': '貼上品牌網站，我們會把品牌線索轉成後續可重用的品牌套件。',
   'onboarding.brandSkip': '暫時略過',
   'onboarding.brandDone': '品牌套件已擷取',
-  'brandPicker.heading': '或從你喜歡的品牌開始',
+  'brandPicker.heading': '從你喜歡的品牌開始',
   'brandPicker.subtext': '點擊任一品牌，即可直接從其網站擷取品牌套件。',
   'brandPicker.quickPicksLabel': '熱門品牌 · 點擊即可擷取',
   'brandPicker.searchPlaceholder': '搜尋品牌…',
   'brandPicker.allCategories': '全部',
   'brandPicker.extractAction': '擷取',
   'brandPicker.showMore': '顯示更多',
+  'brandPicker.opening': '正在開始擷取 — 正在開啟 {brand}…',
 };

@@ -177,6 +177,61 @@
   .shot-meta { padding: 8px 10px 10px; }
   .shot-cap { font-size: 12px; font-weight: 500; line-height: 1.25; }
   .shot-kind { font-size: 11px; color: var(--ink-faint); margin-top: 1px; }
+  .shot { cursor: pointer; }
+  .shot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .gallery-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .view-all { border: 1px solid var(--line); background: var(--surface); color: var(--ink-mute); border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 500; cursor: pointer; font-family: inherit; transition: border-color .2s cubic-bezier(.23,1,.32,1), color .2s cubic-bezier(.23,1,.32,1); }
+  .view-all:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Brand-asset tiles are clickable (open an in-page preview modal). */
+  .asset[data-asset-href] { cursor: pointer; }
+  .asset:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* In-page preview overlays — the kit runs in a sandboxed iframe (no top
+     navigation), so image enlargement and asset previews happen as DOM
+     overlays. Ease-out cubic-bezier(.23,1,.32,1); enter ~200ms / exit ~140ms. */
+  .ov { position: fixed; inset: 0; z-index: 60; display: none; }
+  .ov.open { display: block; }
+  .ov-back { position: absolute; inset: 0; background: rgba(20,19,17,.74); opacity: 0; transition: opacity .14s cubic-bezier(.23,1,.32,1); }
+  .ov.in .ov-back { opacity: 1; transition-duration: .2s; }
+  .ov-panel { position: absolute; opacity: 0; transform: scale(.92); transition: opacity .14s cubic-bezier(.23,1,.32,1), transform .14s cubic-bezier(.23,1,.32,1); }
+  .ov.in .ov-panel { opacity: 1; transform: scale(1); transition-duration: .2s; }
+  .ov-close { position: absolute; top: 14px; right: 16px; z-index: 2; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 999px; background: rgba(255,255,255,.92); color: #1a1a18; font-size: 22px; line-height: 1; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,.22); }
+  .ov-close:hover { background: #fff; }
+  .icon-x { border: 0; background: transparent; font-size: 22px; line-height: 1; cursor: pointer; color: var(--ink-mute); padding: 4px 9px; border-radius: 8px; }
+  .icon-x:hover { background: var(--line-soft); color: var(--ink); }
+
+  /* Lightbox */
+  #ov-light { z-index: 70; }
+  #ov-light .ov-panel { top: 50%; left: 50%; transform: translate(-50%,-50%) scale(.92); display: flex; flex-direction: column; align-items: center; }
+  #ov-light.in .ov-panel { transform: translate(-50%,-50%) scale(1); }
+  #ov-light img { max-width: 92vw; max-height: 82vh; object-fit: contain; border-radius: 12px; box-shadow: 0 12px 48px rgba(0,0,0,.5); background: #fff; }
+  .light-cap { margin-top: 12px; color: rgba(255,255,255,.92); font-size: 13px; text-align: center; max-width: 80vw; }
+  .light-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border: 0; border-radius: 999px; background: rgba(255,255,255,.88); color: #1a1a18; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 12px rgba(0,0,0,.28); }
+  .light-nav:hover { background: #fff; }
+  .light-prev { left: 3vw; }
+  .light-next { right: 3vw; }
+
+  /* Masonry "view all" modal */
+  #ov-grid .ov-panel { top: 4vh; left: 50%; transform: translate(-50%,0) scale(.96); width: min(980px, 92vw); height: 92vh; background: var(--paper); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 16px 60px rgba(0,0,0,.42); }
+  #ov-grid.in .ov-panel { transform: translate(-50%,0) scale(1); }
+  .grid-bar { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+  .grid-bar h3 { margin: 0; font-family: var(--font-display); font-size: 18px; }
+  .grid-scroll { overflow-y: auto; padding: 16px 20px 28px; }
+  .masonry { columns: 2; column-gap: 12px; }
+  @media (min-width: 560px) { .masonry { columns: 3; } }
+  @media (min-width: 860px) { .masonry { columns: 4; } }
+  .masonry .m-item { break-inside: avoid; margin: 0 0 12px; border-radius: 10px; overflow: hidden; border: 1px solid var(--line-soft); background: var(--surface); cursor: pointer; transition: transform .2s cubic-bezier(.23,1,.32,1); }
+  .masonry .m-item:hover { transform: translateY(-2px); }
+  .masonry .m-item img { width: 100%; display: block; }
+
+  /* Asset preview modal */
+  #ov-asset .ov-panel { top: 4vh; left: 50%; transform: translate(-50%,0) scale(.96); width: min(1120px, 94vw); height: 92vh; background: #fff; border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 16px 60px rgba(0,0,0,.42); }
+  #ov-asset.in .ov-panel { transform: translate(-50%,0) scale(1); }
+  .asset-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--line); background: var(--surface); }
+  .asset-bar .ab-title { font-size: 14px; font-weight: 600; }
+  .asset-bar .ab-sub { font-size: 12px; color: var(--ink-faint); margin-left: 8px; font-weight: 400; }
+  .asset-modal-frame { flex: 1; width: 100%; border: 0; display: block; background: #fff; }
 
   /* skeleton */
   .skel { background: linear-gradient(90deg, var(--line-soft) 25%, #f6f5ef 37%, var(--line-soft) 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; border-radius: 8px; }
@@ -285,19 +340,24 @@
   }
 
   // Thumbnail grid of representative imagery harvested from the site. Relative
-  // `imagery/<file>` paths resolve under the FileViewer raw URL. Empty (so the
-  // text-only imagery card stays) when no samples were saved.
+  // `imagery/<file>` paths resolve under the FileViewer raw URL. Every thumb is
+  // clickable to open the lightbox; a "View all" entry opens a masonry modal
+  // with the full set. Empty (so the text-only imagery card stays) when no
+  // samples were saved.
   function galleryHtml() {
     var samples = imagerySamples();
     if (!samples.length) return '';
-    return '<section class="sec">' + sectionTitle('Images') +
-      '<p class="muted" style="margin:-6px 0 14px">Representative imagery measured from the site.</p>' +
-      '<div class="gallery">' + samples.map(function (s) {
+    var viewAll = samples.length > 6
+      ? '<button class="view-all" id="gallery-view-all" type="button">View all (' + samples.length + ') →</button>'
+      : '';
+    return '<section class="sec">' +
+      '<div class="gallery-head"><h2 class="sec-title" style="margin:0">Images</h2>' + viewAll + '</div>' +
+      '<div class="gallery">' + samples.map(function (s, i) {
         var cap = s.caption || s.kind || '';
         var sub = (s.caption && s.kind) ? s.kind : '';
         var meta = cap ? '<div class="shot-meta"><div class="shot-cap">' + esc(cap) + '</div>' +
           (sub ? '<div class="shot-kind">' + esc(sub) + '</div>' : '') + '</div>' : '';
-        return '<div class="shot"><div class="shot-frame">' +
+        return '<div class="shot" data-idx="' + i + '" tabindex="0" role="button" aria-label="' + esc(cap || 'Image') + '"><div class="shot-frame">' +
           '<img src="' + esc(s.file) + '" alt="' + esc(cap || brand.name || '') + '" loading="lazy"></div>' + meta + '</div>';
       }).join('') + '</div></section>';
   }
@@ -430,11 +490,16 @@
         var inner = pending
           ? '<div class="asset-frame"><div class="skel" style="position:absolute;inset:0"></div></div>'
           : '<div class="asset-frame"><iframe src="' + esc(a.href) + '" loading="lazy" tabindex="-1" aria-hidden="true"></iframe></div>';
-        var tag = pending ? 'div' : 'a';
-        var href = pending ? '' : ' href="' + esc(a.href) + '" target="_top"';
-        return '<' + tag + ' class="asset' + (pending ? ' pending' : '') + '"' + href + '>' + inner +
+        // Clicking a tile opens its full page in an in-page modal iframe — the
+        // kit is sandboxed with no top navigation, so a plain link cannot
+        // navigate. Data attributes carry what the modal needs.
+        var attrs = pending
+          ? ''
+          : ' data-asset-href="' + esc(a.href) + '" data-asset-label="' + esc(a.label) +
+            '" data-asset-desc="' + esc(a.desc || '') + '" tabindex="0" role="button"';
+        return '<div class="asset' + (pending ? ' pending' : '') + '"' + attrs + '>' + inner +
           '<div class="asset-meta"><div class="asset-name">' + esc(a.label) + (pending ? '' : '<span class="open">Preview →</span>') + '</div>' +
-          (a.desc ? '<div class="asset-desc">' + esc(a.desc) + '</div>' : '') + '</div></' + tag + '>';
+          (a.desc ? '<div class="asset-desc">' + esc(a.desc) + '</div>' : '') + '</div></div>';
       }).join('') + '</div></section>';
   }
 

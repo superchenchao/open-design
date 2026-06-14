@@ -2300,7 +2300,12 @@ function OnboardingView({
               >
                 <BrandReferencePicker
                   variant="compact"
-                  disabled={brandExtractActive}
+                  busy={brandExtractActive}
+                  error={
+                    brandExtractFailed
+                      ? brandExtractState.error || t('brand.failed')
+                      : null
+                  }
                   onPick={handleOnboardingPickReference}
                 />
               </div>
