@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { Button, Dialog, Input } from '@open-design/components';
+import {
+  Button,
+  Dialog,
+  DialogBody,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+} from '@open-design/components';
 import { useT } from '../i18n';
 import { Icon } from './Icon';
 import { readDefaultSketchToolColor } from './sketch-colors';
@@ -287,27 +295,30 @@ export function SketchEditor({
           onClose={cancelTextModal}
           closeOnBackdrop={false}
           closeOnEscape
+          layout="sectioned"
           ariaLabelledBy={textModalTitleId}
         >
-          <div className="modal-head">
-            <h2 id={textModalTitleId}>{t('sketch.textModalTitle')}</h2>
-          </div>
-          <label>
-            <span>{t('sketch.textPrompt')}</span>
-            <Input
-              type="text"
-              value={textModalValue}
-              autoFocus
-              onChange={(e) => setTextModalValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && textModalValue.trim()) {
-                  e.preventDefault();
-                  submitTextModal();
-                }
-              }}
-            />
-          </label>
-          <div className="modal-foot">
+          <DialogHeader>
+            <DialogTitle id={textModalTitleId}>{t('sketch.textModalTitle')}</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <label>
+              <span>{t('sketch.textPrompt')}</span>
+              <Input
+                type="text"
+                value={textModalValue}
+                autoFocus
+                onChange={(e) => setTextModalValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && textModalValue.trim()) {
+                    e.preventDefault();
+                    submitTextModal();
+                  }
+                }}
+              />
+            </label>
+          </DialogBody>
+          <DialogFooter>
             <Button variant="ghost" onClick={cancelTextModal}>
               {t('common.cancel')}
             </Button>
@@ -318,7 +329,7 @@ export function SketchEditor({
             >
               {t('common.save')}
             </Button>
-          </div>
+          </DialogFooter>
         </Dialog>
       ) : null}
     </div>

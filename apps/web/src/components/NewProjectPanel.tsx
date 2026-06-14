@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Dialog } from '@open-design/components';
+import { Dialog, DialogDescription, DialogFooter, DialogTitle } from '@open-design/components';
 import { createTabToTracking } from '@open-design/contracts/analytics';
 import { isOpenDesignHostAvailable, pickHostWorkingDir } from '@open-design/host';
 import type { OpenDesignHostProjectImportSuccess } from '@open-design/host';
@@ -1605,16 +1605,16 @@ function TemplatePicker({
           onClose={deleting ? undefined : closeConfirm}
           ariaLabelledBy={deleteTemplateTitleId}
         >
-          <h2 id={deleteTemplateTitleId}>{t('newproj.deleteTemplateTitle')}</h2>
-          <p className="modal-confirm-message">
+          <DialogTitle id={deleteTemplateTitleId}>{t('newproj.deleteTemplateTitle')}</DialogTitle>
+          <DialogDescription className="modal-confirm-message">
             {t('newproj.deleteTemplateConfirm', { name: confirmDelete.name })}
-          </p>
+          </DialogDescription>
           {deleteError ? (
             <p className="modal-confirm-error" role="alert">
               {t('newproj.deleteTemplateError')}
             </p>
           ) : null}
-          <div className="row">
+          <DialogFooter className="row">
             <button type="button" onClick={closeConfirm} disabled={deleting}>
               {t('common.cancel')}
             </button>
@@ -1627,7 +1627,7 @@ function TemplatePicker({
             >
               {t('newproj.deleteTemplateConfirmCta')}
             </button>
-          </div>
+          </DialogFooter>
         </Dialog>
       ) : null}
     </div>

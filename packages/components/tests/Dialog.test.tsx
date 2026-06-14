@@ -3,7 +3,14 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { Dialog } from '../src/dialog';
+import {
+  Dialog,
+  DialogBody,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../src/dialog';
 
 afterEach(() => {
   cleanup();
@@ -58,5 +65,32 @@ describe('Dialog', () => {
     expect(panel).toBeTruthy();
     expect(panel?.className).toBe('plugin-details-modal');
     expect(panel?.classList.contains('modal')).toBe(false);
+  });
+
+  it('supports sectioned layouts with shared header/body/footer primitives', () => {
+    const { container } = render(
+      <Dialog layout="sectioned" ariaLabelledBy="dialog-title">
+        <DialogHeader>
+          <DialogTitle id="dialog-title">Sketch text</DialogTitle>
+          <DialogDescription>Add a note to the canvas.</DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          <label>
+            <span>Text</span>
+            <input type="text" />
+          </label>
+        </DialogBody>
+        <DialogFooter>
+          <button type="button">Cancel</button>
+          <button type="button">Save</button>
+        </DialogFooter>
+      </Dialog>,
+    );
+
+    expect(screen.getByRole('dialog', { name: 'Sketch text' })).toBeTruthy();
+    expect(container.querySelector('[class*="dialogSectioned"]')).toBeTruthy();
+    expect(container.querySelector('[class*="header"]')).toBeTruthy();
+    expect(container.querySelector('[class*="body"]')).toBeTruthy();
+    expect(container.querySelector('[class*="footer"]')).toBeTruthy();
   });
 });

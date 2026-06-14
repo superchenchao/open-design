@@ -1,9 +1,17 @@
-import { useEffect, type FormEventHandler, type MouseEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  type ComponentPropsWithoutRef,
+  type FormEventHandler,
+  type MouseEvent,
+  type ReactNode,
+} from 'react';
 
 import { joinClassNames } from './class-names';
 import styles from './dialog.module.css';
 
 type DialogTag = 'div' | 'form';
+
+type DialogLayout = 'default' | 'sectioned';
 
 export interface DialogProps {
   children: ReactNode;
@@ -18,10 +26,17 @@ export interface DialogProps {
   ariaDescribedBy?: string;
   closeOnBackdrop?: boolean;
   closeOnEscape?: boolean;
+  layout?: DialogLayout;
   as?: DialogTag;
   onSubmit?: FormEventHandler<HTMLFormElement>;
   [key: `data-${string}`]: string | number | undefined;
 }
+
+type DialogSectionProps = ComponentPropsWithoutRef<'div'>;
+
+type DialogHeadingProps = ComponentPropsWithoutRef<'h2'>;
+
+type DialogDescriptionProps = ComponentPropsWithoutRef<'p'>;
 
 export function Dialog({
   children,
@@ -36,6 +51,7 @@ export function Dialog({
   ariaDescribedBy,
   closeOnBackdrop = true,
   closeOnEscape = false,
+  layout = 'default',
   as = 'div',
   onSubmit,
   ...dataAttributes
@@ -57,6 +73,7 @@ export function Dialog({
     id,
     className: joinClassNames(
       includeChromeClassName ? styles.dialog : undefined,
+      includeChromeClassName && layout === 'sectioned' ? styles.dialogSectioned : undefined,
       includeChromeClassName ? 'modal' : undefined,
       className,
     ),
@@ -88,4 +105,24 @@ export function Dialog({
       )}
     </div>
   );
+}
+
+export function DialogHeader({ className, ...props }: DialogSectionProps) {
+  return <div className={joinClassNames(styles.header, className)} {...props} />;
+}
+
+export function DialogBody({ className, ...props }: DialogSectionProps) {
+  return <div className={joinClassNames(styles.body, className)} {...props} />;
+}
+
+export function DialogFooter({ className, ...props }: DialogSectionProps) {
+  return <div className={joinClassNames(styles.footer, className)} {...props} />;
+}
+
+export function DialogTitle({ className, ...props }: DialogHeadingProps) {
+  return <h2 className={joinClassNames(styles.title, className)} {...props} />;
+}
+
+export function DialogDescription({ className, ...props }: DialogDescriptionProps) {
+  return <p className={joinClassNames(styles.description, className)} {...props} />;
 }

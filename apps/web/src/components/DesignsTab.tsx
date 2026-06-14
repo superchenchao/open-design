@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Dialog } from "@open-design/components";
+import { Dialog, DialogDescription, DialogFooter, DialogTitle } from "@open-design/components";
 import { projectKindToTracking } from "@open-design/contracts/analytics";
 import { useAnalytics } from "../analytics/provider";
 import {
@@ -941,7 +941,7 @@ export function DesignsTab({
 						commitRename();
 					}}
 				>
-					<h2 id={renameTitleId}>{t("designs.renameTitle")}</h2>
+					<DialogTitle id={renameTitleId}>{t("designs.renameTitle")}</DialogTitle>
 					<label>
 						{t("designs.renamePrompt", { name: renameTarget.original })}
 						<input
@@ -951,7 +951,7 @@ export function DesignsTab({
 							onChange={(e) => setRenameInput(e.target.value)}
 						/>
 					</label>
-					<div className="row">
+					<DialogFooter className="row">
 						<button type="button" onClick={cancelRename}>
 							{t("designs.renameCancel")}
 						</button>
@@ -965,7 +965,7 @@ export function DesignsTab({
 						>
 							{t("designs.renameSave")}
 						</button>
-					</div>
+					</DialogFooter>
 				</Dialog>
 			) : null}
 			{confirmTarget ? (
@@ -975,9 +975,9 @@ export function DesignsTab({
 					onClose={() => setConfirmTarget(null)}
 					ariaLabelledBy={confirmTitleId}
 				>
-					<h2 id={confirmTitleId}>{confirmTarget.title}</h2>
-					<p className="modal-confirm-message">{confirmTarget.message}</p>
-					<div className="row">
+					<DialogTitle id={confirmTitleId}>{confirmTarget.title}</DialogTitle>
+					<DialogDescription className="modal-confirm-message">{confirmTarget.message}</DialogDescription>
+					<DialogFooter className="row">
 						<button type="button" onClick={() => setConfirmTarget(null)}>
 							{t("designs.renameCancel")}
 						</button>
@@ -993,7 +993,7 @@ export function DesignsTab({
 						>
 							{confirmTarget.confirmLabel}
 						</button>
-					</div>
+					</DialogFooter>
 				</Dialog>
 			) : null}
 			<AnimatePresence>

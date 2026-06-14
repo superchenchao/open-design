@@ -1,4 +1,4 @@
-import { Dialog } from '@open-design/components';
+import { Dialog, DialogFooter, DialogTitle } from '@open-design/components';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import { useT } from '../i18n';
@@ -617,7 +617,7 @@ export function DesignSystemsSection({
             void commitRename();
           }}
         >
-          <h2 id={renameTitleId}>{t('common.rename')}</h2>
+          <DialogTitle id={renameTitleId}>{t('common.rename')}</DialogTitle>
           <label>
             <input
               type="text"
@@ -628,7 +628,7 @@ export function DesignSystemsSection({
             />
           </label>
           {renameError ? <p className="library-install-error">{renameError}</p> : null}
-          <div className="row">
+          <DialogFooter className="row">
             <button type="button" onClick={cancelRename}>
               {t('common.cancel')}
             </button>
@@ -643,7 +643,7 @@ export function DesignSystemsSection({
             >
               {t('common.save')}
             </button>
-          </div>
+          </DialogFooter>
         </Dialog>
       ) : null}
     </section>

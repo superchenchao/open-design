@@ -8,7 +8,7 @@
 // textarea can live centered in the hero.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Dialog } from '@open-design/components';
+import { Dialog, DialogFooter, DialogTitle } from '@open-design/components';
 import type {
   ApplyResult,
   ChatSessionMode,
@@ -1743,11 +1743,11 @@ export function HomeView({
           ariaLabelledBy="home-hero-confirm-title"
           closeOnBackdrop={false}
         >
-            <h2 id="home-hero-confirm-title">{t('homeHero.confirmReplaceTitle')}</h2>
+            <DialogTitle id="home-hero-confirm-title">{t('homeHero.confirmReplaceTitle')}</DialogTitle>
             <p>
               {t('homeHero.confirmReplaceBody', { title: pendingReplacement.title })}
             </p>
-            <div className="home-hero-confirm__actions">
+            <DialogFooter className="home-hero-confirm__actions">
               <button
                 type="button"
                 className="home-hero-confirm__secondary"
@@ -1808,7 +1808,7 @@ export function HomeView({
               >
                 {t('homeHero.confirmReplace')}
               </button>
-            </div>
+            </DialogFooter>
         </Dialog>
       ) : null}
     </div>
