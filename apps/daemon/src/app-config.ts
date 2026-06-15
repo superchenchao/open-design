@@ -6,11 +6,12 @@
 // multi-namespace runs isolated). This survives browser storage resets and
 // origin changes so onboarding and agent selection don't reappear unexpectedly.
 //
-// `agentCliEnv` is intentionally limited by allowlist below. It may include
-// proxy/auth overrides for local CLIs (for example ANTHROPIC_BASE_URL +
-// ANTHROPIC_AUTH_TOKEN for Claude Code, or OPENAI_BASE_URL + OPENAI_API_KEY
-// for Codex). Those values are local-only and should not be logged or
-// returned outside this machine.
+// `agentCliEnv` is intentionally limited by allowlist below. It is the
+// explicit low-level launch environment for Local CLI runs, separate from
+// provider BYOK. API-key entries here configure the underlying CLI itself;
+// BASE_URL is optional and, when omitted, the CLI uses its default endpoint.
+// These values are local-only and should not be logged or returned outside
+// this machine.
 
 import { readFileSync } from 'node:fs';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';

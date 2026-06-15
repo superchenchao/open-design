@@ -27,15 +27,18 @@ const RUNTIME_MODULE_PROJECT_ROOT = resolveProjectRootFromNestedModule(
 
 // Build the env passed to spawn() for a given agent adapter.
 //
-// Claude Code and Codex Local CLI should resolve auth exactly as the user's
-// local CLI does. Preserve credentials from the inherited launch environment
-// (OAuth-backed config, CLI home, or user-owned API-key env), but never let
-// Open Design's saved agentCliEnv inject or override API credentials for
-// those CLIs. BYOK credentials are for Open Design provider calls only.
+// Auth/config precedence for Local CLI launches:
 //
-// Open Design-saved configured env may contain Windows-style mixed-case key
-// names. Sanitize by case-insensitive key comparison before the merge so a
-// saved `Anthropic_Api_Key` cannot override the inherited local CLI auth.
+// 1. Provider BYOK is separate. It is used by Open Design's direct provider
+//    API calls and is not automatically mapped into Local CLI launches.
+// 2. The inherited launch env represents the user's local CLI setup
+//    (OAuth/login files, CLI homes, or user-owned API-key env). Preserve it
+//    so Claude Code/Codex behave like they do in the user's terminal.
+// 3. `configuredEnv` comes from Settings -> Local CLI ->
+//    "Advanced: proxy & custom paths". It is an explicit low-level CLI env
+//    override, so it wins over inherited env, including API-key variables.
+//    BASE_URL is optional: when omitted, the underlying CLI uses its own
+//    official default endpoint.
 // When the daemon launches the vela (amr) CLI, forward this installation's id
 // so vela's analytics can be correlated back to it. spawnEnvForAgent is
 // synchronous, so this uses readAppConfigSync — the synchronous mirror of
@@ -70,20 +73,15 @@ export function spawnEnvForAgent(
   baseEnv: RuntimeEnvMap,
   configuredEnv: unknown = {},
   systemProxyEnv: RuntimeEnvMap = resolveSystemProxyEnv(),
-  options: SpawnEnvOptions = {},
+  _options: SpawnEnvOptions = {},
 ): NodeJS.ProcessEnv {
   const sandboxRuntime = sandboxRuntimeConfigForBaseEnv(baseEnv);
   const expandedConfiguredEnv = expandConfiguredEnv(configuredEnv);
-  const sanitizedConfiguredEnv = sanitizeConfiguredEnvForAgent(
-    agentId,
-    expandedConfiguredEnv,
-    options,
-  );
   const env = mergeProxyAwareEnv(
     process.platform,
     systemProxyEnv,
     baseEnv,
-    sanitizedConfiguredEnv,
+    expandedConfiguredEnv,
   );
   if (agentId === 'amr') {
     Object.assign(env, amrVelaProfileEnv(env));
@@ -174,15 +172,6 @@ export function openDesignAmrTraceEnv(input: {
   };
 }
 
-function isOpenClaudeExecutable(resolvedBin: string | null | undefined): boolean {
-  if (typeof resolvedBin !== 'string' || !resolvedBin.trim()) return false;
-  const base = path
-    .basename(resolvedBin.trim().replace(/\\/g, '/'))
-    .replace(/\.(exe|cmd|bat)$/i, '')
-    .toLowerCase();
-  return base === 'openclaude';
-}
-
 function sandboxRuntimeConfigForBaseEnv(
   baseEnv: RuntimeEnvMap,
 ): SandboxRuntimeConfig | null {
@@ -202,30 +191,6 @@ function reapplySandboxRuntimeEnv(
 ): NodeJS.ProcessEnv {
   if (!sandboxRuntime) return env;
   return applySandboxRuntimeEnv(env, sandboxRuntime);
-}
-
-// Remove Open Design-saved API credentials before they can override the
-// user's local CLI auth. Comparison is case-insensitive so Windows-style
-// mixed casing (`Openai_Api_Key`) cannot slip past a literal delete.
-function sanitizeConfiguredEnvForAgent(
-  agentId: string,
-  configuredEnv: Record<string, string>,
-  options: SpawnEnvOptions,
-): Record<string, string> {
-  const sanitized = { ...configuredEnv };
-  if (agentId === 'claude' && !isOpenClaudeExecutable(options.resolvedBin)) {
-    stripKeysCaseInsensitive(sanitized, [
-      'ANTHROPIC_API_KEY',
-      'ANTHROPIC_AUTH_TOKEN',
-    ]);
-  }
-  if (agentId === 'codex') {
-    stripKeysCaseInsensitive(sanitized, [
-      'OPENAI_API_KEY',
-      'CODEX_API_KEY',
-    ]);
-  }
-  return sanitized;
 }
 
 function stripKeysCaseInsensitive(

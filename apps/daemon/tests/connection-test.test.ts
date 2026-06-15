@@ -2141,9 +2141,9 @@ console.log(JSON.stringify({ type: 'item.completed', item: { type: 'agent_messag
 setImmediate(() => process.exit(0));
 `,
         async () => {
-          // Open Design may pass path/base-url style CLI settings, but its
-          // saved API keys must not become Codex CLI auth. The child should
-          // authenticate exactly as the local CLI would.
+          // Settings -> Local CLI -> Advanced is an explicit low-level CLI
+          // env override. API keys configured there are passed to the child,
+          // while unrelated env keys remain filtered by app-config allowlists.
           const res = await realFetch(`${baseUrl}/api/test/connection`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
@@ -2173,7 +2173,7 @@ setImmediate(() => process.exit(0));
             JSON.stringify({
               CODEX_HOME: codexHome,
               OPENAI_BASE_URL: 'https://proxy.example.com/v1',
-              CODEX_API_KEY: null,
+              CODEX_API_KEY: 'codex-key',
               SHOULD_NOT_PASS: null,
             }),
           );
@@ -2244,7 +2244,7 @@ setImmediate(() => process.exit(0));
     }
   });
 
-  it('does not let configured Codex API credentials override inherited auth during connection tests', async () => {
+  it('lets configured Codex API credentials override inherited auth during connection tests', async () => {
     const markerDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'od-conn-test-codex-api-'));
     const envFile = path.join(markerDir, 'env.json');
     const previousOpenAiKey = process.env.OPENAI_API_KEY;
@@ -2286,8 +2286,8 @@ setImmediate(() => process.exit(0));
           });
           await expect(fsp.readFile(envFile, 'utf8')).resolves.toBe(
             JSON.stringify({
-              OPENAI_API_KEY: 'sk-inherited-openai',
-              CODEX_API_KEY: 'sk-inherited-codex',
+              OPENAI_API_KEY: 'sk-configured-openai',
+              CODEX_API_KEY: 'sk-configured-codex',
               OPENAI_BASE_URL: null,
             }),
           );
@@ -2302,7 +2302,7 @@ setImmediate(() => process.exit(0));
     }
   });
 
-  it('does not let configured Claude API credentials override inherited auth during connection tests', async () => {
+  it('lets configured Claude API credentials override inherited auth during connection tests', async () => {
     const markerDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'od-conn-test-claude-api-'));
     const envFile = path.join(markerDir, 'env.json');
     const previousKey = process.env.ANTHROPIC_API_KEY;
@@ -2361,8 +2361,8 @@ process.stdin.on('end', () => {
           });
           await expect(fsp.readFile(envFile, 'utf8')).resolves.toBe(
             JSON.stringify({
-              ANTHROPIC_API_KEY: 'sk-inherited-stale',
-              ANTHROPIC_AUTH_TOKEN: 'sk-inherited-token',
+              ANTHROPIC_API_KEY: 'sk-configured',
+              ANTHROPIC_AUTH_TOKEN: 'sk-configured-token',
               ANTHROPIC_BASE_URL: null,
             }),
           );

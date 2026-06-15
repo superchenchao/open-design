@@ -49,7 +49,7 @@ test('spawnEnvForAgent applies configured Claude Code env without stripping inhe
   assert.equal(env.PATH, '/usr/bin');
 });
 
-test('spawnEnvForAgent does not let configured Claude Code API credentials override inherited auth', () => {
+test('spawnEnvForAgent lets configured Claude Code API credentials override inherited auth', () => {
   const env = spawnEnvForAgent(
     'claude',
     {
@@ -63,8 +63,8 @@ test('spawnEnvForAgent does not let configured Claude Code API credentials overr
     },
   );
 
-  assert.equal(env.ANTHROPIC_API_KEY, 'sk-inherited-stale');
-  assert.equal(env.ANTHROPIC_AUTH_TOKEN, 'sk-inherited-token');
+  assert.equal(env.ANTHROPIC_API_KEY, 'sk-configured');
+  assert.equal(env.ANTHROPIC_AUTH_TOKEN, 'sk-configured-token');
   assert.equal(env.PATH, '/usr/bin');
 });
 
@@ -1134,27 +1134,20 @@ test('antigravity auth matcher covers agy print-mode + log-file auth signals', a
   );
 });
 
-// Windows env-var names are case-insensitive at the kernel level, but
-// spreading process.env into a plain object loses Node's case-insensitive
-// accessor — a `Anthropic_Api_Key` key would survive a literal
-// `delete env.ANTHROPIC_API_KEY` and still reach Claude Code on Windows.
-test('spawnEnvForAgent strips configured Anthropic credentials case-insensitively for the claude adapter', () => {
+test('spawnEnvForAgent preserves configured Anthropic credentials for the claude adapter', () => {
   const env = spawnEnvForAgent(
     'claude',
     {
       PATH: '/usr/bin',
     },
     {
-      Anthropic_Api_Key: 'sk-mixed-case',
-      anthropic_api_key: 'sk-lower-case',
-      Anthropic_Auth_Token: 'sk-token-mixed-case',
+      ANTHROPIC_API_KEY: 'sk-configured',
+      ANTHROPIC_AUTH_TOKEN: 'sk-token-configured',
     },
   );
 
-  const remaining = Object.keys(env).filter(
-    (k) => k.toUpperCase() === 'ANTHROPIC_API_KEY' || k.toUpperCase() === 'ANTHROPIC_AUTH_TOKEN',
-  );
-  assert.deepEqual(remaining, []);
+  assert.equal(env.ANTHROPIC_API_KEY, 'sk-configured');
+  assert.equal(env.ANTHROPIC_AUTH_TOKEN, 'sk-token-configured');
   assert.equal(env.PATH, '/usr/bin');
 });
 
@@ -1268,27 +1261,20 @@ test('spawnEnvForAgent preserves CODEX_API_KEY when OPENAI_BASE_URL is set to a 
   assert.equal(env.OPENAI_BASE_URL, 'https://proxy.example.com/v1');
 });
 
-test('spawnEnvForAgent strips configured Codex API keys case-insensitively', () => {
+test('spawnEnvForAgent preserves configured Codex API keys', () => {
   const env = spawnEnvForAgent(
     'codex',
     {
       PATH: '/usr/bin',
     },
     {
-      Openai_Api_Key: 'sk-mixed-case',
-      openai_api_key: 'sk-lower-case',
-      Codex_Api_Key: 'sk-mixed-case',
+      OPENAI_API_KEY: 'sk-configured-openai',
+      CODEX_API_KEY: 'sk-configured-codex',
     },
   );
 
-  const remainingOpenAi = Object.keys(env).filter(
-    (k) => k.toUpperCase() === 'OPENAI_API_KEY',
-  );
-  const remainingCodex = Object.keys(env).filter(
-    (k) => k.toUpperCase() === 'CODEX_API_KEY',
-  );
-  assert.deepEqual(remainingOpenAi, []);
-  assert.deepEqual(remainingCodex, []);
+  assert.equal(env.OPENAI_API_KEY, 'sk-configured-openai');
+  assert.equal(env.CODEX_API_KEY, 'sk-configured-codex');
   assert.equal(env.PATH, '/usr/bin');
 });
 
@@ -1312,7 +1298,7 @@ test('spawnEnvForAgent preserves Codex API keys for non-codex adapters', () => {
   }
 });
 
-test('spawnEnvForAgent applies configured codex base URL without configured API key', () => {
+test('spawnEnvForAgent applies configured codex base URL and API key', () => {
   const env = spawnEnvForAgent(
     'codex',
     { PATH: '/usr/bin' },
@@ -1323,10 +1309,10 @@ test('spawnEnvForAgent applies configured codex base URL without configured API 
   );
 
   assert.equal(env.OPENAI_BASE_URL, 'https://proxy.example.com/v1');
-  assert.equal('OPENAI_API_KEY' in env, false);
+  assert.equal(env.OPENAI_API_KEY, 'sk-configured');
 });
 
-test('spawnEnvForAgent does not let configured Codex API credentials override inherited auth', () => {
+test('spawnEnvForAgent lets configured Codex API credentials override inherited auth', () => {
   const env = spawnEnvForAgent(
     'codex',
     {
@@ -1340,8 +1326,8 @@ test('spawnEnvForAgent does not let configured Codex API credentials override in
     },
   );
 
-  assert.equal(env.OPENAI_API_KEY, 'sk-inherited-stale');
-  assert.equal(env.CODEX_API_KEY, 'sk-inherited-codex');
+  assert.equal(env.OPENAI_API_KEY, 'sk-configured-openai');
+  assert.equal(env.CODEX_API_KEY, 'sk-configured-codex');
   assert.equal(env.PATH, '/usr/bin');
 });
 
