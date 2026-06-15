@@ -319,7 +319,7 @@ describe('structured agent stream fixtures', () => {
     })).toBe(false);
   });
 
-  it('suppresses later Claude HTML artifact text after prose even when content differs from the write', () => {
+  it('preserves later Claude HTML artifact text after prose when content differs from the write', () => {
     const events: unknown[] = [];
     const handler = createClaudeStreamHandler(
       (event: unknown) => events.push(event),
@@ -376,13 +376,8 @@ describe('structured agent stream fixtures', () => {
     });
     expect(events).toContainEqual({
       type: 'text_delta',
-      delta: 'Done',
+      delta: '<artifact identifier="page" type="text/html">\\n<!doctype html><html>different</html>\\n</artifact>Done',
     });
-    expect(events.some((event) => {
-      if (typeof event !== 'object' || event === null) return false;
-      const record = event as { type?: string; delta?: string };
-      return record.type === 'text_delta' && typeof record.delta === 'string' && record.delta.includes('<html>different</html>');
-    })).toBe(false);
   });
 
   it('preserves different later HTML artifacts unless Claude filesystem suppression is enabled', () => {
@@ -502,7 +497,7 @@ describe('structured agent stream fixtures', () => {
     });
   });
 
-  it('suppresses later Claude HTML artifact text after suppressing immediate file-write echo', () => {
+  it('preserves distinct later Claude HTML artifact text after suppressing immediate file-write echo', () => {
     const events: unknown[] = [];
     const handler = createClaudeStreamHandler(
       (event: unknown) => events.push(event),
@@ -541,14 +536,12 @@ describe('structured agent stream fixtures', () => {
     });
     expect(events).toContainEqual({
       type: 'text_delta',
-      delta: 'Final artifact:\\n\\n',
+      delta: 'Final artifact:\\n\\n<artifact identifier="final" type="text/html">\\n<!doctype html><html>final</html>\\n</artifact>',
     });
     expect(events.some((event) => {
       if (typeof event !== 'object' || event === null) return false;
       const record = event as { type?: string; delta?: string };
-      return record.type === 'text_delta' && typeof record.delta === 'string' && (
-        record.delta.includes('<html>helper</html>') || record.delta.includes('<html>final</html>')
-      );
+      return record.type === 'text_delta' && typeof record.delta === 'string' && record.delta.includes('<html>helper</html>');
     })).toBe(false);
   });
 
