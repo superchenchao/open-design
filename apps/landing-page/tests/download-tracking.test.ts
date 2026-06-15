@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { posthogHeadHtml } from '../app/_lib/posthog-analytics.ts';
 import { googleAnalyticsHeadHtml } from '../app/_lib/google-analytics.ts';
+import { pageNameFromPath } from '../app/i18n.ts';
 
 /**
  * The landing-site trackers are emitted as inline-script STRINGS, so neither
@@ -34,8 +35,8 @@ function makeLink(opts: {
   return el;
 }
 
-function runPosthogTracker() {
-  const html = posthogHeadHtml('phc_test_key', 'https://us.i.posthog.com');
+function runPosthogTracker(pageName?: string) {
+  const html = posthogHeadHtml('phc_test_key', 'https://us.i.posthog.com', pageName);
   const start = html.indexOf('(function () {');
   const end = html.lastIndexOf('})();') + '})();'.length;
   assert.ok(start !== -1 && end > start, 'tracker IIFE not found in emitted script');
@@ -75,7 +76,7 @@ test('posthog: hero direct download (rewritten to .dmg) → direct + placement=h
       text: '下载桌面端',
     }),
   );
-  const dl = captures.find((c) => c.name === 'landing_home_click' && c.props.element === 'download_desktop');
+  const dl = captures.find((c) => c.name === 'ui_click' && c.props.element === 'download_desktop');
   assert.ok(dl, 'expected a download_desktop click event');
   assert.equal(dl!.props.download_target, 'direct');
   assert.equal(dl!.props.placement, 'hero');
@@ -92,7 +93,7 @@ test('posthog: cta-band direct download → direct + placement=cta', () => {
       text: '下载桌面端',
     }),
   );
-  const dl = captures.find((c) => c.name === 'landing_home_click' && c.props.element === 'download_desktop');
+  const dl = captures.find((c) => c.name === 'ui_click' && c.props.element === 'download_desktop');
   assert.ok(dl);
   assert.equal(dl!.props.download_target, 'direct');
   assert.equal(dl!.props.placement, 'cta');
@@ -108,7 +109,7 @@ test('posthog: nav /download/ button → download_page + placement=nav', () => {
       text: '下载',
     }),
   );
-  const dl = captures.find((c) => c.name === 'landing_home_click' && c.props.element === 'download_desktop');
+  const dl = captures.find((c) => c.name === 'ui_click' && c.props.element === 'download_desktop');
   assert.ok(dl, 'expected a download_desktop click event for the nav download button');
   assert.equal(dl!.props.download_target, 'download_page');
   assert.equal(dl!.props.placement, 'nav');
@@ -117,7 +118,7 @@ test('posthog: nav /download/ button → download_page + placement=nav', () => {
 test('posthog: bare /download/ link (no attr) still matched by path', () => {
   const { captures, click } = runPosthogTracker();
   click(makeLink({ href: 'https://open-design.dev/download/', pathname: '/download/', text: 'Download desktop' }));
-  const dl = captures.find((c) => c.name === 'landing_home_click' && c.props.element === 'download_desktop');
+  const dl = captures.find((c) => c.name === 'ui_click' && c.props.element === 'download_desktop');
   assert.ok(dl, 'expected a download_desktop click event for a bare /download/ link');
   assert.equal(dl!.props.download_target, 'download_page');
 });
@@ -125,12 +126,31 @@ test('posthog: bare /download/ link (no attr) still matched by path', () => {
 test('posthog: unrelated /downloads-guide/ is NOT a download event', () => {
   const { captures, click } = runPosthogTracker();
   click(makeLink({ href: 'https://open-design.dev/downloads-guide/', pathname: '/downloads-guide/', text: 'guide' }));
-  const dl = captures.find((c) => c.name === 'landing_home_click' && c.props.element === 'download_desktop');
+  const dl = captures.find((c) => c.name === 'ui_click' && c.props.element === 'download_desktop');
   assert.equal(dl, undefined, '/downloads-guide/ must not be treated as a download');
 });
 
-test('google-analytics: emitted /download/ regex matches only the installer-matrix path', () => {
-  const html = googleAnalyticsHeadHtml('G-TEST');
+test('posthog: page_name is parameterized per page (not hardcoded landing_home)', () => {
+  const { captures, click } = runPosthogTracker('download');
+  const pv = captures.find((c) => c.name === 'page_view');
+  assert.equal(pv!.props.page_name, 'download', 'page_view must report the real page');
+  click(makeLink({ href: 'https://open-design.dev/download/', pathname: '/download/', text: 'Download' }));
+  const ev = captures.find((c) => c.name === 'ui_click');
+  assert.equal(ev!.props.page_name, 'download', 'ui_click must report the real page');
+});
+
+test('pageNameFromPath: home, sub-pages, and locale-prefixed routes', () => {
+  assert.equal(pageNameFromPath('/'), 'landing_home');
+  assert.equal(pageNameFromPath('/download/'), 'download');
+  assert.equal(pageNameFromPath('/zh/download/'), 'download');
+  assert.equal(pageNameFromPath('/solutions/prototype/'), 'solutions_prototype');
+  assert.equal(pageNameFromPath('/ja/solutions/prototype/'), 'solutions_prototype');
+  assert.equal(pageNameFromPath('/compare/'), 'compare');
+});
+
+test('google-analytics: emits page_name and the /download/ regex matches only the installer path', () => {
+  const html = googleAnalyticsHeadHtml('G-TEST', 'download');
+  assert.match(html, /page_name: "download"/);
   // The download-page branch must be present in the emitted GA script.
   assert.match(html, /data-download-page/);
   const m = html.match(/\/\\\/download\\\/\?\$\//);

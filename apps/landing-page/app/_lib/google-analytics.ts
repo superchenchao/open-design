@@ -1,4 +1,7 @@
-export function googleAnalyticsHeadHtml(measurementId: string | undefined): string {
+export function googleAnalyticsHeadHtml(
+  measurementId: string | undefined,
+  pageName = 'landing_home',
+): string {
   if (!measurementId) return '';
   return `<!-- Google tag (gtag.js) -->
 <script>
@@ -35,6 +38,7 @@ export function googleAnalyticsHeadHtml(measurementId: string | undefined): stri
     if (!cta) return;
     var payload = {
       cta_name: cta,
+      page_name: ${JSON.stringify(pageName)},
       link_url: href,
       link_text: label.slice(0, 120),
     };
