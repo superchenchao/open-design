@@ -11,3 +11,4 @@ self-hosted-runner:
     - nexu-win
     - open-design-ci
     - release-beta
+    - blacksmith-4vcpu-ubuntu-2404
