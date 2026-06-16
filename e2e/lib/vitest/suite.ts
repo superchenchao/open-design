@@ -1,17 +1,22 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { expect } from 'vitest';
 
-import { assertRelativeReportPath, createReport, type E2eReport } from './report.ts';
+import {
+  createToolsDevSuite,
+  e2eWorkspaceRoot as resolveE2eWorkspaceRoot,
+} from '../tools-dev/runtime.ts';
 import type {
   ToolsDevCheckResult,
   ToolsDevLogResult,
-  ToolsDevRuntime,
+  ToolsDevPortAllocation,
   ToolsDevStartResult,
   ToolsDevStatusResult,
-} from './tools-dev.ts';
+} from '../tools-dev/types.ts';
+import { assertRelativeReportPath, createReport, type E2eReport } from './report.ts';
+
+export { e2eWorkspaceRoot } from '../tools-dev/runtime.ts';
 
 export type SmokeSuite = {
   codexHomeDir: string;
@@ -42,7 +47,7 @@ export type SmokeSuiteWith = {
 export type ToolsDevSuiteContext = {
   check: () => Promise<ToolsDevCheckResult>;
   logs: () => Promise<Record<string, ToolsDevLogResult>>;
-  runtime: ToolsDevRuntime;
+  runtime: ToolsDevPortAllocation;
   start: ToolsDevStartResult;
   status: ToolsDevStatusResult;
   webUrl: string;
@@ -58,12 +63,7 @@ export type ToolsDevSuiteOptions = {
   skipFatalLogCheck?: boolean;
 };
 
-const e2eRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
-const workspaceRoot = dirname(e2eRoot);
-
-export function e2eWorkspaceRoot(): string {
-  return workspaceRoot;
-}
+const workspaceRoot = resolveE2eWorkspaceRoot();
 
 export async function createSmokeSuite(name: string): Promise<SmokeSuite> {
   const namespace = `e2e-${sanitizeSegment(name)}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -128,34 +128,29 @@ async function runToolsDevSuite(
   run: (context: ToolsDevSuiteContext) => Promise<void>,
   options: ToolsDevSuiteOptions = {},
 ): Promise<string> {
-  const toolsDev = await import('./tools-dev.ts');
-  let runtime = await toolsDev.allocateToolsDevRuntime();
+  const toolsDev = createToolsDevSuite({
+    codexHomeDir: suite.codexHomeDir,
+    dataDir: suite.dataDir,
+    namespace: suite.namespace,
+    root: suite.root,
+    toolsDevRoot: suite.toolsDevRoot,
+  });
   let context: ToolsDevSuiteContext | null = null;
   let diagnostics: unknown = null;
   let caughtError: unknown = null;
   let success = false;
 
   try {
-    let start: ToolsDevStartResult | null = null;
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        start = await toolsDev.startToolsDevWeb(suite, runtime, options.env);
-        break;
-      } catch (error) {
-        if (attempt === 3 || !toolsDev.isToolsDevPortConflict(error)) throw error;
-        await runtime.release().catch(() => {});
-        await toolsDev.stopToolsDevWeb(suite, options.env).catch(() => {});
-        runtime = await toolsDev.allocateToolsDevRuntime();
-      }
-    }
-    if (start == null) throw new Error('tools-dev start did not return a result');
+    const start = await toolsDev.startWeb(options.env);
+    const runtime = toolsDev.portAllocation;
+    if (runtime == null) throw new Error('tools-dev did not expose its allocated ports');
     const webUrl = assertRuntimeUrl(start.web?.status.url, 'web');
-    const status = await toolsDev.inspectToolsDevStatus(suite, options.env);
+    const status = await toolsDev.status(options.env);
     assertToolsDevStatus(suite, status);
 
     context = {
-      check: () => toolsDev.inspectToolsDevCheck(suite, options.env),
-      logs: () => toolsDev.readToolsDevLogs(suite, options.env),
+      check: () => toolsDev.check(options.env),
+      logs: () => toolsDev.logs(options.env),
       runtime,
       start,
       status,
@@ -169,7 +164,7 @@ async function runToolsDevSuite(
     success = true;
   } catch (error) {
     caughtError = error;
-    diagnostics = await toolsDev.inspectToolsDevCheck(suite, options.env).catch((diagnosticError: unknown) => ({
+    diagnostics = await toolsDev.check(options.env).catch((diagnosticError: unknown) => ({
       error: diagnosticError instanceof Error ? diagnosticError.message : String(diagnosticError),
     }));
     await options.onFailure?.({ context, error, suite }).catch((failureHookError: unknown) => {
@@ -180,12 +175,12 @@ async function runToolsDevSuite(
     });
     throw error;
   } finally {
-    // startToolsDevWeb may have spawned namespace processes even if it threw before
+    // tools-dev may have spawned namespace processes even if startWeb threw before
     // resolving, so cleanup must run unconditionally — otherwise orphans poison the
     // next smoke run on a shared CI runner.
     let stopError: unknown = null;
     try {
-      await toolsDev.stopToolsDevWeb(suite, options.env);
+      await toolsDev.stopWeb(options.env);
     } catch (error) {
       stopError = error;
     }
