@@ -1007,6 +1007,10 @@ function OnboardingView({
   const amrAgentRefreshAttemptedRef = useRef(false);
   const providerModelsAutoFetchKeyRef = useRef<string | null>(null);
   const providerAutoTestKeyRef = useRef<string | null>(null);
+  const providerModelAutoSelectRef = useRef({
+    model: config.model,
+    providerModelsInputKey: '',
+  });
   const apiProtocol = config.apiProtocol ?? 'anthropic';
   const providerTestInputKey = [
     apiProtocol,
@@ -1021,6 +1025,10 @@ function OnboardingView({
     config.apiKey,
     config.apiVersion ?? '',
   );
+  providerModelAutoSelectRef.current = {
+    model: config.model,
+    providerModelsInputKey,
+  };
   const canTestProvider =
     Boolean(config.apiKey.trim()) &&
     Boolean(config.baseUrl.trim()) &&
@@ -1417,9 +1425,19 @@ function OnboardingView({
     void onConfigPersist(nextConfig);
   }
 
-  function selectFirstProviderModelWhenEmpty(models: readonly ProviderModelOption[]) {
+  function selectFirstProviderModelWhenEmpty(
+    models: readonly ProviderModelOption[],
+    expectedInputKey: string,
+  ) {
     const firstModel = models[0];
-    if (!firstModel || config.model.trim()) return;
+    const current = providerModelAutoSelectRef.current;
+    if (
+      !firstModel ||
+      current.providerModelsInputKey !== expectedInputKey ||
+      current.model.trim()
+    ) {
+      return;
+    }
     onApiModelChange(firstModel.id);
     updateApiConfig({ model: firstModel.id });
   }
@@ -1788,7 +1806,7 @@ function OnboardingView({
     providerModelsAutoFetchKeyRef.current = inputKey;
     const cachedModels = activeProviderModelsCache[inputKey];
     if (cachedModels) {
-      selectFirstProviderModelWhenEmpty(cachedModels);
+      selectFirstProviderModelWhenEmpty(cachedModels, inputKey);
       setProviderModelsState({
         status: 'done',
         inputKey,
@@ -1809,7 +1827,7 @@ function OnboardingView({
         apiKey: config.apiKey,
       });
       if (result.ok && result.models?.length) {
-        selectFirstProviderModelWhenEmpty(result.models);
+        selectFirstProviderModelWhenEmpty(result.models, inputKey);
         activeSetProviderModelsCache((current) => ({
           ...current,
           [inputKey]: result.models ?? [],

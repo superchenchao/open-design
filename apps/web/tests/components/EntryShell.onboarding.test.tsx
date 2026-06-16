@@ -1024,6 +1024,68 @@ describe('EntryShell onboarding Open Design AMR runtime', () => {
     });
   });
 
+  it('ignores stale BYOK model fetch responses after onboarding inputs change', async () => {
+    let resolveFirstModelFetch: ((response: Response) => void) | null = null;
+    let providerModelRequestCount = 0;
+    const fetchMock = vi.fn((input, init) => {
+      const url = String(input);
+      if (url.endsWith('/api/integrations/vela/status')) {
+        return Promise.resolve(
+          jsonResponse({ loggedIn: false, profile: 'prod', user: null, configPath: '/x' }),
+        );
+      }
+      if (url.endsWith('/api/provider/models') && init?.method === 'POST') {
+        providerModelRequestCount += 1;
+        if (providerModelRequestCount === 1) {
+          return new Promise<Response>((resolve) => {
+            resolveFirstModelFetch = resolve;
+          });
+        }
+        return new Promise<Response>(() => {});
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    });
+    globalThis.fetch = fetchMock as typeof fetch;
+    const props = renderOnboarding();
+
+    fireEvent.click(screen.getByRole('button', { name: /Bring your own key/i }));
+    fireEvent.change(screen.getByLabelText('API key'), { target: { value: 'old-api-key' } });
+    fireEvent.change(screen.getByLabelText('Base URL'), { target: { value: 'https://api.anthropic.com' } });
+
+    await waitFor(() => {
+      expect(providerModelRequestCount).toBe(1);
+    });
+
+    fireEvent.change(screen.getByLabelText('API key'), { target: { value: 'new-api-key' } });
+
+    await act(async () => {
+      resolveFirstModelFetch?.(
+        jsonResponse({
+          ok: true,
+          kind: 'success',
+          latencyMs: 10,
+          models: [
+            { id: 'claude-opus-4-8', label: 'Claude Opus 4.8' },
+            { id: 'claude-sonnet-4-5', label: 'Claude Sonnet 4.5' },
+          ],
+        }),
+      );
+      await Promise.resolve();
+    });
+
+    expect(props.onApiModelChange).not.toHaveBeenCalled();
+    expect((props.onConfigPersist as ReturnType<typeof vi.fn>).mock.calls).not.toContainEqual([
+      expect.objectContaining({
+        apiKey: 'old-api-key',
+        model: 'claude-opus-4-8',
+      }),
+    ]);
+    expect((props.onConfigPersist as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0]).toMatchObject({
+      apiKey: 'new-api-key',
+      model: '',
+    });
+  });
+
   it('shows the AMR cloud card as a skeleton while agent detection is still in flight', async () => {
     // Before this fix, the AMR cloud card was simply absent for the several
     // seconds AMR's probe takes to settle (showAmrCloudOption was false once
