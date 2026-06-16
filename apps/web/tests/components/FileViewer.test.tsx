@@ -3015,6 +3015,37 @@ describe('FileViewer tweaks toolbar', () => {
     });
   });
 
+  it('closes the comment tool when switching files so a save cannot post to the previous file', async () => {
+    const { rerender } = render(
+      <FileViewer projectId="project-1" projectKind="prototype"
+        file={htmlPreviewFile({ name: 'a.html', path: 'a.html' })}
+        liveHtml='<html><body><main data-od-id="hero">A</main></body></html>'
+      />,
+    );
+
+    // Open Comment create mode — the side dock (`commentPanelOpen`) opens.
+    clickAgentTool('comment-panel-toggle');
+    await waitFor(() => {
+      expect(screen.getByTestId('comment-panel-toggle').getAttribute('aria-pressed')).toBe('true');
+      expect(screen.getByTestId('comment-side-panel')).toBeTruthy();
+    });
+
+    // Switch files with Comment still open. boardMode alone closing isn't
+    // enough — the dock and the file-scoped save target must tear down too,
+    // else the dock lingers and the next save posts back to the previous file.
+    rerender(
+      <FileViewer projectId="project-1" projectKind="prototype"
+        file={htmlPreviewFile({ name: 'b.html', path: 'b.html' })}
+        liveHtml='<html><body><main data-od-id="hero">B</main></body></html>'
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('comment-panel-toggle').getAttribute('aria-pressed')).toBe('false');
+      expect(screen.queryByTestId('comment-side-panel')).toBeNull();
+    });
+  });
+
   it('pre-warms the hidden srcDoc iframe so the first annotation entry has no flash', async () => {
     const { container } = render(
       <FileViewer projectId="project-1" projectKind="prototype" file={htmlPreviewFile()}
