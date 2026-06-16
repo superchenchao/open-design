@@ -39,6 +39,7 @@ interface AmrLoginPillProps {
   amrEntrySourceDetail?: TrackingAmrEntrySource;
   metricsConsent?: boolean;
   installationId?: string | null;
+  showActivationDetails?: boolean;
   revealPendingCancelAction?: boolean;
   showConsoleAction?: boolean;
   onStatusChange?: (status: VelaLoginStatus | null) => void;
@@ -282,6 +283,7 @@ export function AmrLoginPill({
   amrEntrySourceDetail,
   metricsConsent = false,
   installationId,
+  showActivationDetails = false,
   revealPendingCancelAction = false,
   showConsoleAction = false,
   onStatusChange,
@@ -578,7 +580,9 @@ export function AmrLoginPill({
   const logoutInFlight = pending === 'logout';
   const cancelInFlight = pending === 'cancel';
   const activeLoginActivationStatus =
-    status?.loggedIn !== true && status?.loginInFlight === true ? status : null;
+    showActivationDetails && status?.loggedIn !== true && status?.loginInFlight === true
+      ? status
+      : null;
   const accountStatus: AmrAccountControlStatus = errorMessage
     ? 'error'
     : loggedIn

@@ -2059,6 +2059,7 @@ export function ChatPane({
                               initialStatus={inlineAmrLoginStatus}
                               metricsConsent={config?.telemetry?.metrics === true}
                               installationId={config?.installationId}
+                              showActivationDetails
                               hideSignedOutStatus
                               revealPendingCancelAction
                               onStatusChange={(loginStatus) => {

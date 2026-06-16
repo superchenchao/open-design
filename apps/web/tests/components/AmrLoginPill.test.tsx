@@ -21,6 +21,7 @@ import {
 } from '../../src/components/AmrLoginPill';
 import { AMR_LOGIN_TIMEOUT_MS } from '../../src/components/amrLoginPolling';
 import { I18nProvider } from '../../src/i18n';
+import type { VelaLoginStatus } from '../../src/providers/daemon';
 
 interface StubbedResponse {
   status?: number;
@@ -618,6 +619,32 @@ describe('AmrLoginPill', () => {
       screen.queryByRole('link', { name: 'Open sign-in page' }),
     ).toBeNull();
     expect(screen.queryByText('EXPIRED')).toBeNull();
+  });
+
+  it('only surfaces activation details from the pill when explicitly enabled', async () => {
+    const initialStatus: VelaLoginStatus = {
+      loggedIn: false,
+      loginInFlight: true,
+      profile: 'prod',
+      user: null,
+      configPath: '/x',
+      activationUrl: 'https://app.vela.example/device?user_code=VISIBLE',
+      userCode: 'VISIBLE',
+    };
+
+    const first = renderPill({ skipInitialRefresh: true, initialStatus });
+    expect(await screen.findByText('Signing in…')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Open sign-in page' })).toBeNull();
+    expect(screen.queryByText('VISIBLE')).toBeNull();
+    first.unmount();
+
+    renderPill({
+      skipInitialRefresh: true,
+      initialStatus,
+      showActivationDetails: true,
+    });
+    expect(await screen.findByRole('link', { name: 'Open sign-in page' })).toBeTruthy();
+    expect(screen.getByText('VISIBLE')).toBeTruthy();
   });
 
   it('recovers from transient /status failures and still flips to signed-in when polling succeeds later', async () => {

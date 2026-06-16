@@ -45,6 +45,7 @@ let lastPillProps: {
   initialStatus?: VelaLoginStatus | null;
   metricsConsent?: boolean;
   installationId?: string | null;
+  showActivationDetails?: boolean;
   onStatusChange?: (s: VelaLoginStatus | null) => void;
 } | null = null;
 vi.mock('../../src/components/AmrLoginPill', () => ({
@@ -54,6 +55,7 @@ vi.mock('../../src/components/AmrLoginPill', () => ({
     initialStatus?: VelaLoginStatus | null;
     metricsConsent?: boolean;
     installationId?: string | null;
+    showActivationDetails?: boolean;
     onStatusChange?: (s: VelaLoginStatus | null) => void;
   }) => {
     lastPillProps = props;
@@ -143,6 +145,7 @@ describe('ChatPane inline AMR auth', () => {
     expect(lastPillProps?.amrEntrySourceDetail).toBe('chat_error_authorize_retry');
     expect(lastPillProps?.metricsConsent).toBe(true);
     expect(lastPillProps?.installationId).toBe('install-123');
+    expect(lastPillProps?.showActivationDetails).toBe(true);
   });
 
   it('retries the failed run exactly once when sign-in succeeds', () => {
