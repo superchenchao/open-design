@@ -16,6 +16,7 @@ describe('AMR auth error convergence', () => {
 
     await suite.with.toolsDev(async ({ webUrl }) => {
       const velaBin = await writeFakeVelaBin(join(suite.scratchDir, 'fake-vela-auth-error'), {
+        endpoints: suite.amr,
         failAuthAtPrompt: true,
         requireLoginConfig: false,
       });
@@ -25,8 +26,7 @@ describe('AMR auth error convergence', () => {
         agentCliEnv: {
           amr: {
             VELA_BIN: velaBin,
-            VELA_LINK_URL: 'http://localhost:18081',
-            VELA_RUNTIME_KEY: 'fake-runtime-key',
+            ...suite.amr.runtimeEnv(),
           },
         },
       });

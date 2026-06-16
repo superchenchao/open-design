@@ -1,5 +1,6 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { createServer } from 'node:net';
+import { delimiter, dirname, join } from 'node:path';
 
 import { expect } from 'vitest';
 
@@ -19,6 +20,7 @@ import { assertRelativeReportPath, createReport, type E2eReport } from './report
 export { e2eWorkspaceRoot } from '../tools-dev/runtime.ts';
 
 export type SmokeSuite = {
+  amr: SmokeSuiteAmr;
   codexHomeDir: string;
   dataDir: string;
   namespace: string;
@@ -38,10 +40,20 @@ export type SmokeSuiteFinalizeInput = {
 };
 
 export type SmokeSuiteWith = {
+  env: <T>(patch: EnvPatch, run: () => Promise<T>) => Promise<T>;
+  pathEntry: <T>(entry: string, run: () => Promise<T>) => Promise<T>;
   toolsDev: (
     run: (context: ToolsDevSuiteContext) => Promise<void>,
     options?: ToolsDevSuiteOptions,
   ) => Promise<string>;
+};
+
+export type EnvPatch = Record<string, string | null | undefined>;
+
+export type SmokeSuiteAmr = {
+  apiUrl: string;
+  linkUrl: string;
+  runtimeEnv: (overrides?: EnvPatch) => Record<string, string>;
 };
 
 export type ToolsDevSuiteContext = {
@@ -73,6 +85,7 @@ export async function createSmokeSuite(name: string): Promise<SmokeSuite> {
   const codexHomeDir = join(scratchDir, 'codex-home');
   const toolsDevRoot = join(scratchDir, 'tools-dev');
   const dataDir = join(scratchDir, 'data');
+  const [amrApiPort, amrLinkPort] = await allocateDistinctPorts(2);
 
   await mkdir(reportDir, { recursive: true });
   await mkdir(scratchDir, { recursive: true });
@@ -87,6 +100,17 @@ export async function createSmokeSuite(name: string): Promise<SmokeSuite> {
   }
 
   const suite: SmokeSuite = {
+    amr: {
+      apiUrl: `http://127.0.0.1:${amrApiPort}`,
+      linkUrl: `http://127.0.0.1:${amrLinkPort}`,
+      runtimeEnv(overrides = {}) {
+        return normalizeDefinedEnv({
+          VELA_LINK_URL: `http://127.0.0.1:${amrLinkPort}`,
+          VELA_RUNTIME_KEY: 'fake-runtime-key',
+          ...overrides,
+        });
+      },
+    },
     codexHomeDir,
     dataDir,
     namespace,
@@ -95,6 +119,8 @@ export async function createSmokeSuite(name: string): Promise<SmokeSuite> {
     scratchDir,
     toolsDevRoot,
     with: {
+      env: withEnv,
+      pathEntry: (entry, run) => withEnv({ PATH: prependPathEntry(entry, process.env.PATH) }, run),
       toolsDev: (run, options) => runToolsDevSuite(suite, run, options),
     },
     writeScratchJson: (name, value) => writeJson(scratchDir, name, value),
@@ -121,6 +147,85 @@ export async function createSmokeSuite(name: string): Promise<SmokeSuite> {
     },
   };
   return suite;
+}
+
+async function allocateDistinctPorts(count: number): Promise<number[]> {
+  const ports = new Set<number>();
+  while (ports.size < count) {
+    ports.add(await reserveFreePort());
+  }
+  return [...ports];
+}
+
+async function reserveFreePort(): Promise<number> {
+  const server = createServer();
+  await new Promise<void>((resolveListen, rejectListen) => {
+    server.once('error', rejectListen);
+    server.listen(0, '127.0.0.1', () => resolveListen());
+  });
+  const address = server.address();
+  await new Promise<void>((resolveClose, rejectClose) => {
+    server.close((error) => (error == null ? resolveClose() : rejectClose(error)));
+  });
+  if (address == null || typeof address === 'string') {
+    throw new Error('failed to allocate a local TCP port');
+  }
+  return address.port;
+}
+
+export type PackagedSmokePlatform = 'linux' | 'mac' | 'win';
+
+export function resolvePackagedSmokeNamespace(
+  platform: PackagedSmokePlatform,
+  env: Record<string, string | undefined> = process.env,
+): string {
+  if (env.OD_PACKAGED_E2E_NAMESPACE != null && env.OD_PACKAGED_E2E_NAMESPACE.trim() !== '') {
+    return env.OD_PACKAGED_E2E_NAMESPACE;
+  }
+  switch (platform) {
+    case 'linux':
+      return 'ci-pr-linux';
+    case 'mac':
+      return 'release-beta';
+    case 'win':
+      return 'release-beta-win';
+  }
+}
+
+async function withEnv<T>(patch: EnvPatch, run: () => Promise<T>): Promise<T> {
+  const previous = new Map<string, string | undefined>();
+  for (const key of Object.keys(patch)) {
+    previous.set(key, process.env[key]);
+  }
+  applyEnvPatch(process.env, patch);
+  try {
+    return await run();
+  } finally {
+    const restorePatch: EnvPatch = {};
+    for (const [key, value] of previous) {
+      restorePatch[key] = value;
+    }
+    applyEnvPatch(process.env, restorePatch);
+  }
+}
+
+function applyEnvPatch(target: NodeJS.ProcessEnv, patch: EnvPatch): void {
+  for (const [key, value] of Object.entries(patch)) {
+    if (value == null) delete target[key];
+    else target[key] = value;
+  }
+}
+
+function prependPathEntry(entry: string, currentPath: string | undefined): string {
+  return currentPath == null || currentPath === ''
+    ? entry
+    : `${entry}${delimiter}${currentPath}`;
+}
+
+function normalizeDefinedEnv(patch: EnvPatch): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(patch).filter((entry): entry is [string, string] => entry[1] != null),
+  );
 }
 
 async function runToolsDevSuite(
