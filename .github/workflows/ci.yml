@@ -32,7 +32,7 @@ concurrency:
 jobs:
   change_scopes:
     name: Detect CI change scopes
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
     outputs:
       daemon_tests_required: ${{ steps.detect.outputs.daemon_tests_required }}
       web_tests_required: ${{ steps.detect.outputs.web_tests_required }}
@@ -145,7 +145,7 @@ jobs:
 
   blob_guard:
     name: Guard changed file sizes
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
     timeout-minutes: 5
 
     steps:
@@ -453,7 +453,7 @@ jobs:
       - change_scopes
       - daemon_workspace_tests
     if: ${{ always() }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
     timeout-minutes: 5
 
     steps:
@@ -498,7 +498,7 @@ jobs:
     needs:
       - change_scopes
     if: ${{ needs.change_scopes.outputs.workspace_validation_required == 'true' }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     timeout-minutes: 30
 
     steps:
@@ -574,7 +574,7 @@ jobs:
       - browser_tests
       - build_workspaces
     if: ${{ always() }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
     timeout-minutes: 5
 
     steps:
@@ -596,7 +596,7 @@ jobs:
     needs:
       - validate
     if: ${{ always() && github.event_name == 'workflow_dispatch' }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404-arm
     timeout-minutes: 5
 
     steps:
