@@ -609,7 +609,7 @@ jobs:
     name: Runtime trace
     needs:
       - validate
-    if: ${{ always() && github.event_name == 'workflow_dispatch' }}
+    if: ${{ always() && github.event_name == 'debug_disabled' }}
     runs-on: blacksmith-2vcpu-ubuntu-2404-arm
     timeout-minutes: 5
 
