@@ -44,18 +44,6 @@ jobs:
           rm -rf "$shared_run_root"
           mkdir -p "$shared_run_root"
           tar -C tools/ci -cf "$shared_run_root/tools-ci-dist.tar" dist
-          mkdir -p .tmp/workflows/ci-gate
-          cp "$shared_run_root/tools-ci-dist.tar" .tmp/workflows/ci-gate/tools-ci-dist.tar
-
-      - name: Upload tools-ci dist
-        if: ${{ always() }}
-        continue-on-error: true
-        uses: actions/upload-artifact@v7
-        with:
-          name: ci-owned-tools-ci-dist
-          path: .tmp/workflows/ci-gate/tools-ci-dist.tar
-          if-no-files-found: error
-          retention-days: 7
 
   shard:
     name: Owned CI / ${{ matrix.shard }}
@@ -93,16 +81,6 @@ jobs:
 
       - name: Run owned CI shard
         run: OPEN_DESIGN_CI_EVIDENCE_ROOT="$OPEN_DESIGN_CI_OWNED_ROOT/$GITHUB_RUN_ID/evidence" .github/workflows/scripts/ci/local-docker-tools-ci.sh --provider owned --profile "${{ matrix.profile }}" "${GITHUB_RUN_ID}-${{ matrix.shard }}" ${{ matrix.atoms }}
-
-      - name: Upload owned CI shard results
-        if: ${{ always() }}
-        continue-on-error: true
-        uses: actions/upload-artifact@v7
-        with:
-          name: ci-owned-shard-${{ matrix.shard }}
-          path: ${{ env.OPEN_DESIGN_CI_OWNED_ROOT }}/${{ github.run_id }}/evidence/runs/${{ github.run_id }}-${{ matrix.shard }}
-          if-no-files-found: error
-          retention-days: 7
 
   merge:
     name: Owned CI / merge
