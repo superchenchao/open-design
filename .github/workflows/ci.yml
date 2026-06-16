@@ -461,6 +461,7 @@ jobs:
           NODE_ENV: test
           CHOKIDAR_USEPOLLING: "1"
           CHOKIDAR_INTERVAL: "100"
+          OD_WATCHER_TEST_DEBUG: "1"
         run: pnpm --filter @open-design/daemon exec vitest run -c vitest.config.ts tests/project-watchers.test.ts
 
   daemon_workspace_gate:
