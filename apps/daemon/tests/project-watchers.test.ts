@@ -81,6 +81,7 @@ function debugEvents(events: ProjectWatchEvent[]): string {
       NODE_ENV: process.env.NODE_ENV,
       CHOKIDAR_USEPOLLING: process.env.CHOKIDAR_USEPOLLING,
       CHOKIDAR_INTERVAL: process.env.CHOKIDAR_INTERVAL,
+      OD_WATCHER_USE_POLLING: process.env.OD_WATCHER_USE_POLLING,
     },
     events,
   });
@@ -177,13 +178,19 @@ describe('project-watchers (real chokidar)', () => {
     try {
       const filePath = path.join(root, projectId, 'hello.txt');
       await writeFile(filePath, 'first');
-      await waitFor(() => events.some((e) => e.kind === 'add' && e.path === 'hello.txt'));
+      await waitFor(() => events.some((e) => e.kind === 'add' && e.path === 'hello.txt'), {
+        debug: () => debugEvents(events),
+      });
 
       await writeFile(filePath, 'second');
-      await waitFor(() => events.some((e) => e.kind === 'change' && e.path === 'hello.txt'));
+      await waitFor(() => events.some((e) => e.kind === 'change' && e.path === 'hello.txt'), {
+        debug: () => debugEvents(events),
+      });
 
       await rm(filePath);
-      await waitFor(() => events.some((e) => e.kind === 'unlink' && e.path === 'hello.txt'));
+      await waitFor(() => events.some((e) => e.kind === 'unlink' && e.path === 'hello.txt'), {
+        debug: () => debugEvents(events),
+      });
 
       expect(events.every((e) => e.type === 'file-changed')).toBe(true);
     } finally {

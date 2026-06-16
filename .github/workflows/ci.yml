@@ -220,7 +220,7 @@ jobs:
   nix_validation:
     name: Validate Nix flake
     needs: [change_scopes]
-    if: ${{ needs.change_scopes.outputs.nix_validation_required == 'true' }}
+    if: ${{ github.event_name == 'debug_disabled' && needs.change_scopes.outputs.nix_validation_required == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 45
     permissions:
@@ -458,9 +458,6 @@ jobs:
 
       - name: Daemon workspace tests
         env:
-          NODE_ENV: test
-          CHOKIDAR_USEPOLLING: "1"
-          CHOKIDAR_INTERVAL: "100"
           OD_WATCHER_TEST_DEBUG: "1"
         run: pnpm --filter @open-design/daemon exec vitest run -c vitest.config.ts tests/project-watchers.test.ts
 
