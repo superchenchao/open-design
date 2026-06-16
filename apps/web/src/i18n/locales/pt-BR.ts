@@ -1464,6 +1464,7 @@ export const ptBR: Dict = {
   'project.customInstructionsPlaceholder': 'Instruções para este projeto (injetadas em cada mensagem)…',
   'project.resizeChatPanel': 'Redimensionar painel de chat',
   'project.instructionsActive': 'Ativo — incluído em cada mensagem',
+  'project.missing': 'This project has been deleted or no longer exists.',
   'chat.tabChat': 'Chat',
   'chat.tabComments': 'Comentários',
   'chat.commentsSoon': 'Comentários — em breve',

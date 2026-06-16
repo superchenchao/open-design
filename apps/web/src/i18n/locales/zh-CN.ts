@@ -1464,6 +1464,7 @@ export const zhCN: Dict = {
   'project.customInstructionsPlaceholder': '此项目的指令（每条消息都会注入）…',
   'project.resizeChatPanel': '调整聊天面板大小',
   'project.instructionsActive': '已生效 — 每条消息都会附带',
+  'project.missing': '该项目已删除或不存在。',
   'chat.tabChat': '对话',
   'chat.tabComments': '评论',
   'chat.commentsSoon': '评论 — 即将上线',

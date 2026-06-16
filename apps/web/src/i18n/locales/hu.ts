@@ -1464,6 +1464,7 @@ export const hu: Dict = {
   'project.customInstructionsPlaceholder': 'Utasítások ehhez a projekthez (minden üzenetbe beillesztve)…',
   'project.resizeChatPanel': 'Csevegőpanel átméretezése',
   'project.instructionsActive': 'Aktív – minden üzenethez hozzáadva',
+  'project.missing': 'This project has been deleted or no longer exists.',
   'chat.tabChat': 'Csevegés',
   'chat.tabComments': 'Megjegyzések',
   'chat.commentsSoon': 'Megjegyzések — hamarosan',

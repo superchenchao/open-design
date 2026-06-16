@@ -1464,6 +1464,7 @@ export const ko: Dict = {
   'project.customInstructionsPlaceholder': '이 프로젝트에 대한 지침(모든 메시지에 주입됨)…',
   'project.resizeChatPanel': '채팅 패널 크기 조절',
   'project.instructionsActive': '활성 — 모든 메시지에 포함됨',
+  'project.missing': 'This project has been deleted or no longer exists.',
   'chat.tabChat': '채팅',
   'chat.tabComments': '댓글',
   'chat.commentsSoon': '댓글 — 곧 지원될 예정입니다.',

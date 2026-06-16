@@ -1464,6 +1464,7 @@ export const zhTW: Dict = {
   'project.customInstructionsPlaceholder': '此專案的指示（每則訊息都會注入）…',
   'project.resizeChatPanel': '調整聊天面板大小',
   'project.instructionsActive': '已生效 — 每則訊息都會附帶',
+  'project.missing': '該專案已刪除或不存在。',
   'chat.tabChat': '對話',
   'chat.tabComments': '評論',
   'chat.commentsSoon': '評論 — 即將上線',

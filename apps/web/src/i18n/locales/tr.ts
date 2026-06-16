@@ -1464,6 +1464,7 @@ export const tr: Dict = {
   'project.customInstructionsPlaceholder': 'Bu proje için talimatlar (her mesajda eklenir)…',
   'project.resizeChatPanel': 'Sohbet panelini yeniden boyutlandır',
   'project.instructionsActive': 'Etkin — her mesaja eklenir',
+  'project.missing': 'This project has been deleted or no longer exists.',
   'chat.tabChat': 'Sohbet',
   'chat.tabComments': 'Yorumlar',
   'chat.commentsSoon': 'Yorumlar — yakında',

@@ -1464,6 +1464,7 @@ export const ja: Dict = {
   'project.customInstructionsPlaceholder': 'このプロジェクトへの指示（すべてのメッセージに挿入されます）…',
   'project.resizeChatPanel': 'チャットパネルのサイズを変更',
   'project.instructionsActive': '有効 — すべてのメッセージに含まれます',
+  'project.missing': 'This project has been deleted or no longer exists.',
   'chat.tabChat': 'チャット',
   'chat.tabComments': 'コメント',
   'chat.commentsSoon': 'コメント — 近日公開',

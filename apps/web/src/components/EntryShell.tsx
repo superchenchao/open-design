@@ -360,7 +360,7 @@ interface Props {
   ) => Promise<ImportClaudeDesignOutcome | void> | ImportClaudeDesignOutcome | void;
   onImportFolder?: (baseDir: string) => Promise<void> | void;
   onImportFolderResponse?: (response: OpenDesignHostProjectImportSuccess) => Promise<void> | void;
-  onOpenProject: (id: string) => void;
+  onOpenProject: (id: string) => Promise<boolean> | boolean | void;
   onOpenLiveArtifact: (projectId: string, artifactId: string) => void;
   onDeleteProject: (id: string) => Promise<boolean | void> | boolean | void;
   onRenameProject: (id: string, name: string) => void;
@@ -890,7 +890,10 @@ export function EntryShell({
               )}
             </div>
             <div data-testid="entry-view-brands" data-active={view === 'brands' ? 'true' : 'false'} {...inactiveViewProps(view === 'brands')}>
-              <BrandsTab onApplyDesignSystem={onChangeDefaultDesignSystem} />
+              <BrandsTab
+                onApplyDesignSystem={onChangeDefaultDesignSystem}
+                onOpenProject={onOpenProject}
+              />
             </div>
             {view === 'integrations' ? (
               <IntegrationsView

@@ -1464,6 +1464,7 @@ export const de: Dict = {
   'project.customInstructionsPlaceholder': 'Anweisungen für dieses Projekt (bei jeder Nachricht eingefügt)…',
   'project.resizeChatPanel': 'Größe des Chat-Bereichs ändern',
   'project.instructionsActive': 'Aktiv – in jeder Nachricht enthalten',
+  'project.missing': 'This project has been deleted or no longer exists.',
   'chat.tabChat': 'Chat',
   'chat.tabComments': 'Kommentare',
   'chat.commentsSoon': 'Kommentare — demnächst',

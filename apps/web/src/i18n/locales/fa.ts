@@ -1464,6 +1464,7 @@ export const fa: Dict = {
   'project.customInstructionsPlaceholder': 'دستورالعمل‌های این پروژه (در هر پیام تزریق می‌شود)…',
   'project.resizeChatPanel': 'تغییر اندازه پنل چت',
   'project.instructionsActive': 'فعال — در هر پیام گنجانده می‌شود',
+  'project.missing': 'This project has been deleted or no longer exists.',
   'chat.tabChat': 'چت',
   'chat.tabComments': 'نظرات',
   'chat.commentsSoon': 'نظرات — به زودی',

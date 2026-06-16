@@ -1464,6 +1464,7 @@ export const uk: Dict = {
   'project.customInstructionsPlaceholder': 'Інструкції для цього проєкту (додаються до кожного повідомлення)…',
   'project.resizeChatPanel': 'Змінити розмір панелі чату',
   'project.instructionsActive': 'Активно — додається до кожного повідомлення',
+  'project.missing': 'This project has been deleted or no longer exists.',
   'chat.tabChat': 'Чат',
   'chat.tabComments': 'Коментарі',
   'chat.commentsSoon': 'Коментарі — скоро',

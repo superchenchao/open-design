@@ -1464,6 +1464,7 @@ export const id: Dict = {
   'project.customInstructionsPlaceholder': 'Instruksi untuk proyek ini (disisipkan pada setiap pesan)…',
   'project.resizeChatPanel': 'Ubah ukuran panel chat',
   'project.instructionsActive': 'Aktif — disertakan di setiap pesan',
+  'project.missing': 'This project has been deleted or no longer exists.',
   'chat.tabChat': 'Chat',
   'chat.tabComments': 'Komentar',
   'chat.commentsSoon': 'Komentar - segera hadir',

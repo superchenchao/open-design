@@ -24,9 +24,10 @@ export interface BrandsTabProps {
    * web config stale and could be clobbered by a later config sync.
    */
   onApplyDesignSystem?: (designSystemId: string) => void;
+  onOpenProject?: (projectId: string) => Promise<boolean> | boolean | void;
 }
 
-export function BrandsTab({ onApplyDesignSystem }: BrandsTabProps = {}) {
+export function BrandsTab({ onApplyDesignSystem, onOpenProject }: BrandsTabProps = {}) {
   const t = useT();
   const route = useRoute();
   // A `/brands/:id` deep-link (from the rail, a chat link, or a shared URL)
@@ -218,6 +219,7 @@ export function BrandsTab({ onApplyDesignSystem }: BrandsTabProps = {}) {
             variant="panel"
             onChanged={refresh}
             onApplyDesignSystem={onApplyDesignSystem}
+            onOpenProject={onOpenProject}
           />
         ) : isEmpty ? (
           <div className={styles.pickerPane} data-testid="brands-picker-pane">

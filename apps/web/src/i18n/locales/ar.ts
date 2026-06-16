@@ -1464,6 +1464,7 @@ export const ar: Dict = {
   'project.customInstructionsPlaceholder': 'تعليمات لهذا المشروع (تُحقَن في كل رسالة)…',
   'project.resizeChatPanel': 'تغيير حجم لوحة الدردشة',
   'project.instructionsActive': 'نشط — مُضمَّن في كل رسالة',
+  'project.missing': 'This project has been deleted or no longer exists.',
   'chat.tabChat': 'دردشة',
   'chat.tabComments': 'تعليقات',
   'chat.commentsSoon': 'التعليقات - قريباً',

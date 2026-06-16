@@ -205,6 +205,8 @@ export interface BrandPreviewCardProps {
   onChanged?: () => void | Promise<void>;
   /** Panel-only: apply this brand's design system as the global default. */
   onApplyDesignSystem?: (designSystemId: string) => void;
+  /** Panel-only: open the backing extraction project through the app shell. */
+  onOpenProject?: (projectId: string) => Promise<boolean> | boolean | void;
 }
 
 export function BrandPreviewCard({
@@ -212,6 +214,7 @@ export function BrandPreviewCard({
   variant = 'panel',
   onChanged,
   onApplyDesignSystem,
+  onOpenProject,
 }: BrandPreviewCardProps) {
   const t = useT();
   const compact = variant === 'compact';
@@ -222,6 +225,7 @@ export function BrandPreviewCard({
   const failed = meta.status === 'failed';
   const ready = meta.status === 'ready';
   const projectId = meta.projectId;
+  const [backingProjectMissing, setBackingProjectMissing] = useState(false);
 
   const [busy, setBusy] = useState(false);
   const [tokens, setTokens] = useState<BrandTokenSubset | null>(null);
@@ -345,10 +349,19 @@ export function BrandPreviewCard({
     }
   }, [meta.designSystemId, busy, onApplyDesignSystem]);
 
-  const openProject = useCallback(() => {
-    if (!projectId) return;
-    navigate({ kind: 'project', projectId, fileName: null, conversationId: null });
+  useEffect(() => {
+    setBackingProjectMissing(false);
   }, [projectId]);
+
+  const openProject = useCallback(async () => {
+    if (!projectId) return;
+    if (onOpenProject) {
+      const opened = await onOpenProject(projectId);
+      if (opened === false) setBackingProjectMissing(true);
+      return;
+    }
+    navigate({ kind: 'project', projectId, fileName: null, conversationId: null });
+  }, [onOpenProject, projectId]);
 
   const deleteBrand = useCallback(async () => {
     if (busy) return;
@@ -436,8 +449,8 @@ export function BrandPreviewCard({
             {projectId ? (
               <Button
                 variant="ghost"
-                onClick={openProject}
-                disabled={busy}
+                onClick={() => void openProject()}
+                disabled={busy || backingProjectMissing}
                 data-testid="brand-preview-open-project"
               >
                 {t('brandDetail.openProject')}
@@ -454,6 +467,12 @@ export function BrandPreviewCard({
           </div>
         )}
       </header>
+
+      {backingProjectMissing ? (
+        <div className={styles.missingProjectNotice} role="status">
+          {t('project.missing')}
+        </div>
+      ) : null}
 
       {brand?.description ? (
         <section className={styles.section} aria-label={t('brandDetail.identity')}>

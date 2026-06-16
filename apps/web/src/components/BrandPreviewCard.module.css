@@ -138,6 +138,16 @@
   gap: 8px;
 }
 
+.missingProjectNotice {
+  padding: 10px 12px;
+  border: 1px solid var(--red-border);
+  border-radius: var(--radius);
+  background: var(--red-bg);
+  color: var(--red);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 /* ── Detail sections ──────────────────────────────────────────────── */
 .section {
   display: flex;

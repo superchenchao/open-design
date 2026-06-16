@@ -2044,6 +2044,7 @@ export interface Dict {
   'project.customInstructions': string;
   'project.customInstructionsPlaceholder': string;
   'project.instructionsActive': string;
+  'project.missing': string;
   'project.resizeChatPanel': string;
   'chat.tabChat': string;
   'chat.amrCard.switchTitle': string;

@@ -1464,6 +1464,7 @@ export const ru: Dict = {
   'project.customInstructionsPlaceholder': 'Инструкции для этого проекта (добавляются к каждому сообщению)…',
   'project.resizeChatPanel': 'Изменить размер панели чата',
   'project.instructionsActive': 'Активно — добавляется в каждое сообщение',
+  'project.missing': 'This project has been deleted or no longer exists.',
   'chat.tabChat': 'Чат',
   'chat.tabComments': 'Комментарии',
   'chat.commentsSoon': 'Комментарии — скоро',
