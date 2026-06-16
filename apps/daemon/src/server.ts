@@ -6371,6 +6371,7 @@ export async function startServer({
     skillsRoot: SKILLS_DIR,
     dataDir: RUNTIME_DATA_DIR,
     db,
+    runs: design.runs,
     randomId,
   });
 

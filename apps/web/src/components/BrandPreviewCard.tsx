@@ -474,6 +474,12 @@ export function BrandPreviewCard({
         </div>
       ) : null}
 
+      {failed && meta.error ? (
+        <div className={styles.missingProjectNotice} role="status">
+          {meta.error}
+        </div>
+      ) : null}
+
       {brand?.description ? (
         <section className={styles.section} aria-label={t('brandDetail.identity')}>
           <h3 className={styles.sectionTitle}>{t('brandDetail.identity')}</h3>

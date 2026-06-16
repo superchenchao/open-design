@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import express from 'express';
 import http from 'node:http';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
 import { registerBrandRoutes } from '../src/brand-routes.js';
-import { closeDatabase, insertProject, openDatabase } from '../src/db.js';
+import { closeDatabase, insertConversation, insertProject, openDatabase, upsertMessage } from '../src/db.js';
 
 describe('brand routes', () => {
   let tempDir: string;
@@ -87,9 +87,55 @@ describe('brand routes', () => {
     expect(response.body).toContain('<circle');
   });
 
+  it('reconciles extracting brands to failed when the backing project run failed', async () => {
+    writeBrandFixture('brand-failed', {
+      projectId: 'project-failed',
+      logoPrimary: 'logos/missing.svg',
+      status: 'extracting',
+    });
+    insertProject(db, {
+      id: 'project-failed',
+      name: 'Failed Brand Project',
+      skillId: null,
+      designSystemId: null,
+      createdAt: 1,
+      updatedAt: 1,
+      metadata: { kind: 'brand', brandId: 'brand-failed' },
+    });
+    insertConversation(db, {
+      id: 'conversation-failed',
+      projectId: 'project-failed',
+      title: 'Extract brand',
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    upsertMessage(db, 'conversation-failed', {
+      id: 'message-failed',
+      role: 'assistant',
+      content: 'Extraction failed.',
+      runId: 'run-failed',
+      runStatus: 'failed',
+      startedAt: 1,
+      endedAt: 2,
+    });
+
+    const detail = await requestJson('/api/brands/brand-failed');
+    const list = await requestJson('/api/brands');
+
+    expect(detail.status).toBe(200);
+    expect(detail.body.meta.status).toBe('failed');
+    expect(detail.body.meta.error).toBe('Brand extraction failed in the backing project.');
+    expect(list.status).toBe(200);
+    expect(list.body.brands.find((brand: any) => brand.meta.id === 'brand-failed')?.meta.status).toBe('failed');
+
+    const storedMeta = JSON.parse(readFileSync(path.join(brandsRoot, 'brand-failed', 'meta.json'), 'utf8'));
+    expect(storedMeta.status).toBe('failed');
+    expect(storedMeta.error).toBe('Brand extraction failed in the backing project.');
+  });
+
   function writeBrandFixture(
     id: string,
-    options: { projectId?: string; logoPrimary: string; logoBody?: string },
+    options: { projectId?: string; logoPrimary: string; logoBody?: string; status?: string },
   ) {
     const brandDir = path.join(brandsRoot, id);
     mkdirSync(brandDir, { recursive: true });
@@ -100,7 +146,7 @@ describe('brand routes', () => {
         sourceUrl: 'https://example.com',
         createdAt: 1,
         updatedAt: 1,
-        status: 'ready',
+        status: options.status ?? 'ready',
         ...(options.projectId ? { projectId: options.projectId } : {}),
       }),
     );
@@ -120,6 +166,15 @@ describe('brand routes', () => {
   }
 
   async function requestBrandLogo(id: string) {
+    return requestText(`/api/brands/${id}/logo`);
+  }
+
+  async function requestJson(route: string) {
+    const response = await requestText(route);
+    return { ...response, body: JSON.parse(response.body) };
+  }
+
+  async function requestText(route: string) {
     const app = express();
     registerBrandRoutes(app, {
       brandsRoot,
@@ -134,7 +189,7 @@ describe('brand routes', () => {
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('server did not bind to a TCP port');
     try {
-      const response = await fetch(`http://127.0.0.1:${address.port}/api/brands/${id}/logo`);
+      const response = await fetch(`http://127.0.0.1:${address.port}${route}`);
       return {
         status: response.status,
         contentType: response.headers.get('content-type') ?? '',

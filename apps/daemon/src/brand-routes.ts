@@ -14,7 +14,7 @@ import path from 'node:path';
 
 import type { Application, Request, Response } from 'express';
 
-import { getProject, type insertProject } from './db.js';
+import { getProject, listLatestProjectRunStatuses, type insertProject } from './db.js';
 import { resolveProjectDir } from './projects.js';
 import {
   finalizeBrand,
@@ -25,6 +25,8 @@ import {
   resolveBrandLogoPath,
   startBrandExtraction,
 } from './brands/index.js';
+import { patchMeta } from './brands/store.js';
+import type { BrandDetailResponse, BrandMeta, BrandSummary } from '@open-design/contracts';
 
 export interface BrandRoutesDeps {
   /** `<dataDir>/brands` — root of all brand directories. */
@@ -43,6 +45,18 @@ export interface BrandRoutesDeps {
   dataDir: string;
   /** Shared app database used to register the backing project + conversation. */
   db: Parameters<typeof insertProject>[0];
+  /** In-memory run registry, when available, so brand status can reconcile with
+   *  active/just-finished backing extraction runs before they age out. */
+  runs?: {
+    list: (filter?: { projectId?: string }) => Array<{
+      id: string;
+      projectId?: string | null;
+      status: string;
+      updatedAt?: number;
+      error?: string | null;
+      errorCode?: string | null;
+    }>;
+  };
   /** Optional id factory; defaults inside the brand engine when omitted. */
   randomId?: () => string;
 }
@@ -55,7 +69,12 @@ export function registerBrandRoutes(app: Application, deps: BrandRoutesDeps): vo
   // GET /api/brands — list every stored brand as a summary.
   app.get('/api/brands', (_req: Request, res: Response) => {
     try {
-      res.json({ brands: listBrandSummaries(brandsRoot) });
+      const statusContext = createBrandStatusContext(deps);
+      res.json({
+        brands: listBrandSummaries(brandsRoot).map((summary) =>
+          reconcileBrandSummaryStatus(brandsRoot, summary, statusContext),
+        ),
+      });
     } catch (err) {
       res.status(500).json({ error: String(err) });
     }
@@ -159,7 +178,7 @@ export function registerBrandRoutes(app: Application, deps: BrandRoutesDeps): vo
         res.status(404).json({ error: 'brand not found' });
         return;
       }
-      res.json(detail);
+      res.json(reconcileBrandDetailStatus(brandsRoot, detail, createBrandStatusContext(deps)));
     } catch (err) {
       res.status(500).json({ error: String(err) });
     }
@@ -196,6 +215,87 @@ export function registerBrandRoutes(app: Application, deps: BrandRoutesDeps): vo
       res.status(500).json({ error: String(err) });
     }
   });
+}
+
+type BrandRunStatus = {
+  value: string;
+  updatedAt?: number;
+  runId?: string;
+  error?: string | null;
+  errorCode?: string | null;
+};
+
+interface BrandStatusContext {
+  latestByProject: Map<string, BrandRunStatus>;
+}
+
+function createBrandStatusContext(deps: BrandRoutesDeps): BrandStatusContext {
+  const latestByProject = new Map<string, BrandRunStatus>();
+  for (const [projectId, status] of listLatestProjectRunStatuses(deps.db) as Map<string, BrandRunStatus>) {
+    latestByProject.set(projectId, status);
+  }
+  for (const run of deps.runs?.list() ?? []) {
+    if (!run.projectId) continue;
+    const existing = latestByProject.get(run.projectId);
+    const updatedAt = Number(run.updatedAt ?? 0);
+    if (existing && updatedAt <= Number(existing.updatedAt ?? 0)) continue;
+    latestByProject.set(run.projectId, {
+      value: normalizeBrandRunStatus(run.status),
+      updatedAt,
+      runId: run.id,
+      error: run.error ?? null,
+      errorCode: run.errorCode ?? null,
+    });
+  }
+  return { latestByProject };
+}
+
+function reconcileBrandSummaryStatus(
+  brandsRoot: string,
+  summary: BrandSummary,
+  context: BrandStatusContext,
+): BrandSummary {
+  return {
+    ...summary,
+    meta: reconcileBrandMetaStatus(brandsRoot, summary.meta, context),
+  };
+}
+
+function reconcileBrandDetailStatus(
+  brandsRoot: string,
+  detail: BrandDetailResponse,
+  context: BrandStatusContext,
+): BrandDetailResponse {
+  return {
+    ...detail,
+    meta: reconcileBrandMetaStatus(brandsRoot, detail.meta, context),
+  };
+}
+
+function reconcileBrandMetaStatus(
+  brandsRoot: string,
+  meta: BrandMeta,
+  context: BrandStatusContext,
+): BrandMeta {
+  if (meta.status !== 'extracting' || !meta.projectId) return meta;
+  const status = context.latestByProject.get(meta.projectId);
+  if (!status || (status.value !== 'failed' && status.value !== 'canceled')) return meta;
+  const error =
+    status.error
+    ?? (status.value === 'canceled'
+      ? 'Brand extraction was canceled.'
+      : 'Brand extraction failed in the backing project.');
+  return patchMeta(brandsRoot, meta.id, { status: 'failed', error }) ?? {
+    ...meta,
+    status: 'failed',
+    error,
+  };
+}
+
+function normalizeBrandRunStatus(status: string): string {
+  if (status === 'starting' || status === 'queued') return 'running';
+  if (status === 'cancelled') return 'canceled';
+  return status;
 }
 
 function resolveBackingProjectLogoPath(
