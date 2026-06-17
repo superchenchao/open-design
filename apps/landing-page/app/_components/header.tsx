@@ -538,7 +538,7 @@ export function Header({
               in2='map'
               xChannelSelector='R'
               yChannelSelector='B'
-              scale='-180'
+              scale='-50'
               result='dispRed'
             />
             <feColorMatrix
@@ -552,7 +552,7 @@ export function Header({
               in2='map'
               xChannelSelector='R'
               yChannelSelector='B'
-              scale='-170'
+              scale='-47'
               result='dispGreen'
             />
             <feColorMatrix
@@ -566,7 +566,7 @@ export function Header({
               in2='map'
               xChannelSelector='R'
               yChannelSelector='B'
-              scale='-160'
+              scale='-44'
               result='dispBlue'
             />
             <feColorMatrix
