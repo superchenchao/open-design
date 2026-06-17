@@ -148,9 +148,7 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 45
     permissions:
-      actions: read
       contents: read
-      id-token: write
 
     steps:
       - name: Checkout
@@ -162,11 +160,6 @@ jobs:
           extra_nix_config: |
             experimental-features = nix-command flakes
             accept-flake-config = true
-
-      - name: Configure GitHub-backed Nix cache
-        uses: DeterminateSystems/magic-nix-cache-action@v14
-        with:
-          use-gha-cache: false
 
       - name: Setup Node for Nix hash refresh
         if: ${{ github.event_name == 'pull_request' }}
