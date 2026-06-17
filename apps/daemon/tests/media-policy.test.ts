@@ -5,7 +5,7 @@ import {
   mediaPolicyDenial,
   normalizeMediaExecutionPolicyForRun,
   parseMediaExecutionPolicyInput,
-} from '../src/media/media-policy.js';
+} from '../src/media/policy.js';
 
 describe('media execution policy parsing', () => {
   it('defaults omitted policy to enabled', () => {

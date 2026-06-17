@@ -10,7 +10,7 @@ import {
   resolveProviderConfig,
   seedProviderIfMissing,
   writeConfig,
-} from '../src/media/media-config.js';
+} from '../src/media/config.js';
 
 const TEST_NANOBANANA_BASE_URL = 'https://nano-banana-gateway.example.test';
 

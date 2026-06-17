@@ -5,7 +5,7 @@
  * pricing, testimonials, FAQ, CTA, footer) styled entirely from the
  * tokens we extract from the system's DESIGN.md.
  *
- * Same parsing utilities as design-system-preview.js — kept inline rather
+ * Same parsing utilities as preview.js — kept inline rather
  * than imported so the two views can evolve independently.
  */
 

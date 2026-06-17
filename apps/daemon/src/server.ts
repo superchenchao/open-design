@@ -147,7 +147,7 @@ import {
   createPluginAssetCache,
   isCacheableExternalUrl,
 } from './plugin-asset-cache.js';
-import { defaultMediaExecutionPolicy, parseMediaExecutionPolicyInput } from './media/media-policy.js';
+import { defaultMediaExecutionPolicy, parseMediaExecutionPolicyInput } from './media/policy.js';
 import {
   applySandboxRuntimeEnv,
   ensureSandboxRuntimeDirs,
@@ -168,9 +168,9 @@ import {
   resolveDesignSystemAssets,
   updateUserDesignSystem,
   updateUserDesignSystemRevisionStatus,
-} from './design-systems/design-systems.js';
-import { createDesignSystemGenerationJobStore } from './design-systems/design-system-generation-jobs.js';
-import { prepareDesignTokenContractRebuild } from './design-systems/design-token-contract-rebuild.js';
+} from './design-systems/index.js';
+import { createDesignSystemGenerationJobStore } from './design-systems/generation-jobs.js';
+import { prepareDesignTokenContractRebuild } from './design-systems/token-contract-rebuild.js';
 import {
   applyDiffReviewDecisionToCwd,
   applyPlugin,
@@ -246,8 +246,8 @@ import { readOpenCodeServiceFailure } from './runtimes/opencode-log.js';
 import { createAgentStderrVisibilityFilter } from './amr-stderr-filter.js';
 import { createQoderStreamHandler } from './runtimes/qoder-stream.js';
 import { subscribe as subscribeFileEvents } from './project-watchers.js';
-import { renderDesignSystemPreview } from './design-systems/design-system-preview.js';
-import { renderDesignSystemShowcase } from './design-systems/design-system-showcase.js';
+import { renderDesignSystemPreview } from './design-systems/preview.js';
+import { renderDesignSystemShowcase } from './design-systems/showcase.js';
 import { createChatRunService } from './runtimes/runs.js';
 import { deriveRunErrorCode, runResultFromStatus } from './run-result.js';
 import { classifyRunFailure, isResumableFailure } from './run-failure-classification.js';
@@ -312,7 +312,7 @@ import { lintArtifact, renderFindingsForAgent } from './lint-artifact.js';
 import { loadCraftSections } from './craft.js';
 import { skillCwdAliasSegment, stageActiveSkill } from './cwd-aliases.js';
 import { buildDesktopPdfExportInput } from './pdf-export.js';
-import { generateMedia } from './media/media.js';
+import { generateMedia } from './media/index.js';
 import { listElevenLabsVoiceOptions } from './integrations/elevenlabs-voices.js';
 import { searchResearch, ResearchError } from './research/index.js';
 import { renderResearchCommandContract } from './prompts/research-contract.js';
@@ -325,8 +325,8 @@ import {
   MEDIA_PROVIDERS,
   VIDEO_LENGTHS_SEC,
   VIDEO_MODELS,
-} from './media/media-models.js';
-import { readMaskedConfig, writeConfig } from './media/media-config.js';
+} from './media/models.js';
+import { readMaskedConfig, writeConfig } from './media/config.js';
 import {
   deleteMediaTask,
   getMediaTask,
@@ -335,7 +335,7 @@ import {
   listRecentMediaTasks,
   reconcileMediaTasksOnBoot,
   updateMediaTask,
-} from './media/media-tasks.js';
+} from './media/tasks.js';
 import {
   MCP_TEMPLATES,
   buildAcpMcpServers,
@@ -404,8 +404,8 @@ import {
   writeProjectFile,
   reconcileHtmlArtifactManifest,
 } from './projects.js';
-import { validateArtifactManifestInput } from './artifacts/artifact-manifest.js';
-import { ArtifactPublicationBlockedError } from './artifacts/artifact-publication-guard.js';
+import { validateArtifactManifestInput } from './artifacts/manifest.js';
+import { ArtifactPublicationBlockedError } from './artifacts/publication-guard.js';
 import { readCurrentAppVersionInfo } from './app-version.js';
 import {
   appendMessageAgentEvent,

@@ -1,6 +1,6 @@
 import type { Express } from 'express';
 import type { RouteDeps } from '../server-context.js';
-import { seedProviderIfMissing } from '../media/media-config.js';
+import { seedProviderIfMissing } from '../media/config.js';
 import {
   buildLegacyMaxTokensParam,
   buildMaxCompletionTokensParam,

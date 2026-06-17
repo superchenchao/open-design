@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { buildCreateArtifactRequestBody, createProjectArtifactFile } from '../src/artifacts/artifact-create.js';
+import { buildCreateArtifactRequestBody, createProjectArtifactFile } from '../src/artifacts/create.js';
 import { listFiles, writeProjectFile } from '../src/projects.js';
 
 describe('normal artifact create helper', () => {

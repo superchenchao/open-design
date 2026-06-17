@@ -3,8 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { importLocalDesignSystemProject } from '../src/design-systems/design-system-import.js';
-import { listDesignSystems, readDesignSystemAssets, readDesignSystemPackageInfo } from '../src/design-systems/design-systems.js';
+import { importLocalDesignSystemProject } from '../src/design-systems/import.js';
+import { listDesignSystems, readDesignSystemAssets, readDesignSystemPackageInfo } from '../src/design-systems/index.js';
 
 describe('importLocalDesignSystemProject', () => {
   let tempRoot: string;

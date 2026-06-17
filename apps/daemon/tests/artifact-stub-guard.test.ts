@@ -13,7 +13,7 @@ import {
   readArtifactStubGuardConfigFromEnv,
   slugifyArtifactIdentifier,
   type ArtifactStubGuardConfig,
-} from '../src/artifacts/artifact-stub-guard.js';
+} from '../src/artifacts/stub-guard.js';
 
 // Helper: write an artifact body + the sidecar manifest the production
 // write path would produce. Sibling discovery requires the sidecar to

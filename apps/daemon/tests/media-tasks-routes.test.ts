@@ -2,7 +2,7 @@ import type http from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { closeDatabase, insertProject, openDatabase } from '../src/db.js';
-import { insertMediaTask, listMediaTasksByProject } from '../src/media/media-tasks.js';
+import { insertMediaTask, listMediaTasksByProject } from '../src/media/tasks.js';
 import { startServer } from '../src/server.js';
 
 describe('media task route recovery', () => {

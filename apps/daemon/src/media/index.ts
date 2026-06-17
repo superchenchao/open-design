@@ -63,9 +63,9 @@ import {
   findMediaModel,
   findProvider,
   modelsForSurface,
-} from './media-models.js';
+} from './models.js';
 import { assertAndFetchExternalAsset } from '../connectionTest.js';
-import { resolveModelAlias, resolveProviderConfig } from './media-config.js';
+import { resolveModelAlias, resolveProviderConfig } from './config.js';
 import { codexNeedsDangerFullAccessSandbox } from '../runtimes/defs/codex.js';
 import { spawnEnvForAgent } from '../agents.js';
 import { agentCliEnvForAgent, appConfigDir, readAppConfig } from '../app-config.js';

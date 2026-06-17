@@ -6,14 +6,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   createDesignSystemGenerationJobStore,
   type DesignSystemGenerationJob,
-} from '../src/design-systems/design-system-generation-jobs.js';
+} from '../src/design-systems/generation-jobs.js';
 import {
   createUserDesignSystem,
   listUserDesignSystemRevisions,
   readDesignSystem,
   type UserDesignSystemInput,
   updateUserDesignSystemRevisionStatus,
-} from '../src/design-systems/design-systems.js';
+} from '../src/design-systems/index.js';
 
 describe('design system generation jobs', () => {
   let root: string;

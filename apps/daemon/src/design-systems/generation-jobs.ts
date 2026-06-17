@@ -10,13 +10,13 @@ import {
   type DesignSystemSummary,
   type UserDesignSystemInput,
   type UserDesignSystemRevisionInput,
-} from './design-systems.js';
+} from './index.js';
 import type { DesignSystemTokenContractRebuildDecision } from '@open-design/contracts';
 import {
   collectDesignSystemSourceContext,
   mergeSourceContextIntoInput,
   type DesignSystemSourceContext,
-} from './design-system-source-context.js';
+} from './source-context.js';
 
 export type DesignSystemGenerationJobStatus =
   | 'queued'

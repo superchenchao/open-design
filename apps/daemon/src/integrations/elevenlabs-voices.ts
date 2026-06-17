@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { resolveProviderConfig } from '../media/media-config.js';
+import { resolveProviderConfig } from '../media/config.js';
 
 const ELEVENLABS_DEFAULT_BASE_URL = 'https://api.elevenlabs.io';
 const ELEVENLABS_DEFAULT_VOICE_LIMIT = 100;

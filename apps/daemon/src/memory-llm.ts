@@ -59,7 +59,7 @@ import {
   markSuccess,
   markFailed,
 } from './memory-extractions.js';
-import { resolveProviderConfig } from './media/media-config.js';
+import { resolveProviderConfig } from './media/config.js';
 import { AIHUBMIX_APP_CODE } from './integrations/aihubmix.js';
 import { spawn } from 'node:child_process';
 import os from 'node:os';

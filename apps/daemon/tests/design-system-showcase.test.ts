@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractColors } from '../src/design-systems/design-system-showcase.js';
+import { extractColors } from '../src/design-systems/showcase.js';
 
 type Color = { name: string; value: string; role: string };
 

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { generateMedia } from '../src/media/media.js';
+import { generateMedia } from '../src/media/index.js';
 
 const TEST_SENSEAUDIO_BASE_URL = 'https://senseaudio-gateway.example.test';
 const WIRE_MODEL = 'senseaudio-tts-1.5-260319';

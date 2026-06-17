@@ -8,7 +8,7 @@ import {
   type LocalDesignSystemImportOptions,
   type LocalDesignSystemImportResult,
   importLocalDesignSystemProject,
-} from './design-system-import.js';
+} from './import.js';
 
 const execFileAsync = promisify(execFile);
 

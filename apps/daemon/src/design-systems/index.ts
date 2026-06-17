@@ -3038,7 +3038,7 @@ function cleanTitle(raw: string): string {
  * The shape is deliberately compact — one accent + one background + one
  * fg + one supporting tone — so the row reads like a brand mark even at
  * thumbnail scale. Picked greedily by token-name hints (matches the
- * heuristics in design-system-preview.js so the strip and the showcase
+ * heuristics in preview.js so the strip and the showcase
  * agree on which colors the system "is").
  *
  * @param {string} raw  Markdown body of DESIGN.md

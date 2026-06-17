@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { createDsmlArtifactTextSuppressor } from '../src/artifacts/artifact-text-suppression.js';
+import { createDsmlArtifactTextSuppressor } from '../src/artifacts/text-suppression.js';
 
 test('DSML artifact suppressor preserves non-DSML tags at the start of a chunk', () => {
   const suppressor = createDsmlArtifactTextSuppressor();

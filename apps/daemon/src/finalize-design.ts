@@ -32,7 +32,7 @@ import type {
   FinalizeProviderProtocol,
 } from '@open-design/contracts/api/finalize';
 import { getProject } from './db.js';
-import { readDesignSystem } from './design-systems/design-systems.js';
+import { readDesignSystem } from './design-systems/index.js';
 import {
   listFiles,
   readProjectFile,

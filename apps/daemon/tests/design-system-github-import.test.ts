@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   importGitHubDesignSystemProject,
   parseGitHubRepoUrl,
-} from '../src/design-systems/design-system-github-import.js';
+} from '../src/design-systems/github-import.js';
 
 describe('parseGitHubRepoUrl', () => {
   it('normalizes public GitHub repository URLs to clone URLs', () => {

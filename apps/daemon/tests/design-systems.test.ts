@@ -15,7 +15,7 @@ import {
   readUserDesignSystemRevision,
   updateUserDesignSystem,
   updateUserDesignSystemRevisionStatus,
-} from '../src/design-systems/design-systems.js';
+} from '../src/design-systems/index.js';
 
 describe('design systems registry', () => {
   let root: string;

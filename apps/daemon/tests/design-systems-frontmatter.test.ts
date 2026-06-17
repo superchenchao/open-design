@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { listDesignSystems } from '../src/design-systems/design-systems.js';
+import { listDesignSystems } from '../src/design-systems/index.js';
 
 function fresh(): string {
   return mkdtempSync(path.join(tmpdir(), 'od-design-systems-frontmatter-'));

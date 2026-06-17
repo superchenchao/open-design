@@ -9,8 +9,8 @@ import {
   validateDesignTokenOutputs,
   type DesignTokenBinding,
   type DesignTokenContractReport,
-} from './design-token-contract.js';
-import { extractCssCustomProperties } from './design-token-evidence.js';
+} from './token-contract.js';
+import { extractCssCustomProperties } from './token-evidence.js';
 
 export type LocalDesignSystemImportResult = {
   id: string;

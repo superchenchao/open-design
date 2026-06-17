@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { inferLegacyManifest, validateArtifactManifestInput } from './artifact-manifest.js';
+import { inferLegacyManifest, validateArtifactManifestInput } from './manifest.js';
 
 type JsonObject = Record<string, unknown>;
 

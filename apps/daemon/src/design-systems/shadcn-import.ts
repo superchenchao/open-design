@@ -34,7 +34,7 @@ import {
   type LocalDesignSystemImportOptions,
   type LocalDesignSystemImportResult,
   importLocalDesignSystemProject,
-} from './design-system-import.js';
+} from './import.js';
 
 const FETCH_TIMEOUT_MS = 15_000;
 // Whole-import wall-clock ceiling, independent of the per-request timeout.

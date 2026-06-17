@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { normalizeArtifactRuntimeImports } from '../src/artifacts/artifact-runtime-compat.js';
+import { normalizeArtifactRuntimeImports } from '../src/artifacts/runtime-compat.js';
 import { writeProjectFile } from '../src/projects.js';
 
 const brokenReactMotionHtml = `<!doctype html>

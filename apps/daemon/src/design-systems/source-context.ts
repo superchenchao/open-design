@@ -1,4 +1,4 @@
-import type { UserDesignSystemInput } from './design-systems.js';
+import type { UserDesignSystemInput } from './index.js';
 
 export type DesignSystemSourceContext = {
   github: GitHubRepositoryContext[];

@@ -22,7 +22,7 @@ import {
   readDesignSystemPackageInfo,
   readDesignSystemPullFile,
   resolveDesignSystemAssets,
-} from '../src/design-systems/design-systems.js';
+} from '../src/design-systems/index.js';
 
 function fresh(): string {
   return mkdtempSync(path.join(tmpdir(), 'od-design-system-assets-'));

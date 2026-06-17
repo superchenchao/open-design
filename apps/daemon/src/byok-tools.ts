@@ -16,8 +16,8 @@ import path from 'node:path';
 import { writeFile, readFile, readdir, stat } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { assertExternalAssetUrl, assertAndFetchExternalAsset } from './connectionTest.js';
-import { resolveProviderConfig } from './media/media-config.js';
-import { IMAGE_MODELS } from './media/media-models.js';
+import { resolveProviderConfig } from './media/config.js';
+import { IMAGE_MODELS } from './media/models.js';
 import { ensureProject } from './projects.js';
 import {
   AIHUBMIX_DEFAULT_BASE_URL,

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import type { Express } from 'express';
 import type { MediaExecutionPolicy } from '@open-design/contracts';
-import { defaultMediaExecutionPolicy, mediaPolicyDenial } from '../media/media-policy.js';
+import { defaultMediaExecutionPolicy, mediaPolicyDenial } from '../media/policy.js';
 import type { RouteDeps } from '../server-context.js';
 import { proxyDispatcherRequestInit } from '../connectionTest.js';
 import {
