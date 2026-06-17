@@ -15,15 +15,9 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { useAnalytics } from '../analytics/provider';
-import { trackChatPanelClick, trackMessageQueueClick, trackRunFailedToastSurfaceView } from '../analytics/events';
+import { trackChatPanelClick, trackRunFailedToastSurfaceView } from '../analytics/events';
 import { attributedAmrUrl, recordAmrEntry } from '../analytics/amr-attribution';
 import { useT } from '../i18n';
-import {
-  FEATURED_DESIGN_TOOLBOX_ACTION_IDS,
-  findDesignToolboxSkill,
-  getDesignToolboxAction,
-  type DesignToolboxActionId,
-} from '../runtime/design-toolbox';
 import type { Dict } from '../i18n/types';
 import { copyToClipboard } from '../lib/copy-to-clipboard';
 import { projectRawUrl } from '../providers/registry';
@@ -35,14 +29,14 @@ import {
   DESIGN_SYSTEM_WORKSPACE_DISPLAY_TITLE,
   isDesignSystemWorkspacePrompt,
 } from '../design-system-auto-prompt';
-import { isTodoWriteToolName, latestTodoWriteInputForPinnedCard } from '../runtime/todos';
+import { latestTodoWriteInputForPinnedCard } from '../runtime/todos';
+import { TodoCard } from './ToolCard';
 import type { AppConfig, ChatAttachment, ChatCommentAttachment, ChatMessage, ChatMessageFeedbackChange, Conversation, DesignSystemSummary, PreviewComment, Project, ProjectFile, ProjectMetadata, SkillSummary } from '../types';
-import { exactDateTime, messageTime, shortTime } from '../utils/chatTime';
+import { dayKey, dayLabel, exactDateTime, messageTime, relativeTimeLong, shortTime } from '../utils/chatTime';
 import { commentTargetDisplayName, commentsToAttachments, simplePositionLabel } from '../comments';
 import { AssistantMessage, type QuestionFormOpenRequest } from './AssistantMessage';
 import { AmrGuidance } from './AmrGuidance';
-import { amrRechargeUrlForProfile, resolveRunFailureUi } from '../runtime/amr-guidance';
-import { RESUME_CONTINUE_PROMPT } from '../runtime/resume';
+import { AMR_RECHARGE_URL, resolveRunFailureUi } from '../runtime/amr-guidance';
 import {
   ChatComposer,
   type ChatComposerHandle,
@@ -456,7 +450,6 @@ interface Props {
     meta?: ChatSendMeta,
   ) => void;
   onRetry?: (assistantMessage: ChatMessage) => void;
-  onResumeRun?: (assistantMessage: ChatMessage) => void;
   onStop: () => void;
   // Skills available for @-mention assembly. ProjectView filters out the
   // user's disabled set before passing them in here.
@@ -476,23 +469,24 @@ interface Props {
   // "Share to Open Design" button on each completed assistant message —
   // wired by ProjectView to handleSend with the bundled
   // `od-share-to-community` scenario's trigger prompt.
-  onShareToOpenDesign?: (assistantMessageId: string) => void;
-  shareToOpenDesignBusyMessageId?: string | null;
+  onShareToOpenDesign?: () => void;
+  shareToOpenDesignBusy?: boolean;
   forceStreamingMessageIds?: Set<string>;
   // Live-only streaming tool-input partials keyed by tool-use id. Threaded to
   // AssistantMessage so an in-flight Write/Edit can render its code in real
   // time before the full `tool_use` arrives. Never persisted.
   liveToolInput?: Record<string, { name: string; text: string; seq?: number }>;
   initialDraft?: string;
+  // Question-form submissions become a normal user message; the parent
+  // routes that text through onSend (no attachments).
+  onSubmitForm?: (text: string) => void;
   // Focus the right-hand Questions tab from the chat banner.
   onOpenQuestions?: (request?: QuestionFormOpenRequest) => void;
   onContinueRemainingTasks?: (assistantMessage: ChatMessage, todos: TodoItem[]) => void;
   onAssistantFeedback?: (assistantMessage: ChatMessage, change: ChatMessageFeedbackChange) => void;
   // "Next step" affordance handlers forwarded to the last assistant message.
-  // The featured design-toolbox rows are driven directly off the composer ref
-  // owned here, so they need no handler from ProjectView (unlike onArtifactShare).
   onArtifactShare?: (fileName: string) => void;
-  onArtifactDownload?: (fileName: string) => void;
+  onArtifactChip?: (fileName: string, prompt: string) => void;
   onForkFromMessage?: (assistantMessage: ChatMessage) => void;
   forkingMessageId?: string | null;
   // Header "+" button — kicks off ProjectView's create-conversation flow.
@@ -595,10 +589,7 @@ interface Props {
   backLabel?: string;
   projectHeader?: ReactNode;
   designSystemPicker?: ReactNode;
-  config?: AppConfig;
 }
-
-const AMR_PROFILE_ENV_KEY = 'OPEN_DESIGN_AMR_PROFILE';
 
 type Tab = 'chat' | 'comments';
 
@@ -665,7 +656,6 @@ export function ChatPane({
   onDeleteComment,
   onSend,
   onRetry,
-  onResumeRun,
   onStop,
   onRemoveQueuedSend,
   onUpdateQueuedSend,
@@ -678,15 +668,16 @@ export function ChatPane({
   activePluginActionPaths,
   hiddenPluginActionPaths,
   onShareToOpenDesign,
-  shareToOpenDesignBusyMessageId,
+  shareToOpenDesignBusy,
   forceStreamingMessageIds,
   liveToolInput,
   initialDraft,
+  onSubmitForm,
   onOpenQuestions,
   onContinueRemainingTasks,
   onAssistantFeedback,
   onArtifactShare,
-  onArtifactDownload,
+  onArtifactChip,
   onForkFromMessage,
   forkingMessageId = null,
   onNewConversation,
@@ -740,17 +731,16 @@ export function ChatPane({
   backLabel,
   projectHeader,
   designSystemPicker,
-  config,
 }: Props) {
   const t = useT();
   const analytics = useAnalytics();
-  const amrProfile = config?.agentCliEnv?.amr?.[AMR_PROFILE_ENV_KEY] ?? null;
   const logRef = useRef<HTMLDivElement | null>(null);
   const chatLogScrollIdleTimerRef = useRef<number | null>(null);
   const historyWrapRef = useRef<HTMLDivElement | null>(null);
   const composerRef = useRef<ChatComposerHandle | null>(null);
   const composerSlotRef = useRef<HTMLDivElement | null>(null);
   const composerLayerRef = useRef<HTMLDivElement | null>(null);
+  const pinnedTodoRef = useRef<HTMLDivElement | null>(null);
   const queuedSendStripRef = useRef<HTMLDivElement | null>(null);
   const didInitialScrollRef = useRef(false);
   const runFailedToastSurfaceKeysRef = useRef<Set<string>>(new Set());
@@ -781,40 +771,23 @@ export function ChatPane({
   // message). Route them through this ref so a memoized message still calls the
   // LATEST handler. See areAssistantMessagePropsEqual in AssistantMessage.tsx.
   const assistantCallbacksRef = useRef({
+    onSubmitForm,
     onContinueRemainingTasks,
     onAssistantFeedback,
     onArtifactShare,
+    onArtifactChip,
     onForkFromMessage,
     onShareToOpenDesign,
   });
   assistantCallbacksRef.current = {
+    onSubmitForm,
     onContinueRemainingTasks,
     onAssistantFeedback,
     onArtifactShare,
+    onArtifactChip,
     onForkFromMessage,
     onShareToOpenDesign,
   };
-  // Featured design-toolbox follow-up rows on the assistant "next step" card.
-  // The toolbox left the "+" menu, so these route straight into the composer
-  // we own here: seeding an action's prompt+skill, or opening the full panel.
-  // Both stay stable (composer ref + no deps) so AssistantMessage stays memoized.
-  const handleToolboxAction = useCallback((id: DesignToolboxActionId) => {
-    composerRef.current?.applyDesignToolboxAction(id);
-  }, []);
-  const handlePickSkill = useCallback((skillId: string) => {
-    composerRef.current?.applyDesignToolboxSkill(skillId);
-  }, []);
-  // The `@skill` shown in each featured row's hover detail — matched the same
-  // way the composer matches it, using the raw skill name (what gets inlined
-  // into the draft). Recomputed only when the skill list changes.
-  const featuredToolboxSkillNames = useMemo<Partial<Record<DesignToolboxActionId, string | null>>>(() => {
-    const map: Partial<Record<DesignToolboxActionId, string | null>> = {};
-    for (const id of FEATURED_DESIGN_TOOLBOX_ACTION_IDS) {
-      const action = getDesignToolboxAction(id);
-      map[id] = action ? (findDesignToolboxSkill(action, skills)?.name ?? null) : null;
-    }
-    return map;
-  }, [skills]);
   const [tab, setTab] = useState<Tab>('chat');
   const [showConvList, setShowConvList] = useState(false);
   const [conversationSearch, setConversationSearch] = useState('');
@@ -829,6 +802,34 @@ export function ChatPane({
     bottom: number;
   } | null>(null);
   const [composerSlotHeight, setComposerSlotHeight] = useState(0);
+  // The user can dismiss the pinned task list once everything is complete.
+  // We key the dismissal on the snapshot (serialized TodoWrite input) so
+  // the next time the agent emits a different snapshot the card returns,
+  // but the same snapshot stays hidden across renders / streaming ticks.
+  // Persisted to sessionStorage so the dismissal survives tab switches and
+  // component remounts (the ChatPane key includes conversationId, so switching
+  // conversations unmounts and remounts the component). The stored value is the
+  // snapshot key, so a fresh TodoWrite snapshot still re-shows the card.
+  const dismissedStorageKey = `dismissedTodo:${activeConversationId ?? 'none'}`;
+  const [dismissedPinnedTodoKey, setDismissedPinnedTodoKey] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem(dismissedStorageKey);
+    } catch {
+      return null;
+    }
+  });
+  // Sync dismissed state when conversationId changes (e.g., tab switching).
+  // The parent key includes conversationId so unmount/remount resets this,
+  // but if conversationId changes without unmounting or the storage key
+  // changes, re-read to keep the dismissed state in sync.
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(dismissedStorageKey);
+      setDismissedPinnedTodoKey(stored);
+    } catch {
+      // sessionStorage access can fail in private browsing
+    }
+  }, [dismissedStorageKey]);
   const [editingQueuedSendId, setEditingQueuedSendId] = useState<string | null>(null);
   // Reverse scan (no array copy) + memo so this and the maps below don't
   // recompute on every non-`messages` render (scroll, hover, toggles).
@@ -858,21 +859,6 @@ export function ChatPane({
   const runFailureUi = retryAssistant
     ? resolveRunFailureUi(failedRunErrorEvent?.code, retryAssistant.agentId)
     : null;
-  // Offer Continue (resume) when the failed run is resumable AND the active
-  // agent still matches the agent that produced it. The daemon stores a
-  // resumable session per (conversation, agent); after an agent switch the new
-  // agent has no id for that session, so a resume would silently start fresh —
-  // fall back to the from-scratch Retry instead. We do NOT require `onResumeRun`
-  // here: because the daemon persists the resumable session, the plain Retry
-  // path (which re-sends the original prompt) would itself silently resume that
-  // session and double the work. So every ChatPane surface must offer Continue
-  // for a resumable failure — `onResumeRun` when wired (primary chat, carries
-  // the resume_continue analytics), otherwise a plain `onSend` of the canonical
-  // continue prompt (resumes the session without re-sending the original turn).
-  const canResumeFailedRun =
-    !!retryAssistant?.resumable &&
-    !!retryAssistant?.agentId &&
-    retryAssistant.agentId === config?.agentId;
   // Prefer a case-specific message (AMR auth / balance) over the raw upstream
   // string; fall back to the live global error (also covers conversation-load
   // / audio errors) then the persisted run error so a reload still shows it.
@@ -1366,7 +1352,24 @@ export function ChatPane({
       }
     };
 
+    // The PinnedTodoSlot renders outside the scroll container. When the todo
+    // card grows, the chat-log's clientHeight shrinks (flex layout) and the
+    // user drifts away from the bottom. Observe the pinned-todo div so
+    // followLatestIfPinned fires whenever the card changes height.
+    let observedPinnedTodo: Element | null = null;
     let observedQueuedSendStrip: Element | null = null;
+    const syncPinnedTodo = () => {
+      if (!resizeObserver) return;
+      const pinnedEl = pinnedTodoRef.current;
+      if (pinnedEl && observedPinnedTodo !== pinnedEl) {
+        if (observedPinnedTodo) resizeObserver.unobserve(observedPinnedTodo);
+        resizeObserver.observe(pinnedEl);
+        observedPinnedTodo = pinnedEl;
+      } else if (!pinnedEl && observedPinnedTodo) {
+        resizeObserver.unobserve(observedPinnedTodo);
+        observedPinnedTodo = null;
+      }
+    };
     const syncQueuedSendStrip = () => {
       if (!resizeObserver) return;
       const queuedEl = queuedSendStripRef.current;
@@ -1383,12 +1386,14 @@ export function ChatPane({
     };
 
     syncObservedChildren();
+    syncPinnedTodo();
     syncQueuedSendStrip();
 
     const mutationObserver =
       typeof MutationObserver !== 'undefined'
         ? new MutationObserver(() => {
             syncObservedChildren();
+            syncPinnedTodo();
             syncQueuedSendStrip();
             followLatestIfPinned();
           })
@@ -1401,11 +1406,11 @@ export function ChatPane({
       childList: true,
       subtree: true,
     });
-    // QueuedSendStrip lives outside the chat-log subtree (it is a sibling of
-    // .chat-log-wrap inside .pane). The MutationObserver above only fires for
-    // changes inside el, so it cannot detect that surface mounting or
-    // unmounting. Watch the nearest common ancestor (.pane) with childList-only
-    // to keep its observer current.
+    // PinnedTodoSlot and QueuedSendStrip live outside the chat-log subtree
+    // (they are siblings of .chat-log-wrap inside .pane). The
+    // MutationObserver above only fires for changes inside el, so it cannot
+    // detect those surfaces mounting or unmounting. Watch the nearest common
+    // ancestor (.pane) with childList-only to keep their observers current.
     const paneEl = el.parentElement?.parentElement ?? null;
     if (paneEl && mutationObserver) {
       mutationObserver.observe(paneEl, { childList: true });
@@ -1932,7 +1937,7 @@ export function ChatPane({
                 activePluginActionPaths={activePluginActionPaths}
                 hiddenPluginActionPaths={hiddenPluginActionPaths}
                 onShareToOpenDesign={onShareToOpenDesign}
-                shareToOpenDesignBusyMessageId={shareToOpenDesignBusyMessageId}
+                shareToOpenDesignBusy={shareToOpenDesignBusy}
                 forceStreamingMessageIds={forceStreamingMessageIds}
                 lastAssistantId={lastAssistantId}
                 firstUserMessageId={firstUserMessageId}
@@ -1944,15 +1949,15 @@ export function ChatPane({
                 assistantCallbacksRef={assistantCallbacksRef}
                 onContinueRemainingTasks={onContinueRemainingTasks}
                 onArtifactShare={onArtifactShare}
-                onToolboxAction={handleToolboxAction}
-                onPickSkill={handlePickSkill}
-                onArtifactDownload={onArtifactDownload}
-                nextStepSkills={skills}
-                toolboxSkillNames={featuredToolboxSkillNames}
+                onArtifactChip={onArtifactChip}
                 onForkFromMessage={onForkFromMessage}
                 onAssistantFeedback={onAssistantFeedback}
                 forkingMessageId={forkingMessageId}
                 t={t}
+                onAssistantFormSubmitStart={() => {
+                  pinnedToBottomRef.current = true;
+                  scrolledToFormRef.current = new Set();
+                }}
                 onOpenQuestions={onOpenQuestions}
                 scrollContainerRef={logRef}
               />
@@ -2028,7 +2033,7 @@ export function ChatPane({
                                   'chat_error_recharge',
                                 );
                                 window.open(
-                                  attributedAmrUrl(amrRechargeUrlForProfile(amrProfile), attribution),
+                                  attributedAmrUrl(AMR_RECHARGE_URL, attribution),
                                   '_blank',
                                   'noopener,noreferrer',
                                 );
@@ -2037,26 +2042,7 @@ export function ChatPane({
                               {t('chat.amrError.rechargeCta')}
                             </button>
                           ) : null}
-                          {canResumeFailedRun ? (
-                            // Resumable failure: continue the agent's existing
-                            // CLI session instead of restarting from scratch, so
-                            // partial work is kept. Replaces the from-scratch
-                            // Retry as the single primary recovery action. Use
-                            // the wired resume handler when present, otherwise a
-                            // plain send of the continue prompt — never the
-                            // re-sending Retry path, which would resume + repeat.
-                            <button
-                              type="button"
-                              className="ghost chat-error-retry"
-                              onClick={() =>
-                                onResumeRun
-                                  ? onResumeRun(retryAssistant)
-                                  : onSend(RESUME_CONTINUE_PROMPT, [], [])
-                              }
-                            >
-                              {t('chat.resumeRunCta')}
-                            </button>
-                          ) : runFailureUi.primaryAction === 'retry' || runFailureUi.secondaryRetry ? (
+                          {runFailureUi.primaryAction === 'retry' || runFailureUi.secondaryRetry ? (
                             <button
                               type="button"
                               className="ghost chat-error-retry"
@@ -2105,45 +2091,32 @@ export function ChatPane({
               <span>{t('chat.jumpToLatest')}</span>
             </button>
           </div>
+          <PinnedTodoSlot
+            messages={messages}
+            streaming={streaming}
+            dismissedKey={dismissedPinnedTodoKey}
+            onDismiss={(key) => {
+              setDismissedPinnedTodoKey(key);
+              try {
+                if (key) {
+                  sessionStorage.setItem(dismissedStorageKey, key);
+                } else {
+                  sessionStorage.removeItem(dismissedStorageKey);
+                }
+              } catch {
+                // sessionStorage access can fail in private browsing / sandboxed contexts
+              }
+            }}
+            containerRef={pinnedTodoRef}
+          />
           <QueuedSendStrip
             containerRef={queuedSendStripRef}
             items={queuedItems}
             editingId={editingQueuedSendId}
-            onEdit={(item) => {
-              trackMessageQueueClick(analytics.track, {
-                page_name: 'chat_panel',
-                area: 'message_queue',
-                element: 'edit',
-                project_id: projectId ?? '',
-                queue_length: queuedItems.length,
-              });
-              restoreQueuedSendToComposer(item);
-            }}
-            onRemove={onRemoveQueuedSend
-              ? (id) => {
-                  trackMessageQueueClick(analytics.track, {
-                    page_name: 'chat_panel',
-                    area: 'message_queue',
-                    element: 'delete',
-                    project_id: projectId ?? '',
-                    queue_length: queuedItems.length,
-                  });
-                  onRemoveQueuedSend(id);
-                }
-              : undefined}
+            onEdit={restoreQueuedSendToComposer}
+            onRemove={onRemoveQueuedSend}
             onReorder={onReorderQueuedSends}
-            onSendNow={onSendQueuedNow
-              ? (id) => {
-                  trackMessageQueueClick(analytics.track, {
-                    page_name: 'chat_panel',
-                    area: 'message_queue',
-                    element: 'send_now',
-                    project_id: projectId ?? '',
-                    queue_length: queuedItems.length,
-                  });
-                  onSendQueuedNow(id);
-                }
-              : undefined}
+            onSendNow={onSendQueuedNow}
           />
           <div
             className="chat-composer-slot"
@@ -2176,6 +2149,7 @@ export function ChatPane({
 }
 
 interface AssistantCallbacks {
+  onSubmitForm: ((text: string) => void) | undefined;
   onContinueRemainingTasks:
     | ((assistantMessage: ChatMessage, todos: TodoItem[]) => void)
     | undefined;
@@ -2183,15 +2157,22 @@ interface AssistantCallbacks {
     | ((message: ChatMessage, change: ChatMessageFeedbackChange) => void)
     | undefined;
   onArtifactShare: ((fileName: string) => void) | undefined;
+  onArtifactChip: ((fileName: string, prompt: string) => void) | undefined;
   onForkFromMessage: ((message: ChatMessage) => void) | undefined;
-  onShareToOpenDesign: ((assistantMessageId: string) => void) | undefined;
+  onShareToOpenDesign: (() => void) | undefined;
 }
 
-type ChatRenderItem = {
-  kind: 'message';
-  key: string;
-  message: ChatMessage;
-};
+type ChatRenderItem =
+  | {
+      kind: 'separator';
+      key: string;
+      timestamp: number;
+    }
+  | {
+      kind: 'message';
+      key: string;
+      message: ChatMessage;
+    };
 
 function ChatConversationLoading({ t }: { t: TranslateFn }) {
   return (
@@ -2228,7 +2209,7 @@ function ChatRows({
   activePluginActionPaths,
   hiddenPluginActionPaths,
   onShareToOpenDesign,
-  shareToOpenDesignBusyMessageId,
+  shareToOpenDesignBusy,
   forceStreamingMessageIds,
   lastAssistantId,
   firstUserMessageId,
@@ -2240,15 +2221,12 @@ function ChatRows({
   assistantCallbacksRef,
   onContinueRemainingTasks,
   onArtifactShare,
-  onToolboxAction,
-  onPickSkill,
-  onArtifactDownload,
-  nextStepSkills,
-  toolboxSkillNames,
+  onArtifactChip,
   onForkFromMessage,
   onAssistantFeedback,
   forkingMessageId,
   t,
+  onAssistantFormSubmitStart,
   onOpenQuestions,
   scrollContainerRef,
 }: {
@@ -2267,8 +2245,8 @@ function ChatRows({
   onRequestPluginFolderAgentAction?: (relativePath: string, action: PluginFolderAgentAction) => void;
   activePluginActionPaths?: Set<string>;
   hiddenPluginActionPaths?: Set<string>;
-  onShareToOpenDesign?: (assistantMessageId: string) => void;
-  shareToOpenDesignBusyMessageId?: string | null;
+  onShareToOpenDesign?: () => void;
+  shareToOpenDesignBusy?: boolean;
   forceStreamingMessageIds?: Set<string>;
   lastAssistantId: string | undefined;
   firstUserMessageId: string | undefined;
@@ -2280,30 +2258,16 @@ function ChatRows({
   assistantCallbacksRef: MutableRefObject<AssistantCallbacks>;
   onContinueRemainingTasks?: (assistantMessage: ChatMessage, todos: TodoItem[]) => void;
   onArtifactShare?: (fileName: string) => void;
-  onToolboxAction?: (id: DesignToolboxActionId) => void;
-  onPickSkill?: (skillId: string) => void;
-  onArtifactDownload?: (fileName: string) => void;
-  nextStepSkills?: SkillSummary[];
-  toolboxSkillNames?: Partial<Record<DesignToolboxActionId, string | null>>;
+  onArtifactChip?: (fileName: string, prompt: string) => void;
   onForkFromMessage?: (message: ChatMessage) => void;
   onAssistantFeedback?: (message: ChatMessage, change: ChatMessageFeedbackChange) => void;
   forkingMessageId?: string | null;
   t: TranslateFn;
+  onAssistantFormSubmitStart: () => void;
   onOpenQuestions?: (request?: QuestionFormOpenRequest) => void;
   scrollContainerRef: MutableRefObject<HTMLDivElement | null>;
 }) {
-  const conversationTodoInput = useMemo(
-    () => latestTodoWriteInputForPinnedCard(messages),
-    [messages],
-  );
-  const conversationTodoAnchorMessageId = useMemo(
-    () => firstTodoWriteAssistantMessageId(messages),
-    [messages],
-  );
-  const items = useMemo(
-    () => buildChatRenderItems(messages),
-    [messages],
-  );
+  const items = useMemo(() => buildChatRenderItems(messages), [messages]);
   const virtualized = items.length > CHAT_MESSAGE_VIRTUALIZE_THRESHOLD;
   const virtualWindow = useMeasuredVirtualWindow(items, {
     enabled: virtualized,
@@ -2312,13 +2276,12 @@ function ChatRows({
     overscanPx: CHAT_MESSAGE_OVERSCAN_PX,
     resetKey: activeConversationKey,
     initialTailRows: CHAT_VIRTUAL_INITIAL_TAIL_ROWS,
-    alwaysIncludeKey:
-      conversationTodoInput != null && conversationTodoAnchorMessageId
-        ? `message:${conversationTodoAnchorMessageId}`
-        : undefined,
   });
 
   const renderItem = (item: ChatRenderItem) => {
+    if (item.kind === 'separator') {
+      return <DaySeparator ts={item.timestamp} />;
+    }
     const m = item.message;
     const messageStreaming = isAssistantMessageStreaming(
       m,
@@ -2357,8 +2320,6 @@ function ChatRows({
         // get a stable `undefined`, so adding `liveToolInput` to the memo
         // comparator re-renders just this row per `tool_input_delta`, not all N.
         liveToolInput={messageStreaming ? liveToolInput : undefined}
-        showConversationTodoCard={m.id === conversationTodoAnchorMessageId}
-        conversationTodoInput={conversationTodoInput}
         projectId={projectId}
         projectKind={projectKindForTracking}
         conversationId={activeConversationId}
@@ -2370,15 +2331,19 @@ function ChatRows({
         hiddenPluginActionPaths={hiddenPluginActionPaths}
         onShareToOpenDesign={
           onShareToOpenDesign
-            ? () => assistantCallbacksRef.current.onShareToOpenDesign?.(m.id)
+            ? () => assistantCallbacksRef.current.onShareToOpenDesign?.()
             : undefined
         }
-        shareToOpenDesignBusy={shareToOpenDesignBusyMessageId === m.id}
+        shareToOpenDesignBusy={shareToOpenDesignBusy}
         isLast={m.id === lastAssistantId}
         errorCardOwnerId={errorCardOwnerId}
         nextUserContent={nextUserContentByAssistantId.get(m.id)}
         suppressDirectionForms={hasActiveDesignSystem}
         hasDesignSystemContext={hasActiveDesignSystem || !!activeDesignSystem}
+        onSubmitForm={(text) => {
+          onAssistantFormSubmitStart();
+          assistantCallbacksRef.current.onSubmitForm?.(text);
+        }}
         onOpenQuestions={onOpenQuestions}
         onContinueRemainingTasks={
           m.id === lastAssistantId && onContinueRemainingTasks
@@ -2401,11 +2366,11 @@ function ChatRows({
             ? (fileName) => assistantCallbacksRef.current.onArtifactShare?.(fileName)
             : undefined
         }
-        onToolboxAction={onToolboxAction}
-        onPickSkill={onPickSkill}
-        onArtifactDownload={onArtifactDownload}
-        nextStepSkills={nextStepSkills}
-        toolboxSkillNames={toolboxSkillNames}
+        onArtifactChip={
+          onArtifactChip
+            ? (fileName, prompt) => assistantCallbacksRef.current.onArtifactChip?.(fileName, prompt)
+            : undefined
+        }
       />
     );
   };
@@ -2484,6 +2449,15 @@ function buildChatRenderItems(messages: ChatMessage[]): ChatRenderItem[] {
   const items: ChatRenderItem[] = [];
   for (let i = 0; i < messages.length; i += 1) {
     const message = messages[i]!;
+    if (shouldShowDaySeparator(messages[i - 1], message)) {
+      const timestamp = messageTime(message);
+      if (timestamp === undefined) continue;
+      items.push({
+        kind: 'separator',
+        key: `day:${dayKey(timestamp)}:${message.id}`,
+        timestamp,
+      });
+    }
     items.push({
       kind: 'message',
       key: `message:${message.id}`,
@@ -2493,18 +2467,8 @@ function buildChatRenderItems(messages: ChatMessage[]): ChatRenderItem[] {
   return items;
 }
 
-function firstTodoWriteAssistantMessageId(messages: ChatMessage[]): string | null {
-  const message = messages.find(
-    (candidate) =>
-      candidate.role === 'assistant' &&
-      candidate.events?.some(
-        (event) => event.kind === 'tool_use' && isTodoWriteToolName(event.name),
-      ),
-  );
-  return message?.id ?? null;
-}
-
 function estimateChatRenderItemHeight(item: ChatRenderItem): number {
+  if (item.kind === 'separator') return 34 + CHAT_VIRTUAL_ROW_GAP_PX;
   const message = item.message;
   const contentLength = message.content?.length ?? 0;
   const attachmentCount = (message.attachments?.length ?? 0) + (message.commentAttachments?.length ?? 0);
@@ -2531,7 +2495,6 @@ function useMeasuredVirtualWindow<T extends { key: string }>(
     overscanPx,
     resetKey,
     initialTailRows,
-    alwaysIncludeKey,
   }: {
     enabled: boolean;
     containerRef: MutableRefObject<HTMLDivElement | null>;
@@ -2539,7 +2502,6 @@ function useMeasuredVirtualWindow<T extends { key: string }>(
     overscanPx: number;
     resetKey: string;
     initialTailRows: number;
-    alwaysIncludeKey?: string;
   },
 ) {
   const measuredHeightsRef = useRef<Map<string, number>>(new Map());
@@ -2609,11 +2571,10 @@ function useMeasuredVirtualWindow<T extends { key: string }>(
     const height = viewport.height || CHAT_VIRTUAL_DEFAULT_VIEWPORT_PX;
     if (viewport.scrollTop === 0 && viewport.height === 0) {
       const start = Math.max(0, items.length - initialTailRows);
-      const rows = items.slice(start).map((item, offset) => {
+      return items.slice(start).map((item, offset) => {
         const index = start + offset;
         return { item, index, top: layout.offsets[index] ?? 0 };
       });
-      return includeVirtualRowByKey(rows, items, layout.offsets, alwaysIncludeKey);
     }
     const startTarget = Math.max(0, viewport.scrollTop - overscanPx);
     const endTarget = viewport.scrollTop + height + overscanPx;
@@ -2628,13 +2589,11 @@ function useMeasuredVirtualWindow<T extends { key: string }>(
     while (end < items.length && (layout.offsets[end] ?? 0) <= endTarget) {
       end += 1;
     }
-    const rows = items.slice(start, end).map((item, offset) => {
+    return items.slice(start, end).map((item, offset) => {
       const index = start + offset;
       return { item, index, top: layout.offsets[index] ?? 0 };
     });
-    return includeVirtualRowByKey(rows, items, layout.offsets, alwaysIncludeKey);
   }, [
-    alwaysIncludeKey,
     enabled,
     initialTailRows,
     items,
@@ -2661,23 +2620,55 @@ function useMeasuredVirtualWindow<T extends { key: string }>(
   };
 }
 
-function includeVirtualRowByKey<T extends { key: string }>(
-  rows: Array<{ item: T; index: number; top: number }>,
-  items: T[],
-  offsets: number[],
-  key: string | undefined,
-): Array<{ item: T; index: number; top: number }> {
-  if (!key || rows.some((row) => row.item.key === key)) return rows;
-  const index = items.findIndex((item) => item.key === key);
-  if (index === -1) return rows;
-  return [
-    ...rows,
-    {
-      item: items[index]!,
-      index,
-      top: offsets[index] ?? 0,
-    },
-  ].sort((a, b) => a.index - b.index);
+// Pinned task list above the chat composer. The latest TodoWrite snapshot
+// across the entire conversation is the canonical state; AssistantMessage
+// no longer renders these inline so there is exactly one TodoCard on
+// screen. When every task is complete the user can dismiss the card; the
+// dismissal sticks to the current snapshot only, so a fresh TodoWrite
+// from the agent re-shows it.
+function PinnedTodoSlot({
+  messages,
+  streaming,
+  dismissedKey,
+  onDismiss,
+  containerRef,
+}: {
+  messages: ChatMessage[];
+  streaming: boolean;
+  dismissedKey: string | null;
+  onDismiss: (key: string | null) => void;
+  containerRef?: MutableRefObject<HTMLDivElement | null>;
+}) {
+  // `exiting` lets the dismiss click play a slide-down transition before
+  // the slot tears down. Without it React would unmount immediately and
+  // the card would pop out without animation.
+  const [exiting, setExiting] = useState(false);
+  const input = latestTodoWriteInputForPinnedCard(messages);
+  if (input == null) return null;
+  let snapshotKey: string;
+  try {
+    snapshotKey = JSON.stringify(input);
+  } catch {
+    snapshotKey = String(input);
+  }
+  if (snapshotKey === dismissedKey) return null;
+  return (
+    <div className={`chat-pinned-todo${exiting ? ' chat-pinned-todo-exit' : ''}`} ref={containerRef}>
+      <TodoCard
+        input={input}
+        runStreaming={streaming}
+        runSucceeded={!streaming}
+        onDismiss={() => {
+          if (exiting) return;
+          setExiting(true);
+          // Match the slide-out duration in CSS (220ms) — once the
+          // transition completes the snapshot key is recorded as
+          // dismissed and the slot is unmounted by the early return.
+          window.setTimeout(() => onDismiss(snapshotKey), 220);
+        }}
+      />
+    </div>
+  );
 }
 
 function QueuedSendStrip({
@@ -2839,7 +2830,6 @@ function QueuedSendStrip({
                   data-tooltip={t('chat.send')}
                   data-tooltip-placement="top"
                   aria-label={t('chat.send')}
-                  data-testid="chat-queued-send-now"
                   onClick={() => onSendNow?.(item.id)}
                   disabled={!onSendNow}
                 >
@@ -3277,6 +3267,7 @@ function UserMessageImpl({
     <div className="msg user">
       <div className="role">
         <span>{t('chat.you')}</span>
+        <MessageTimestamp message={message} t={t} />
       </div>
       {hasRunContext ? (
         <div className="msg-run-context-row" data-testid="msg-run-context-row">
@@ -3506,6 +3497,33 @@ function ActiveDesignSystemChip({
       {content}
     </button>
   );
+}
+
+function DaySeparator({ ts }: { ts: number | undefined }) {
+  if (!ts) return null;
+  return (
+    <div className="chat-day-separator" role="separator">
+      <time dateTime={new Date(ts).toISOString()}>{dayLabel(ts)}</time>
+    </div>
+  );
+}
+
+function MessageTimestamp({ message, t }: { message: ChatMessage; t: TranslateFn }) {
+  const ts = messageTime(message);
+  if (!ts) return null;
+  return (
+    <time className="msg-time" dateTime={new Date(ts).toISOString()} title={exactDateTime(ts)}>
+      {relativeTimeLong(ts, t)}
+    </time>
+  );
+}
+
+function shouldShowDaySeparator(prev: ChatMessage | undefined, curr: ChatMessage): boolean {
+  const currTime = messageTime(curr);
+  if (!currTime) return false;
+  const prevTime = prev ? messageTime(prev) : undefined;
+  if (!prevTime) return true;
+  return dayKey(prevTime) !== dayKey(currTime);
 }
 
 const WORKSPACE_DESIGN_FILES_TAB = '__design_files__';

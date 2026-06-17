@@ -18,12 +18,6 @@ function artifactPreviewFrame(page: Page) {
   return page.frameLocator(ACTIVE_ARTIFACT_PREVIEW_SELECTOR);
 }
 
-function stagedAttachmentName(page: Page, name: string): Locator {
-  return page
-    .locator('[data-testid="staged-attachments"], [data-testid="staged-contexts"]')
-    .getByText(name, { exact: true });
-}
-
 test.beforeEach(async ({ page }) => {
   await page.addInitScript((key) => {
     window.localStorage.setItem(
@@ -64,7 +58,7 @@ test.beforeEach(async ({ page }) => {
     });
   });
 });
-test('[P0] @critical workspace restores the last manually selected file tab after reload instead of jumping back to the generated artifact', async ({ page }) => {
+test('[P0] workspace restores the last manually selected file tab after reload instead of jumping back to the generated artifact', async ({ page }) => {
   await page.route('**/api/agents', async (route) => {
     await route.fulfill({
       json: {
@@ -276,7 +270,7 @@ test('[P0] switching between projects restores each project workspace to its las
   await expect(tabBySuffix(page, 'beta-secondary.png')).toHaveAttribute('aria-selected', 'false');
 });
 
-test('[P0] @critical visiting an uploaded design file route restores its tab and file workspace surface', async ({ page }) => {
+test('[P0] visiting an uploaded design file route restores its tab and file workspace surface', async ({ page }) => {
   await page.route('**/api/agents', async (route) => {
     await route.fulfill({
       json: {
@@ -465,7 +459,7 @@ test('[P0] returning from an artifact file route to the project root keeps the a
   await expect(artifactTab).toHaveAttribute('aria-selected', 'true');
 });
 
-test('[P0] @critical returning from an older conversation route to the project root keeps the composer available while the route is selected', async ({ page }) => {
+test('[P0] returning from an older conversation route to the project root keeps the composer available while the route is selected', async ({ page }) => {
   await page.route('**/api/agents', async (route) => {
     await route.fulfill({
       json: {
@@ -542,7 +536,7 @@ test('[P0] @critical returning from an older conversation route to the project r
   await expect(page.getByTestId('chat-composer')).toBeVisible();
 });
 
-test('[P0] @critical switching between conversations keeps the composer usable while navigating history', async ({ page }) => {
+test('[P0] switching between conversations keeps the composer usable while navigating history', async ({ page }) => {
   await page.route('**/api/agents', async (route) => {
     await route.fulfill({
       json: {
@@ -660,7 +654,7 @@ test('[P0] @critical switching between conversations keeps the composer usable w
   await expect(page.locator('.msg.user .user-text').filter({ hasText: secondPrompt })).toHaveCount(0);
 });
 
-test('[P0] @critical reloading an older conversation route keeps the composer visible on that route', async ({ page }) => {
+test('[P0] reloading an older conversation route keeps the composer visible on that route', async ({ page }) => {
   await page.route('**/api/agents', async (route) => {
     await route.fulfill({
       json: {
@@ -743,7 +737,7 @@ test('[P0] @critical reloading an older conversation route keeps the composer vi
   await expect(reloadedHistoryList.locator('.chat-conv-item').filter({ hasText: firstPrompt }).first()).toBeVisible();
 });
 
-test('[P0] @critical switching between conversations keeps staged attachments UI available', async ({ page }) => {
+test('[P0] switching between conversations keeps staged attachments UI available', async ({ page }) => {
   await page.route('**/api/agents', async (route) => {
     await route.fulfill({
       json: {
@@ -810,14 +804,14 @@ test('[P0] @critical switching between conversations keeps staged attachments UI
     buffer: Buffer.from('First conversation staged attachment.\n', 'utf8'),
   });
   await expect((await firstUploadResponse).ok()).toBeTruthy();
-  await expect(stagedAttachmentName(page, 'first-draft-attachment.txt')).toBeVisible();
+  await expect(page.getByTestId('staged-attachments')).toContainText('first-draft-attachment.txt');
 
   await startNewConversation(page);
   await expect(page.getByTestId('chat-composer-input')).toBeVisible();
   await expect(page.getByTestId('chat-composer-input')).toHaveText('');
   await sendPrompt(page, secondPrompt);
   await expect(page.locator('.msg.user .user-text').filter({ hasText: secondPrompt }).first()).toBeVisible();
-  await expect(stagedAttachmentName(page, 'first-draft-attachment.txt')).toHaveCount(0);
+  await expect(page.getByTestId('staged-attachments')).toHaveCount(0);
 
   const secondUploadResponse = page.waitForResponse(
     (resp: Response) => resp.url().includes('/upload') && resp.request().method() === 'POST',
@@ -829,7 +823,7 @@ test('[P0] @critical switching between conversations keeps staged attachments UI
     buffer: Buffer.from('Second conversation staged attachment.\n', 'utf8'),
   });
   await expect((await secondUploadResponse).ok()).toBeTruthy();
-  await expect(stagedAttachmentName(page, 'second-draft-attachment.txt')).toBeVisible();
+  await expect(page.getByTestId('staged-attachments')).toContainText('second-draft-attachment.txt');
 
   await page.getByTestId('conversation-history-trigger').click();
   const historyList = page.getByTestId('conversation-list');
@@ -855,7 +849,7 @@ test('[P0] @critical switching between conversations keeps staged attachments UI
   await expect(page.locator('.msg.user .user-text').filter({ hasText: secondPrompt }).first()).toBeVisible();
 });
 
-test('[P0] @critical reloading an older conversation route keeps the composer available after staging attachments', async ({ page }) => {
+test('[P0] reloading an older conversation route keeps the composer available after staging attachments', async ({ page }) => {
   await page.route('**/api/agents', async (route) => {
     await route.fulfill({
       json: {
@@ -935,13 +929,13 @@ test('[P0] @critical reloading an older conversation route keeps the composer av
     buffer: Buffer.from('Attachment that should survive a reload.\n', 'utf8'),
   });
   await expect((await uploadResponse).ok()).toBeTruthy();
-  await expect(stagedAttachmentName(page, 'reload-staged-attachment.txt')).toBeVisible();
+  await expect(page.getByTestId('staged-attachments')).toContainText('reload-staged-attachment.txt');
 
   await page.reload();
   await expect(page.getByTestId('chat-composer')).toBeVisible();
 });
 
-test('[P0] @critical reloading the project keeps the latest conversation selected in history', async ({ page }) => {
+test('[P0] reloading the project keeps the latest conversation selected in history', async ({ page }) => {
   await page.route('**/api/agents', async (route) => {
     await route.fulfill({
       json: {
@@ -1027,7 +1021,7 @@ test('[P0] @critical reloading the project keeps the latest conversation selecte
   await expect(historyList.locator('.chat-conv-item')).toHaveCount(2);
 });
 
-test('[P0] @critical deleting the active conversation selects the remaining conversation in history', async ({ page }) => {
+test('[P0] deleting the active conversation selects the remaining conversation in history', async ({ page }) => {
   page.on('dialog', async (dialog: Dialog) => {
     await dialog.accept();
   });
@@ -1848,7 +1842,7 @@ test('[P0] reloading a project keeps the Design Files entry reachable when it wa
   await expect(page.getByTestId('design-files-tab')).toBeVisible();
 });
 
-test('[P0] @critical daemon error details persist between failed sends', async ({ page }) => {
+test('[P0] daemon error details persist between failed sends', async ({ page }) => {
   const entry = automatedUiScenarios().find((scenario) => scenario.id === 'prototype-basic');
   if (!entry) throw new Error('prototype-basic scenario missing');
 
@@ -2920,7 +2914,8 @@ async function runFileMentionFlow(
   await expect(page.getByTestId('mention-popover')).toBeVisible();
   await page.getByTestId('mention-popover').getByRole('button', { name: /reference\.txt/i }).click();
   await expect(page.getByTestId('chat-composer-input')).toHaveText('Review @reference.txt ');
-  await expect(stagedAttachmentName(page, 'reference.txt')).toBeVisible();
+  await expect(page.getByTestId('staged-attachments')).toBeVisible();
+  await expect(page.getByTestId('staged-attachments').getByText('reference.txt', { exact: true })).toBeVisible();
   await expect(page.getByTestId('chat-send')).toBeEnabled();
 }
 
@@ -2964,7 +2959,10 @@ async function runFileUploadSendFlow(
   });
   await expect((await uploadResponse).ok()).toBeTruthy();
 
-  await expect(stagedAttachmentName(page, 'reference.txt')).toBeVisible();
+  await expect(page.getByTestId('staged-attachments')).toBeVisible();
+  await expect(
+    page.getByTestId('staged-attachments').getByText('reference.txt', { exact: true }),
+  ).toBeVisible();
   await expect(page.getByText('reference.txt', { exact: true })).toBeVisible();
 
   await sendPrompt(page, entry.prompt);

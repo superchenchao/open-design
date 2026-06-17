@@ -26,13 +26,7 @@ import {
   shouldRenderCodexImagegenOverride,
 } from './prompts/system.js';
 import { expandHomePrefix, resolveProjectRelativePath } from './home-expansion.js';
-import { emittedRenderableQuestionForm } from './question-form-detect.js';
 import { resolveProjectRoot } from './project-root.js';
-import {
-  applyBakedPreviews,
-  resolvePluginPreviewsDir,
-  PLUGIN_PREVIEWS_ROUTE,
-} from './plugin-preview-bakes.js';
 import { userFacingAgentLabel } from './user-facing-agent-label.js';
 
 export { resolveProjectRoot };
@@ -59,7 +53,6 @@ import {
   resolveModelForAgent,
 } from './runtimes/models.js';
 import { loadMmdRouteLaunchEnv } from './runtimes/mmd-routes.js';
-import { preparePromptFileForAgent } from './runtimes/prompt-file.js';
 import {
   cancelVelaLogin,
   forgetVelaLogin,
@@ -69,7 +62,6 @@ import {
   parseVelaLoginAttribution,
   readVelaCredentialRevision,
   readVelaLoginStatus,
-  resolveAmrProfile,
   spawnVelaLogin,
 } from './integrations/vela.js';
 import {
@@ -233,17 +225,15 @@ import {
   cursorAuthGuidance,
 } from './runtimes/auth.js';
 import { readOpenCodeServiceFailure } from './runtimes/opencode-log.js';
-import { createAgentStderrVisibilityFilter } from './amr-stderr-filter.js';
 import { createQoderStreamHandler } from './qoder-stream.js';
 import { subscribe as subscribeFileEvents } from './project-watchers.js';
 import { renderDesignSystemPreview } from './design-system-preview.js';
 import { renderDesignSystemShowcase } from './design-system-showcase.js';
 import { createChatRunService } from './runs.js';
 import { deriveRunErrorCode, runResultFromStatus } from './run-result.js';
-import { classifyRunFailure, isResumableFailure } from './run-failure-classification.js';
+import { classifyRunFailure } from './run-failure-classification.js';
 import { decideSafeRunRetry } from './run-retry-policy.js';
 import {
-  amrUserIdForRunAnalytics,
   hasExplicitRequestedModelForAnalytics,
   scanRunEventsForUsageAnalytics,
   summarizeRunTimingAnalytics,
@@ -276,7 +266,6 @@ import {
   deriveConfigureGlobals,
   modelIdForTracking,
   projectKindToTracking,
-  sessionModeToTracking,
   type ObservabilityEventRequest,
 } from '@open-design/contracts/analytics';
 import {
@@ -490,6 +479,7 @@ import { registerMemoryRoutes } from './routes/memory.js';
 import { registerStaticResourceRoutes } from './routes/static-resource.js';
 import { registerRoutineRoutes, routineDbRowToContract } from './routes/routine.js';
 import { installRouteRegistrationGuard } from './route-registration-guard.js';
+import { submitToolResultToRunState } from './run-tool-results.js';
 import { assertServerContextSatisfiesRoutes } from './route-context-contract.js';
 import { configureConnectorCredentialStore, connectorService, ConnectorServiceError, FileConnectorCredentialStore } from './connectors/service.js';
 import { composioConnectorProvider } from './connectors/composio.js';
@@ -1347,40 +1337,12 @@ function resolveDaemonResourceDir(resourceRoot, segment, fallback) {
   return resourceRoot ? path.join(resourceRoot, segment) : fallback;
 }
 
-// Where the daemon reads the baked plugin-preview manifest from. In a packaged
-// build the bundled manifest lives under the resource root (OD_RESOURCE_ROOT,
-// Resources/open-design) like every other resource tree — NOT under PROJECT_ROOT,
-// which for the prebundled daemon resolves to Resources/app (two levels up from
-// the sidecar) and has no data/. An explicit OD_PLUGIN_PREVIEWS_DIR override and
-// the dev PROJECT_ROOT layout still win. Exported for regression coverage.
-export function resolveDaemonPluginPreviewsDir({ env = process.env, resourceRoot, projectRoot }) {
-  // Resolve the override from the injected `env` (absolute passthrough, relative
-  // against projectRoot) rather than re-reading process.env, so the helper is
-  // pure and the override path is actually testable.
-  const override = env.OD_PLUGIN_PREVIEWS_DIR;
-  if (override) {
-    return path.isAbsolute(override) ? override : path.resolve(projectRoot, override);
-  }
-  return resolveDaemonResourceDir(
-    resourceRoot,
-    path.join('data', 'plugin-previews'),
-    path.join(projectRoot, 'data', 'plugin-previews'),
-  );
-}
-
 const DAEMON_RESOURCE_ROOT = resolveDaemonResourceRoot();
 // Built web app lives in `out/` — that's where Next.js writes the static
 // export configured in next.config.ts. The folder name used to be `dist/`
 // when this project shipped with Vite; the daemon serves whatever the
 // frontend toolchain emits, no further config needed.
 const STATIC_DIR = path.join(PROJECT_ROOT, 'apps', 'web', 'out');
-// Baked plugin preview clips (scripts/bake-plugin-previews.mjs). Served at
-// PLUGIN_PREVIEWS_ROUTE; their manifest rewrites html plugins' previews to a
-// cheap poster + hover-play video in the home gallery.
-const PLUGIN_PREVIEWS_DIR = resolveDaemonPluginPreviewsDir({
-  resourceRoot: DAEMON_RESOURCE_ROOT,
-  projectRoot: PROJECT_ROOT,
-});
 const OD_BIN = resolveDaemonCliPath();
 const OD_NODE_BIN = process.execPath;
 const SKILLS_DIR = resolveDaemonResourceDir(
@@ -2310,10 +2272,7 @@ function resolveRunProjectKindForAnalytics({
 }) {
   if (typeof hintProjectKind === 'string') return hintProjectKind;
   if (projectMetadata?.importedFrom === 'design-system') return 'design_system';
-  // Pass videoModel so a HyperFrames project (kind=video + videoModel=
-  // hyperframes-html) is reported as project_kind=hyperframes, not generic
-  // video. The web-supplied `hintProjectKind` already encodes this when set.
-  return projectKindToTracking(projectMetadata?.kind, projectMetadata?.videoModel);
+  return projectKindToTracking(projectMetadata?.kind);
 }
 
 export function __forTestResolveRunProjectKindForAnalytics(args) {
@@ -2610,34 +2569,84 @@ async function hasGeneratedPluginArtifacts(projectRoot) {
   }
 }
 
-// Renderable `<question-form>`/`<ask-question>` detection now lives in
-// `./question-form-detect.ts` so the missing-artifacts guard, awaiting-input
-// status, and run analytics all share ONE renderable-form check. See
-// `emittedRenderableQuestionForm` imported above.
+// Canonical open tag is `<question-form>`; `<ask-question>` is an accepted
+// alias models drift to. Mirrors the open-tag set in the web parser.
+const QUESTION_FORM_OPEN_RE = /<(question-form|ask-question)\b[^>]*>/i;
 
-function assistantMessageEmittedQuestionForm(db, assistantMessageId) {
-  if (!assistantMessageId) return false;
-  const row = db.prepare(`SELECT content FROM messages WHERE id = ?`).get(assistantMessageId);
-  return emittedRenderableQuestionForm(row?.content);
+// True when `body` is a renderable question-form body: JSON (optionally
+// fenced) parsing to an object with a non-empty `questions` array. This is
+// the minimal contract `tryParseForm` enforces in
+// `apps/web/src/artifacts/question-form.ts`; a body that fails it is kept as
+// raw prose by the UI (no form card renders).
+function questionFormBodyIsRenderable(body) {
+  const trimmed = typeof body === 'string' ? body.trim() : '';
+  if (!trimmed) return false;
+  const stripped = trimmed
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim();
+  let data;
+  try {
+    data = JSON.parse(stripped);
+  } catch {
+    return false;
+  }
+  if (!data || typeof data !== 'object') return false;
+  const questions = data.questions;
+  return Array.isArray(questions) && questions.some((q) => q && typeof q === 'object');
 }
 
-function deferredSkillPluginCandidateForRun(db, run) {
-  if (!run.projectId || !run.conversationId) return null;
-  return listSkillPluginCandidates(db, run.projectId)
-    .find((candidate) =>
-      candidate.status !== 'dismissed' &&
-      !candidate.assistantMessageId &&
-      candidate.conversationId === run.conversationId,
-    ) ?? null;
+// Locate `closeTag` (case-insensitively) at or after `from`, returning an
+// index in the ORIGINAL `text` coordinate space. Mirrors the web parser's
+// `findCloseTag`: scanning char-by-char and lowercasing each fixed-length
+// candidate slice keeps the result aligned with `openEnd`. Lowercasing the
+// whole string up front instead would desync the index, because some code
+// points expand under `toLowerCase()` (e.g. `"İ" -> "i̇"`) and shift every
+// offset after them — corrupting the body slice and failing a valid form.
+function findQuestionFormCloseTag(text, from, closeTag) {
+  const closeLower = closeTag.toLowerCase();
+  const tagLen = closeTag.length;
+  const maxStart = text.length - tagLen;
+  for (let i = from; i <= maxStart; i++) {
+    if (text.slice(i, i + tagLen).toLowerCase() === closeLower) return i;
+  }
+  return -1;
 }
 
-export function detectSkillPluginCandidateOnRunSuccess(db, runs, run, input, projectRoot) {
+// Whether the agent's visible text contains a *renderable* clarifying form —
+// a closed `<question-form>`/`<ask-question>` block whose body satisfies the
+// parser contract above. The plugin-authoring missing-artifacts guard treats
+// this as a legitimate "paused to ask the user" turn rather than a failure.
+//
+// We deliberately mirror (not import) the web parser: the app boundary
+// forbids `apps/daemon` importing `apps/web/src`. Matching only the open tag
+// would let a malformed, non-renderable body suppress the failure — a false
+// success with no usable brief card. Keep this in sync with
+// `apps/web/src/artifacts/question-form.ts`, or promote a shared parser into
+// `packages/contracts` if the two drift.
+function emittedRenderableQuestionForm(text) {
+  if (typeof text !== 'string' || !text) return false;
+  let cursor = 0;
+  while (cursor < text.length) {
+    const m = QUESTION_FORM_OPEN_RE.exec(text.slice(cursor));
+    if (!m) return false;
+    const tagName = (m[1] ?? 'question-form').toLowerCase();
+    const closeTag = `</${tagName}>`;
+    const openEnd = cursor + m.index + m[0].length;
+    const closeIdx = findQuestionFormCloseTag(text, openEnd, closeTag);
+    if (closeIdx === -1) return false;
+    if (questionFormBodyIsRenderable(text.slice(openEnd, closeIdx))) return true;
+    cursor = closeIdx + closeTag.length;
+  }
+  return false;
+}
+
+function detectSkillPluginCandidateOnRunSuccess(db, runs, run, input, projectRoot) {
   if (!run.projectId || !run.conversationId) return;
   void runs
     .wait(run)
     .then(async (finalStatus) => {
       if (finalStatus.status !== 'succeeded') return;
-      const pausedForQuestion = assistantMessageEmittedQuestionForm(db, run.assistantMessageId);
       const detected = await detectSkillPluginCandidate({
         projectId: run.projectId,
         runId: run.id,
@@ -2648,10 +2657,8 @@ export function detectSkillPluginCandidateOnRunSuccess(db, runs, run, input, pro
         projectRoot,
       });
       const candidate = detected ? insertSkillPluginCandidate(db, detected) : null;
-      if (pausedForQuestion) return;
-      const candidateToShow = candidate ?? deferredSkillPluginCandidateForRun(db, run);
-      if (!candidateToShow || candidateToShow.status === 'dismissed') return;
-      upsertSkillPluginCandidateAssistantMessage(db, run, candidateToShow);
+      if (!candidate || candidate.status === 'dismissed') return;
+      upsertSkillPluginCandidateAssistantMessage(db, run, candidate);
     })
     .catch((err) => {
       console.warn('[plugins] skill candidate detection failed', err);
@@ -2677,11 +2684,6 @@ export function upsertSkillPluginCandidateAssistantMessage(db, run, candidate) {
     candidate.assistantMessageId !== run.assistantMessageId &&
     typeof existingMessagePosition === 'number';
   const messageId = canReuseExistingMessage ? candidate.assistantMessageId : randomUUID();
-  const shouldMoveReusedMessage =
-    canReuseExistingMessage &&
-    typeof currentMessagePosition === 'number' &&
-    typeof existingMessagePosition === 'number' &&
-    existingMessagePosition <= currentMessagePosition;
   if (
     candidate.assistantMessageId &&
     candidate.assistantMessageId !== messageId &&
@@ -2706,12 +2708,6 @@ export function upsertSkillPluginCandidateAssistantMessage(db, run, candidate) {
     createdAt: now,
     endedAt: now,
   });
-  if (shouldMoveReusedMessage) {
-    const max = db
-      .prepare(`SELECT COALESCE(MAX(position), -1) AS m FROM messages WHERE conversation_id = ?`)
-      .get(run.conversationId)?.m ?? -1;
-    db.prepare(`UPDATE messages SET position = ? WHERE id = ?`).run(Number(max) + 1, messageId);
-  }
   db.prepare(
     `UPDATE skill_plugin_candidates
         SET assistant_message_id = ?, updated_at = ?
@@ -3018,128 +3014,19 @@ export function createFinalizedMessageTelemetryReporter({
   getAppVersion?: () => any;
   report?: typeof reportRunCompletedFromDaemon;
 }) {
-  const appVersionForCapture = () => {
-    const appVersion = getAppVersion();
-    if (typeof appVersion === 'string') return appVersion;
-    if (appVersion && typeof appVersion.version === 'string') return appVersion.version;
-    if (typeof design?.getAppVersion === 'function') return design.getAppVersion();
-    return 'unknown';
-  };
-  const captureResult = ({
-    analyticsContext,
-    conversationId,
-    delivery,
-    durationMs,
-    projectId,
-    reportResult,
-    run,
-    runId,
-    skipReason,
-    status,
-  }) => {
-    if (!analyticsContext || !design?.analytics?.capture || !runId || !delivery) return;
-    const terminalResult = status ? runResultFromStatus(status) : undefined;
-    design.analytics.capture({
-      eventName: 'langfuse_report_result',
-      context: analyticsContext,
-      appVersion: appVersionForCapture(),
-      properties: {
-        page_name: 'chat_panel',
-        area: 'chat_panel',
-        project_id: run?.projectId ?? projectId ?? null,
-        conversation_id: run?.conversationId ?? conversationId ?? null,
-        run_id: runId,
-        langfuse_trace_id: runId,
-        langfuse_expected: delivery.langfuse_expected,
-        langfuse_delivery_status: delivery.langfuse_delivery_status,
-        ...(delivery.langfuse_drop_reason
-          ? { langfuse_drop_reason: delivery.langfuse_drop_reason }
-          : {}),
-        langfuse_report_result: reportResult,
-        langfuse_report_trigger: 'final_message',
-        ...(skipReason ? { langfuse_report_skip_reason: skipReason } : {}),
-        ...(durationMs !== undefined ? { report_duration_ms: durationMs } : {}),
-        ...(terminalResult ? { result: terminalResult } : {}),
-        ...(run?.errorCode ? { error_code: run.errorCode } : {}),
-        ...(run?.agentId ? { agent_provider_id: agentIdToTracking(run.agentId) } : {}),
-        ...(run?.model !== undefined ? { model_id: modelIdForTracking(run.model) } : {}),
-      },
-      insertId: `${runId}-langfuse-report-${reportResult}${skipReason ? `-${skipReason}` : ''}`,
-    });
-  };
-  return (saved, body = {}, options = {}) => {
+  return (saved, body = {}) => {
     if (!shouldReportRunCompletedFromMessage(saved, body)) return;
-    const runId = saved.runId;
-    const run = design.runs.get(runId);
-    if (!run) {
-      captureResult({
-        analyticsContext: options.analyticsContext,
-        conversationId: options.conversationId ?? saved.conversationId,
-        delivery: {
-          langfuse_expected: true,
-          langfuse_delivery_status: 'failed',
-          langfuse_drop_reason: 'network_error',
-        },
-        projectId: options.projectId,
-        reportResult: 'skipped',
-        runId,
-        skipReason: 'run_not_found',
-        status: saved.runStatus,
-      });
-      return;
-    }
-    if (reportedRuns.has(run.id)) {
-      captureResult({
-        analyticsContext: options.analyticsContext,
-        conversationId: options.conversationId ?? saved.conversationId,
-        delivery: {
-          langfuse_expected: true,
-          langfuse_delivery_status: 'failed',
-          langfuse_drop_reason: 'network_error',
-        },
-        projectId: options.projectId,
-        reportResult: 'skipped',
-        run,
-        runId: run.id,
-        skipReason: 'duplicate_run',
-        status: saved.runStatus,
-      });
-      return;
-    }
+    const run = design.runs.get(saved.runId);
+    if (!run || reportedRuns.has(run.id)) return;
     reportedRuns.add(run.id);
-    void (async () => {
-      const start = Date.now();
-      const delivery = await report({
-        db,
-        dataDir,
-        run,
-        persistedRunStatus: saved.runStatus,
-        persistedEndedAt: saved.endedAt,
-        appVersion: getAppVersion(),
-      });
-      const state = delivery ?? {
-        langfuse_expected: true,
-        langfuse_delivery_status: 'accepted',
-      };
-      captureResult({
-        analyticsContext: options.analyticsContext,
-        conversationId: options.conversationId ?? saved.conversationId,
-        delivery: state,
-        durationMs: Date.now() - start,
-        projectId: options.projectId,
-        reportResult: state.langfuse_expected === false
-          ? 'skipped'
-          : state.langfuse_delivery_status === 'accepted'
-            ? 'accepted'
-            : state.langfuse_delivery_status === 'failed'
-              ? 'failed'
-              : 'skipped',
-        run,
-        runId: run.id,
-        skipReason: state.langfuse_expected === false ? 'not_expected' : undefined,
-        status: saved.runStatus,
-      });
-    })();
+    void report({
+      db,
+      dataDir,
+      run,
+      persistedRunStatus: saved.runStatus,
+      persistedEndedAt: saved.endedAt,
+      appVersion: getAppVersion(),
+    });
   };
 }
 
@@ -4463,15 +4350,7 @@ export function classifyChatRunCloseStatus(params: {
   if (params.cancelRequested) return 'canceled';
   if (params.code === 0) return 'succeeded';
   const acpForcedShutdown =
-    params.acpCleanCompletion &&
-    (
-      (params.code === null && params.signal === 'SIGTERM') ||
-      // Vela's ACP bridge can surface the daemon-triggered post-completion
-      // teardown as a normal exit code 130 instead of a SIGTERM signal. Once
-      // the ACP prompt already resolved cleanly, that is shutdown noise rather
-      // than an agent execution failure.
-      (params.code === 130 && params.signal === null)
-    );
+    params.code === null && params.signal === 'SIGTERM' && params.acpCleanCompletion;
   if (acpForcedShutdown) return 'succeeded';
   const artifactQuietShutdown =
     params.artifactQuietShutdownRequested &&
@@ -4510,6 +4389,7 @@ export function classifyChatRunCloseStatus(params: {
 
 type ClaudeStreamJsonBookkeepingRun = {
   stdinOpen?: boolean;
+  pendingHostAnswers?: Set<string>;
   turnCompletedCleanly?: boolean;
   child?: {
     stdin?: {
@@ -4519,11 +4399,6 @@ type ClaudeStreamJsonBookkeepingRun = {
   } | null;
 };
 
-// Stream-json input mode keeps the child's stdin open across the turn so the
-// daemon can stream further user messages mid-conversation. The child has no
-// other way to know the turn is over, though — without an EOF it idles until
-// the inactivity watchdog kills it. So when a turn terminates cleanly we close
-// stdin to let the child exit.
 export function applyClaudeStreamJsonRunBookkeeping(
   run: ClaudeStreamJsonBookkeepingRun,
   ev: unknown,
@@ -4531,18 +4406,34 @@ export function applyClaudeStreamJsonRunBookkeeping(
   if (!ev || typeof ev !== 'object') return;
   const event = ev as {
     type?: unknown;
+    name?: unknown;
+    id?: unknown;
     stopReason?: unknown;
   };
 
+  if (
+    run.stdinOpen &&
+    event.type === 'tool_use' &&
+    (event.name === 'AskUserQuestion' || event.name === 'ask_user_question') &&
+    typeof event.id === 'string'
+  ) {
+    if (!run.pendingHostAnswers) run.pendingHostAnswers = new Set();
+    run.pendingHostAnswers.add(event.id);
+    return;
+  }
+
   const cleanTerminalTurn =
-    // `stop_reason: tool_use` means the model paused to wait for tool
-    // execution (claude-code is about to run an internal tool). The
-    // conversation is still in flight, so don't close stdin yet.
-    (event.type === 'turn_end' && event.stopReason !== 'tool_use') ||
-    event.type === 'usage';
+    ((event.type === 'turn_end' &&
+      // `stop_reason: tool_use` means the model paused to wait for tool
+      // execution (claude-code is about to run an internal tool, or we owe a
+      // host tool_result). Either way the conversation is still in flight.
+      event.stopReason !== 'tool_use') ||
+      event.type === 'usage') &&
+    (!run.pendingHostAnswers || run.pendingHostAnswers.size === 0);
   if (!cleanTerminalTurn) return;
 
-  // Record clean completion so the close-status classifier ignores late
+  // Record clean completion even if stdin was already closed by the
+  // host-answer path. The close-status classifier reads this to ignore late
   // SessionEnd hook failures after the final assistant turn completed.
   run.turnCompletedCleanly = true;
   if (run.stdinOpen) {
@@ -5494,7 +5385,6 @@ export async function startServer({
       runtime,
       projectRoot: PROJECT_ROOT,
       runsDir: path.join(RUNTIME_DATA_DIR, 'runs'),
-      dataDir: RUNTIME_DATA_DIR,
     }),
   );
 
@@ -5658,7 +5548,6 @@ export async function startServer({
           : null;
       res.json({
         enabled: consentGranted,
-        env: baseline.env,
         key: baseline.key,
         host: baseline.host,
         installationId,
@@ -5669,7 +5558,6 @@ export async function startServer({
       // valuable signal in a degraded-state scenario.
       res.json({
         enabled: false,
-        env: baseline.env,
         key: baseline.key,
         host: baseline.host,
         installationId: null,
@@ -6152,10 +6040,6 @@ export async function startServer({
     projects: { getProject: (id: string) => getProject(db, id) },
   });
   app.use('/artifacts', express.static(ARTIFACTS_DIR));
-  app.use(
-    PLUGIN_PREVIEWS_ROUTE,
-    express.static(PLUGIN_PREVIEWS_DIR, { maxAge: '1d', immutable: false }),
-  );
   registerDeployRoutes(app, {
     db,
     http: httpDeps,
@@ -6390,11 +6274,7 @@ export async function startServer({
     });
     // Bump the parent project's updatedAt so the project list re-orders.
     updateProject(db, req.params.id, {});
-    reportFinalizedMessage(saved, m, {
-      analyticsContext: readAnalyticsContext(req),
-      projectId: req.params.id,
-      conversationId: req.params.cid,
-    });
+    reportFinalizedMessage(saved, m);
     res.json({ message: saved });
   });
 
@@ -7034,7 +6914,7 @@ export async function startServer({
   // and snapshot fetch by id (used by run replay tooling).
   app.get('/api/plugins', async (_req, res) => {
     try {
-      const plugins = applyBakedPreviews(listInstalledPlugins(db), PLUGIN_PREVIEWS_DIR);
+      const plugins = listInstalledPlugins(db);
       res.json({ plugins });
     } catch (err) {
       res.status(500).json({ error: String(err) });
@@ -10791,10 +10671,6 @@ export async function startServer({
       try {
         const snap = getSnapshot(db, appliedPluginSnapshotId);
         if (snap?.pluginId) {
-          const { getSnapshotContextCraft } = await import('./plugins/context-craft.js');
-          for (const craft of getSnapshotContextCraft(snap)) {
-            if (!skillCraftRequires.includes(craft)) skillCraftRequires.push(craft);
-          }
           const plugin = getInstalledPlugin(db, snap.pluginId);
           if (plugin) {
             const { loadPluginLocalSkill } = await import('./plugins/local-skill.js');
@@ -10836,6 +10712,9 @@ export async function startServer({
     } catch (err) {
       console.warn('[custom-instructions] readAppConfig failed', err);
     }
+
+    // Project-level custom instructions from the projects table.
+    const projectInstructions = project?.customInstructions ?? '';
 
     let designSystemBody;
     let designSystemTitle;
@@ -11097,6 +10976,7 @@ export async function startServer({
       ...(pluginBlock ? { pluginBlock } : {}),
       ...(activeStageBlocks ? { activeStageBlocks } : {}),
       userInstructions,
+      projectInstructions,
     });
     // The chat handler also needs to know where the active skill lives
     // on disk so it can stage a per-project copy of its side files
@@ -11354,7 +11234,6 @@ export async function startServer({
     const safeAttachments = cwd
       ? resolveSafeProjectAttachments(cwd, attachments)
       : [];
-    run.projectAttachmentPaths = safeAttachments;
 
     // Local code agents don't accept a separate "system" channel the way the
     // Messages API does — we fold the skill + design-system prompt into the
@@ -11743,34 +11622,18 @@ export async function startServer({
       ...(run.analyticsTelemetry ?? {}),
       promptBuildEndAt: Date.now(),
     };
-    let configuredAgentEnv = {};
-    try {
-      const appConfig = await readAppConfig(RUNTIME_DATA_DIR);
-      configuredAgentEnv = agentCliEnvForAgent(appConfig.agentCliEnv, def.id);
-    } catch {
-      configuredAgentEnv = {};
-    }
     // Per-agent model + reasoning the user picked in the model menu.
     // Trust the value when it matches the most recent /api/agents listing
     // (live or fallback). Otherwise allow it through if it passes a
     // permissive sanitizer — that's the path for user-typed custom model
     // ids the CLI's listing didn't surface yet.
-    const requestedLiveModelScope = def.id === 'amr'
-      ? resolveAmrProfile({
-          ...process.env,
-          ...(def.env || {}),
-          ...configuredAgentEnv,
-        })
-      : null;
     let safeModel = resolveModelForAgent(
       def,
       typeof model === 'string'
-        ? isKnownModel(def, model, requestedLiveModelScope)
+        ? isKnownModel(def, model)
           ? model
           : sanitizeCustomModel(model)
         : null,
-      process.env,
-      requestedLiveModelScope,
     );
     const safeReasoning =
       typeof reasoning === 'string' && Array.isArray(def.reasoningOptions)
@@ -11845,6 +11708,7 @@ export async function startServer({
       run.error = null;
       run.errorCode = null;
       run.stdinOpen = false;
+      run.pendingHostAnswers?.clear?.();
       run.analyticsTelemetry = {
         startRequestedAt: run.analyticsTelemetry?.startRequestedAt ?? run.createdAt,
       };
@@ -11901,17 +11765,6 @@ export async function startServer({
           : {}),
       });
     };
-    let pendingRpcCloseReason = null;
-    const markRpcCloseReason = (reason) => {
-      pendingRpcCloseReason = reason;
-    };
-    const deriveRpcCloseReason = (status, code, signal) => {
-      if (pendingRpcCloseReason) return pendingRpcCloseReason;
-      if (run.cancelRequested || status === 'canceled') return 'cancel_requested';
-      if (signal) return 'signal';
-      if (typeof code === 'number') return code === 0 ? 'exit_0' : 'exit_nonzero';
-      return 'unknown';
-    };
     const finishWithRetryDecision = (status, code = null, signal = null) => {
       run.analyticsTelemetry = {
         ...(run.analyticsTelemetry ?? {}),
@@ -11938,15 +11791,14 @@ export async function startServer({
         agentId: run.agentId,
         events: run.events,
       });
-      const sideEffects = {
-        ...scanRunEventsForRetrySideEffects(run.events),
-        cancelRequested: !!run.cancelRequested,
-      };
       const decision = decideSafeRunRetry({
         result,
         failure,
         attemptCount: run.retryAttemptCount ?? 0,
-        sideEffects,
+        sideEffects: {
+          ...scanRunEventsForRetrySideEffects(run.events),
+          cancelRequested: !!run.cancelRequested,
+        },
       });
       if (decision.shouldRetry && !design.runs.isTerminal(run.status)) {
         run.retryAttemptCount = decision.retryAttemptIndex;
@@ -11959,64 +11811,7 @@ export async function startServer({
         restartSameRunAfterRetry();
         return true;
       }
-      // Resume-on-failure: a terminal *resumable* failure (transient mid-stream
-      // drop / inactivity) on a session-resuming runtime is not a dead end.
-      // Persist the live CLI session so the next turn in this conversation
-      // continues it (`--resume <id>`) instead of opening a fresh session, and
-      // flag the run so the chat can surface a Continue affordance. The session
-      // id is the one we actually drove this attempt with: the resumed id when
-      // continuing, otherwise the freshly minted id we passed via --session-id.
-      //
-      // Gate on a real *committed* boundary this attempt, not merely on bytes
-      // having reached the UI. A completed tool_use / artifact / live-artifact
-      // corresponds to a block the agent has committed to its session (Claude
-      // commits a tool_use block before running the tool), so `--resume` has
-      // something concrete to pick up. We deliberately EXCLUDE
-      // `userVisibleOutputSeen`: it flips true on the first streamed text
-      // delta, but a single-turn drop can stream a few tokens with
-      // `output_tokens == 0` and never commit a text block — resuming that
-      // continues from the prior user turn (nothing to pick up), which is
-      // exactly the "resume something with nothing to continue" case this
-      // feature is meant to avoid. A text-only turn that is cut therefore stays
-      // a from-scratch restart (auto-retry above or a manual Retry).
-      // NOTE: `userVisibleOutputSeen` cannot by itself distinguish "half a text
-      // block, zero commit" from "a committed text block then more streaming";
-      // until the stream exposes a committed-text signal, tool/artifact blocks
-      // are the only reliable resume boundary.
-      const committedWorkSeen = !!(
-        sideEffects.toolCallSeen ||
-        sideEffects.artifactWriteSeen ||
-        sideEffects.liveArtifactSeen
-      );
-      const liveSessionId = agentResumeCtx.isResuming
-        ? agentResumeCtx.resumeSessionId
-        : agentResumeCtx.newSessionId;
-      const resumableFailure =
-        result === 'failed' &&
-        def.resumesSessionViaCli === true &&
-        !!run.conversationId &&
-        !!liveSessionId &&
-        committedWorkSeen &&
-        isResumableFailure(failure);
-      run.resumable = resumableFailure;
-      if (resumableFailure) {
-        upsertAgentSession(db, {
-          conversationId: run.conversationId,
-          agentId: def.id,
-          sessionId: liveSessionId,
-          stablePromptHash: currentStableHash,
-        });
-      }
       finalizeRetryTelemetry(status, decision, failure, errorCode);
-      const rpcCloseReason = deriveRpcCloseReason(status, code, signal);
-      design.runs.emit(run, 'diagnostic', {
-        type: 'runtime_close',
-        rpc_close_reason: rpcCloseReason,
-        status,
-        ...(typeof code === 'number' ? { exit_code: code } : {}),
-        ...(signal ? { signal } : {}),
-      });
-      pendingRpcCloseReason = null;
       design.runs.finish(run, status, code, signal);
       return false;
     };
@@ -12159,6 +11954,14 @@ export async function startServer({
       return design.runs.finish(run, 'failed', 1, null);
     }
 
+    let configuredAgentEnv = {};
+    try {
+      const appConfig = await readAppConfig(RUNTIME_DATA_DIR);
+      configuredAgentEnv = agentCliEnvForAgent(appConfig.agentCliEnv, def.id);
+    } catch {
+      configuredAgentEnv = {};
+    }
+
     let mmdRouteLaunchEnv = null;
     if (def.id === 'claude' && safeModel) {
       mmdRouteLaunchEnv = await loadMmdRouteLaunchEnv(
@@ -12206,67 +12009,29 @@ export async function startServer({
             agentLaunch,
           )
         : null;
-      const amrModelScope = resolveAmrProfile(modelProbeEnv ?? process.env);
-      // Resolve the AMR model catalog through the SAME shared cache the UI's
-      // `/api/amr/models` endpoint serves (AmrModelLoadingCache): a cached
-      // authoritative `vela model list` when it is hot, otherwise the offline
-      // `vela model preset` seed while a remote refresh runs in the background.
-      //
-      // Why not a fresh `vela model list` per run: that authoritative call
-      // needs network reachability to the AMR gateway AND `$HOME` (the offline
-      // `preset`/`--version` calls need neither), takes up to ~10s, and only
-      // retries a narrow set of network errors. Running it blocking on every
-      // turn turned any transient gateway/timeout/HOME hiccup into a hard
-      // "AMR model … is not available from Vela" — even for a logged-in user
-      // who already picked a real model the picker surfaced from the preset
-      // seed. Under CorpLink/飞连 the call routinely exceeded the timeout, so
-      // AMR became unusable in packaged nightlies. Reusing the cache keeps that
-      // blocking probe off the per-run hot path and degrades to preset instead
-      // of fail-closing; vela's own `session/set_model` remains the final gate.
       let liveModels = [];
       try {
-        const probe = await resolveAmrModelProbe();
-        const catalog = await amrModelLoadingCache.get(probe.cacheKey, {
-          fetchPreset: () => fetchVelaPresetModels(probe.launchPath, probe.env),
-          fetchRemote: () => fetchVelaRemoteModelsWithRetry(probe.launchPath, probe.env),
-        });
-        liveModels = catalog.models ?? [];
-      } catch (error) {
-        // Do not swallow silently: a probe failure here is exactly what made
-        // the packaged AMR breakage undiagnosable (the old `catch {}` left no
-        // trace in any log or diagnostics bundle). Record it and degrade to the
-        // remembered catalog below.
-        console.warn('[amr] model catalog preflight probe failed', error);
+        liveModels =
+          launchPath && typeof def.fetchModels === 'function'
+            ? ((await def.fetchModels(launchPath, modelProbeEnv)) ?? [])
+            : [];
+      } catch {
         liveModels = [];
       }
-      const rememberedLiveModels = getRememberedLiveModels(def.id, amrModelScope);
+      const rememberedLiveModels = getRememberedLiveModels(def.id);
       if (liveModels.length > 0) {
-        rememberLiveModels(def.id, liveModels, amrModelScope);
+        rememberLiveModels(def.id, liveModels);
       }
       liveModels = preferFreshLiveModels(liveModels, rememberedLiveModels);
       const liveModelIds = new Set(
         liveModels.map((candidate) => candidate?.id).filter(Boolean),
       );
-      // A request that came in as 'default'/empty is normally pre-resolved to a
-      // concrete id via the agent-wide cached model order; if it still is not,
-      // adopt the first catalog entry so the spawn layer always has a real id.
-      const userAskedForDefault =
-        typeof model !== 'string' ||
-        !model.trim() ||
-        model.trim().toLowerCase() === 'default';
-      if (
-        !safeModel ||
-        safeModel === 'default' ||
-        (userAskedForDefault && !liveModelIds.has(safeModel))
-      ) {
-        safeModel = liveModels[0]?.id ?? safeModel ?? null;
-        agentOptions.model = safeModel;
-      }
       if (liveModelIds.size === 0) {
-        // The catalog is genuinely empty: even the offline preset seed could
-        // not be read, which almost always means the user is signed out (`vela`
-        // catalog calls 401) or the CLI is unrunnable. Prefer the relogin
-        // affordance over a misleading "choose a model".
+        // An empty AMR catalog usually means the user is signed out — `vela
+        // models` returns 401 and the catch above leaves `liveModels` empty.
+        // Surface AMR_AUTH_REQUIRED first so the chat shows the relogin
+        // affordance; otherwise the user sees a misleading "choose a model"
+        // when the real fix is to sign in.
         if (def.id === 'amr') {
           const loginStatus = readVelaLoginStatus(
             modelProbeEnv ?? process.env,
@@ -12282,29 +12047,37 @@ export async function startServer({
             return design.runs.finish(run, 'failed', 1, null);
           }
         }
-        // Logged in but no catalog at all AND no resolvable model: only now is
-        // there nothing safe to forward, so surface the model error.
-        if (!safeModel) {
-          send('error', createAmrModelUnavailablePayload(safeModel, {
-            reason: 'model_catalog_unavailable',
-          }));
-          return design.runs.finish(run, 'failed', 1, null);
-        }
-        // Otherwise fall through with the user's selected model and let vela's
-        // `session/set_model` be the authoritative gate.
-      } else if (!safeModel) {
-        // Catalog known but we could not resolve any model id to forward.
+        send('error', createAmrModelUnavailablePayload(safeModel, {
+          reason: 'model_catalog_unavailable',
+        }));
+        return design.runs.finish(run, 'failed', 1, null);
+      }
+      // `safeModel` was pre-resolved via the agent-wide cached model order,
+      // so a request that came in as 'default' (or empty) is already a
+      // concrete id by this point — `safeModel === 'default'` is rarely true.
+      // If the user actually asked for the agent default and the cached id no
+      // longer appears in the FRESH catalog (e.g. the AMR Link catalog rolled
+      // since `/api/agents` last responded), fall back to `liveModels[0]` from
+      // the fresh probe instead of rejecting their run as `AMR_MODEL_UNAVAILABLE`.
+      const userAskedForDefault =
+        typeof model !== 'string' ||
+        !model.trim() ||
+        model.trim().toLowerCase() === 'default';
+      if (
+        !safeModel ||
+        safeModel === 'default' ||
+        (userAskedForDefault && !liveModelIds.has(safeModel))
+      ) {
+        safeModel = liveModels[0]?.id ?? null;
+        agentOptions.model = safeModel;
+      }
+      if (!safeModel || !liveModelIds.has(safeModel)) {
         send('error', createAmrModelUnavailablePayload(
           typeof model === 'string' && model.trim() ? model : safeModel,
           { availableModels: [...liveModelIds] },
         ));
         return design.runs.finish(run, 'failed', 1, null);
       }
-      // NOTE: when the selected model is absent from the (possibly preset-only
-      // or stale) catalog we intentionally do NOT fail-close. The cached/preset
-      // catalog can lag the live one, and a logged-in user picked a concrete
-      // id; vela rejects a truly unsupported model at `session/set_model` with
-      // a precise error, which beats a pre-emptive block on a flaky metadata read.
     }
 
     // Plain-streaming adapters that own a "continue most recent
@@ -12341,10 +12114,6 @@ export async function startServer({
       def.id === 'antigravity'
         ? path.join(os.tmpdir(), `od-agy-${run.id}.log`)
         : undefined;
-    const promptFile = await preparePromptFileForAgent(def, composed, run.id);
-    const cleanupPromptFile = () => {
-      if (promptFile) promptFile.cleanup().catch(() => {});
-    };
 
     // Serialize antigravity spawns whose buildArgs writes a concrete
     // model into settings.json. Two concurrent runs with different
@@ -12368,26 +12137,19 @@ export async function startServer({
       antigravityModelLockRelease = await acquireAntigravityModelLock();
     }
 
-    let args;
-    try {
-      args = def.buildArgs(
-        composed,
-        safeImages,
-        extraAllowedDirs,
-        agentOptions,
-        {
-          cwd: effectiveCwd,
-          hasPriorAssistantTurn,
-          agentLogFilePath,
-          promptFilePath: promptFile?.path,
-          resumeSessionId: agentResumeCtx.resumeSessionId,
-          newSessionId: agentResumeCtx.newSessionId,
-        },
-      );
-    } catch (err) {
-      cleanupPromptFile();
-      throw err;
-    }
+    const args = def.buildArgs(
+      composed,
+      safeImages,
+      extraAllowedDirs,
+      agentOptions,
+      {
+        cwd: effectiveCwd,
+        hasPriorAssistantTurn,
+        agentLogFilePath,
+        resumeSessionId: agentResumeCtx.resumeSessionId,
+        newSessionId: agentResumeCtx.newSessionId,
+      },
+    );
     // Second-pass budget check that knows about the Windows `.cmd` shim
     // wrap. The pre-buildArgs `checkPromptArgvBudget` only looks at the
     // raw composed prompt; on Windows an npm-installed adapter resolves
@@ -12404,7 +12166,6 @@ export async function startServer({
       args,
     );
     if (cmdShimBudgetError) {
-      cleanupPromptFile();
       design.runs.emit(
         run,
         'error',
@@ -12432,7 +12193,6 @@ export async function startServer({
       args,
     );
     if (directExeBudgetError) {
-      cleanupPromptFile();
       design.runs.emit(
         run,
         'error',
@@ -12662,7 +12422,6 @@ export async function startServer({
     // spawn(def.bin) — that fallback re-introduces the exact ENOENT symptom
     // from issue #10.
     if (!resolvedBin || !agentLaunch.launchPath) {
-      cleanupPromptFile();
       revokeToolToken('child_exit');
       unregisterChatAgentEventSink();
       send('error', createSseErrorPayload(
@@ -12686,7 +12445,6 @@ export async function startServer({
     if (def.id === 'amr') {
       const loginStatus = readVelaLoginStatus(agentSpawnEnv, configuredAgentEnv);
       if (!loginStatus.loggedIn) {
-        cleanupPromptFile();
         revokeToolToken('child_exit');
         unregisterChatAgentEventSink();
         sendAmrAccountFailure({
@@ -12709,7 +12467,6 @@ export async function startServer({
         : {}),
     };
     if (run.cancelRequested || design.runs.isTerminal(run.status)) {
-      cleanupPromptFile();
       revokeToolToken('child_exit');
       unregisterChatAgentEventSink();
       return;
@@ -12736,19 +12493,6 @@ export async function startServer({
     let spawnedAgentEnv = null;
     let agentStdoutTail = '';
     let agentStderrTail = '';
-    const agentStderrFilter = createAgentStderrVisibilityFilter(agentId);
-    const emitVisibleAgentStderr = (chunk: unknown) => {
-      const visibleChunk = agentStderrFilter.write(chunk);
-      if (!visibleChunk) return;
-      agentStderrTail = `${agentStderrTail}${visibleChunk}`.slice(-2000);
-      send('stderr', { chunk: visibleChunk });
-    };
-    const flushVisibleAgentStderr = () => {
-      const visibleChunk = agentStderrFilter.flush();
-      if (!visibleChunk) return;
-      agentStderrTail = `${agentStderrTail}${visibleChunk}`.slice(-2000);
-      send('stderr', { chunk: visibleChunk });
-    };
     try {
       // Prompt delivery via stdin is now the universal default. This bypasses
       // both the cmd.exe 8KB limit and the CreateProcess 32KB limit.
@@ -12879,7 +12623,6 @@ export async function startServer({
         writePromptToChildStdin = true;
       }
     } catch (err) {
-      cleanupPromptFile();
       revokeToolToken('child_exit');
       unregisterChatAgentEventSink();
       send('error', createSseErrorPayload('AGENT_EXECUTION_FAILED', `spawn failed: ${err.message}`));
@@ -13037,10 +12780,9 @@ export async function startServer({
         // is owned solely by the orchestrator's awaited result below.
         child.stderr.on('data', (chunk) => {
           noteAgentActivity();
-          emitVisibleAgentStderr(chunk);
+          send('stderr', { chunk });
         });
         child.on('error', (err) => {
-          flushVisibleAgentStderr();
           send('error', createSseErrorPayload('AGENT_EXECUTION_FAILED', err.message));
         });
 
@@ -13049,10 +12791,7 @@ export async function startServer({
         // flow. Without this the orchestrator can't tell a non-zero exit
         // apart from a clean ship and may misclassify failures.
         const childExitPromise = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve) => {
-          child.once('close', (code, signal) => {
-            flushVisibleAgentStderr();
-            resolve({ code, signal });
-          });
+          child.once('close', (code, signal) => resolve({ code, signal }));
         });
         try {
           const orchestratorResult = await runOrchestrator({
@@ -13095,7 +12834,6 @@ export async function startServer({
             design.runs.finish(run, 'failed', 1, null);
           }
         } catch (err) {
-          flushVisibleAgentStderr();
           send('error', createSseErrorPayload('AGENT_EXECUTION_FAILED', err instanceof Error ? err.message : String(err)));
           design.runs.finish(run, 'failed', 1, null);
         } finally {
@@ -13241,7 +12979,6 @@ export async function startServer({
     const sendAgentEvent = (ev) => {
       if (ev?.type === 'error') {
         if (agentStreamError) return;
-        flushVisibleAgentStderr();
         const failureText = [
           String(ev.message || 'Agent stream error'),
           typeof ev.raw === 'string' ? ev.raw : '',
@@ -13299,7 +13036,6 @@ export async function startServer({
       const claude = createClaudeStreamHandler((ev) => {
         if (ev?.type === 'error') {
           if (agentStreamError) return;
-          flushVisibleAgentStderr();
           const message = String((ev as any).message || 'Claude Code stream error');
           const failureText = [
             message,
@@ -13307,33 +13043,17 @@ export async function startServer({
             agentStdoutTail,
             agentStderrTail,
           ].join('\n');
+          agentStreamError = rewriteKnownAgentStreamError(
+            agentId,
+            message,
+            failureText,
+          );
           clearInactivityWatchdog();
-          // Claude surfaces a connection drop / reset as an in-stream `error`
-          // frame (assistant `error:"unknown"` + the raw SDK string), which
-          // would otherwise reach the UI verbatim as a non-retryable
-          // AGENT_EXECUTION_FAILED. Run the same per-agent diagnostic used at
-          // child-exit so this path emits the specific class
-          // (AGENT_CONNECTION_DROPPED) — retryable, with copy the web can
-          // localize and triage can count by code.
-          const diagnostic = diagnoseClaudeCliFailure({
-            agentId: def.id,
-            exitCode: 1,
-            stderrTail: agentStderrTail,
-            stdoutTail: failureText,
-            env: spawnedAgentEnv,
-            resolvedBin: agentLaunch.selectedPath,
-          });
           const serviceCode = classifyAgentServiceFailure(failureText);
-          agentStreamError = diagnostic?.message
-            ?? rewriteKnownAgentStreamError(agentId, message, failureText);
           send('error', createSseErrorPayload(
-            diagnostic?.code ?? serviceCode ?? 'AGENT_EXECUTION_FAILED',
+            serviceCode ?? 'AGENT_EXECUTION_FAILED',
             agentStreamError,
-            {
-              retryable: diagnostic?.retryable
-                ?? (serviceCode === 'AGENT_AUTH_REQUIRED' || serviceCode === 'RATE_LIMITED'),
-              ...(diagnostic ? { details: { detail: diagnostic.detail } } : {}),
-            },
+            { retryable: serviceCode === 'AGENT_AUTH_REQUIRED' || serviceCode === 'RATE_LIMITED' },
           ));
           return;
         }
@@ -13350,10 +13070,12 @@ export async function startServer({
           abortForRoleMarker(typeof m === 'string' ? m : 'role marker');
         }
         // Stream-json input mode keeps the child's stdin open across the
-        // turn so the daemon can stream further user messages mid-turn. The
-        // child has no other way to know the turn is over, though — without
-        // an EOF it sits idle until the inactivity watchdog kills it.
-        // Bookkeeping here closes stdin on a clean terminal turn:
+        // turn so we can answer interactive tools like `AskUserQuestion`
+        // with a real `tool_result`. The child has no other way to know
+        // the conversation is over, though — without an EOF it sits idle
+        // until the inactivity watchdog kills it. Bookkeeping here:
+        //   - tool_use(AskUserQuestion): record the id so we know we owe
+        //     the model a tool_result before the turn can end.
         //   - turn_end (per-turn synthesized from `stop_reason`): fire on
         //     `end_turn` etc. but NOT on `tool_use` — that stop reason
         //     means the model paused mid-tool, not "turn complete".
@@ -13412,7 +13134,6 @@ export async function startServer({
             sendAgentEvent(payload);
           } else if (channel === 'error') {
             if (agentStreamError) return;
-            flushVisibleAgentStderr();
             agentStreamError = String(payload?.message || 'Pi session error');
             const piErrorCode = typeof payload?.code === 'string' ? payload.code : null;
             if (piErrorCode) {
@@ -13451,7 +13172,6 @@ export async function startServer({
           }
           noteAgentActivity();
           if (event === 'agent') noteFirstTokenFromAgentEvent(data);
-          if (event === 'error') flushVisibleAgentStderr();
           if (def.id === 'amr' && event === 'error') {
             const failure = classifyAmrAccountFailure(
               [
@@ -13527,13 +13247,12 @@ export async function startServer({
     run.acpSession = acpSession;
     child.stderr.on('data', (chunk) => {
       noteAgentActivity();
-      emitVisibleAgentStderr(chunk);
+      agentStderrTail = `${agentStderrTail}${chunk}`.slice(-2000);
+      send('stderr', { chunk });
     });
 
     child.on('error', (err) => {
       clearInactivityWatchdog();
-      cleanupPromptFile();
-      flushVisibleAgentStderr();
       revokeToolToken('child_exit');
       unregisterChatAgentEventSink();
       send('error', createSseErrorPayload('AGENT_EXECUTION_FAILED', err.message));
@@ -13542,7 +13261,6 @@ export async function startServer({
     child.on('close', async (code, signal) => {
       try {
       clearInactivityWatchdog();
-      flushVisibleAgentStderr();
       if (watchdogRetryRestarted) {
         // The inactivity watchdog already failed this attempt and the same-run
         // retry restarted on a fresh child. Finalization and event-sink / run-
@@ -13557,12 +13275,10 @@ export async function startServer({
       revokeToolToken('child_exit');
       unregisterChatAgentEventSink();
       if (acpSession?.hasFatalError()) {
-        markRpcCloseReason('fatal_rpc_error');
         return finishWithRetryDecision('failed', code ?? 1, signal ?? null);
       }
       if (agentStreamError) {
-        markRpcCloseReason('stream_error');
-        return finishWithRetryDecision('failed', code === 0 ? 1 : (code ?? 1), signal ?? null);
+        return finishWithRetryDecision('failed', code ?? 1, signal ?? null);
       }
       if (
         code !== 0 &&
@@ -13619,7 +13335,6 @@ export async function startServer({
         trackingSubstantiveOutput &&
         !agentProducedOutput
       ) {
-        markRpcCloseReason('empty_output');
         send('error', createSseErrorPayload(
           'AGENT_EXECUTION_FAILED',
           'Agent completed without producing any output. The model or provider may have returned an empty response — check the agent logs for upstream errors.',
@@ -13685,7 +13400,6 @@ export async function startServer({
         !trackingSubstantiveOutput &&
         !childStdoutSeen
       ) {
-        markRpcCloseReason('empty_output');
         let combinedDetail = `${agentStderrTail}\n${agentStdoutTail}`;
         if (def.id === 'antigravity' && agentLogFilePath) {
           try {
@@ -13785,10 +13499,7 @@ export async function startServer({
         );
         if (diagnostic) {
           send('error', createSseErrorPayload(
-            // A diagnostic that named its own failure class (e.g.
-            // AGENT_CONNECTION_DROPPED) wins over the generic service-failure
-            // sniff so the UI can localize by code and triage can count it.
-            diagnostic.code ?? serviceCode ?? 'AGENT_EXECUTION_FAILED',
+            serviceCode ?? 'AGENT_EXECUTION_FAILED',
             diagnostic.message,
             { retryable: diagnostic.retryable, details: { detail: diagnostic.detail } },
           ));
@@ -13907,7 +13618,6 @@ export async function startServer({
         if (agentLogFilePath) {
           fs.promises.unlink(agentLogFilePath).catch(() => {});
         }
-        cleanupPromptFile();
       }
     });
     if (writePromptToChildStdin && child.stdin) {
@@ -13919,10 +13629,11 @@ export async function startServer({
       if (promptInputFormat === 'stream-json') {
         // Wrap the prompt as an Anthropic user message and write it as one
         // JSONL line. Do NOT close stdin: claude-code keeps reading further
-        // messages until EOF, which is what lets the daemon stream more user
-        // messages into the same turn. The stdin is closed on a clean terminal
-        // turn (see applyClaudeStreamJsonRunBookkeeping) or when the child
-        // exits (run terminates, user cancels).
+        // messages until EOF, which is what lets us inject a `tool_result`
+        // block later when the user answers an `AskUserQuestion` card. The
+        // stdin is closed implicitly when the child exits (run terminates,
+        // user cancels, or the model finishes without an outstanding tool
+        // call).
         const userMessage = JSON.stringify({
           type: 'user',
           message: {
@@ -13943,6 +13654,21 @@ export async function startServer({
         child.stdin.end(composed, 'utf8');
       }
     }
+  };
+
+  // Send a `tool_result` content block into a still-running stream-json
+  // child. Used for interactive tools that the host answers (currently:
+  // Claude's `AskUserQuestion`). The run must still be active and its
+  // stdin must still be open — we never re-spawn a closed child.
+  const submitToolResultToRun = (runId, toolUseId, content, isError = false) => {
+    const run = design.runs.get(runId);
+    if (!run) return { ok: false, reason: 'not_found' };
+    return submitToolResultToRunState(run, {
+      content,
+      isError,
+      isTerminal: design.runs.isTerminal(run.status),
+      toolUseId,
+    });
   };
 
   orbitService.setRunHandler(async ({
@@ -14250,9 +13976,6 @@ export async function startServer({
     if (!toolBundleSupport.ok) {
       return sendApiError(res, 400, 'BAD_REQUEST', toolBundleSupport.message);
     }
-    if (runProject?.metadata) {
-      meta.projectMetadata = runProject.metadata;
-    }
     // MCP / SDK callers POST /api/runs with just a projectId — no
     // conversationId, no pre-created assistantMessageId — because they
     // don't know about OD's chat-row lifecycle. The web flow
@@ -14425,31 +14148,10 @@ export async function startServer({
       // Without it, a run for an uninstalled agent would still report
       // `available` whenever any unrelated CLI was on PATH — see PR #2285
       // review.
-      // AMR sign-in state is daemon-visible (vela's config file or the
-      // Settings-backed VELA_RUNTIME_KEY/VELA_LINK_URL env config), so the
-      // server-side captures can fill `amrAuthorized` even though BYOK
-      // stays web-only. Merge the configured AMR env exactly like the
-      // /api/integrations/vela/status route and the run launcher do —
-      // env-configured users are signed in to the UI, and dropping the
-      // configured env here would keep reporting them as 'none'.
-      const velaStatusForAnalytics = (() => {
-        try {
-          const configuredAmrEnv = agentCliEnvForAgent(
-            (appCfgForAnalytics as {
-              agentCliEnv?: Parameters<typeof agentCliEnvForAgent>[0];
-            }).agentCliEnv,
-            'amr',
-          );
-          return readVelaLoginStatus(process.env, configuredAmrEnv);
-        } catch {
-          return null;
-        }
-      })();
       const configureGlobals = deriveConfigureGlobals({
         mode: 'daemon',
         agentId: typeof reqBody.agentId === 'string' ? reqBody.agentId : null,
         agents: detectedAgentsForAnalytics,
-        amrAuthorized: velaStatusForAnalytics?.loggedIn === true,
       });
       const promptText =
         typeof reqBody.currentPrompt === 'string'
@@ -14503,41 +14205,10 @@ export async function startServer({
       // project runs are classified even when callers do not send
       // `analyticsHints`. Other dimensions stay omitted until follow-up PRs
       // thread them through.
-      // Per-turn capability sets: MCP servers live under the nested
-      // `context` selection; skills are sent top-level. Both are arrays of
-      // ids on the wire; coerce defensively so a malformed payload never
-      // throws inside the capture path.
-      const reqContext =
-        reqBody.context && typeof reqBody.context === 'object'
-          ? (reqBody.context as Record<string, unknown>)
-          : {};
-      const runMcpServerIds = Array.isArray(reqContext.mcpServerIds)
-        ? (reqContext.mcpServerIds as unknown[]).filter(
-            (id): id is string => typeof id === 'string',
-          )
-        : [];
-      const runTurnSkillIds = Array.isArray(reqBody.skillIds)
-        ? (reqBody.skillIds as unknown[]).filter(
-            (id): id is string => typeof id === 'string',
-          )
-        : [];
-      // `skill_ids` is the full per-send skill context, so fold in the
-      // project-bound persistent `skillId` (also reported singularly as
-      // `skill_id`) alongside the staged one-turn skills — otherwise a normal
-      // project run with a persisted skill but no staged skills would emit
-      // `skill_ids=[]` and undercount in dashboards that read the array.
-      const runSkillIds = [
-        ...new Set(
-          [reqBody.skillId, ...runTurnSkillIds].filter(
-            (id): id is string => typeof id === 'string' && id.length > 0,
-          ),
-        ),
-      ];
       const baseProps: Record<string, unknown> = {
         page_name: isDesignSystemRun ? 'design_system_project' : 'chat_panel',
         area: isDesignSystemRun ? 'design_system_generation' : 'chat_composer',
         ...configureGlobals,
-        ...amrUserIdForRunAnalytics(velaStatusForAnalytics),
         project_id: requestProjectId,
         conversation_id:
           typeof reqBody.conversationId === 'string' ? reqBody.conversationId : null,
@@ -14605,26 +14276,7 @@ export async function startServer({
           typeof reqBody.agentId === 'string' ? reqBody.agentId : null,
         ),
         skill_id: typeof reqBody.skillId === 'string' ? reqBody.skillId : null,
-        // Per-send composer context (v2 spec: every prompt records mode +
-        // which model/cli/mcp/skill/plugin/design-system it ran with). Mode,
-        // plugin, and the MCP/skill sets weren't on `run_created` before; the
-        // values are all on the create payload, so populate them here. The
-        // legacy singular `mcp_id` becomes the first enabled server for
-        // back-compat; `mcp_ids` carries the full set.
-        // Only composer-originated runs have an ask/design mode. DS-generation
-        // runs never go through the composer, so omit `session_mode` for them
-        // rather than defaulting them to `ask` and polluting mode dashboards.
-        ...(!isDesignSystemRun && typeof reqBody.sessionMode === 'string'
-          ? { session_mode: sessionModeToTracking(reqBody.sessionMode) }
-          : {}),
-        plugin_id: resolvedSnapshot?.ok
-          ? resolvedSnapshot.snapshot.pluginId
-          : typeof reqBody.pluginId === 'string'
-            ? reqBody.pluginId
-            : null,
-        mcp_ids: runMcpServerIds,
-        mcp_id: runMcpServerIds[0] ?? null,
-        skill_ids: runSkillIds,
+        mcp_id: null,
         token_count_source: userQueryTokens > 0 ? 'estimated' : 'unknown',
       };
       design.analytics.capture({
@@ -14688,16 +14340,10 @@ export async function startServer({
           telemetry: run.analyticsTelemetry,
           events: run.events,
         });
-        const artifactCount = countNewHtmlArtifacts(run.events);
-        const designSystemCreated = didRunCreateDesignSystemFile(run.events);
-        const previewModuleCount = countDesignSystemPreviewModules(run.events);
         const diagnosticsAnalytics = summarizeRunDiagnosticsForAnalytics({
           events: run.events,
           exitCode: status.exitCode ?? null,
           signal: status.signal ?? null,
-          cancelRequested: !!run.cancelRequested,
-          firstTokenSeen: Boolean(run.analyticsTelemetry?.firstTokenAt),
-          artifactWriteSeen: artifactCount > 0 || designSystemCreated || previewModuleCount > 0,
         });
         const finishedModelId = hasExplicitRequestedModelForAnalytics(reqBody.model)
           ? modelIdForTracking(reqBody.model)
@@ -14732,11 +14378,11 @@ export async function startServer({
             // artifact?" funnel on PostHog. See `run-artifacts.ts`
             // for the dedup semantics; tested in
             // `tests/run-artifacts.test.ts`.
-            artifact_count: artifactCount,
-            // True when the run raised a `<question-form>` clarification.
-            // Clarification turns inherently produce no artifact, so the
-            // dashboard excludes them from the "run finished -> has artifact"
-            // funnel instead of counting them as failures. See
+            artifact_count: countNewHtmlArtifacts(run.events),
+            // True when the run raised an AskUserQuestion clarification
+            // card. Clarification turns inherently produce no artifact, so
+            // the dashboard excludes them from the "run finished -> has
+            // artifact" funnel instead of counting them as failures. See
             // `run-artifacts.ts`; tested in `tests/run-artifacts.test.ts`.
             asked_user_question: runAskedUserQuestion(run.events),
             retry_attempt_count: run.retryAttemptCount ?? 0,
@@ -14749,8 +14395,8 @@ export async function startServer({
               // succeeded; the run-artifacts inspector reuses the
               // same Write/Edit pairing it already does for HTML
               // artifact counts, just keyed on `DESIGN.md`.
-              design_system_created: designSystemCreated,
-              preview_module_count: previewModuleCount,
+              design_system_created: didRunCreateDesignSystemFile(run.events),
+              preview_module_count: countDesignSystemPreviewModules(run.events),
               // `missing_font_count` defaults to 0 — the agent flow
               // doesn't emit a structured "missing fonts" signal yet.
               // Kept on the wire so the dashboard has the column from
@@ -14927,7 +14573,6 @@ export async function startServer({
       ...requestBody,
       mediaExecution: mediaExecution.policy,
       toolBundle: toolBundle.bundle,
-      ...(chatProject?.metadata ? { projectMetadata: chatProject.metadata } : {}),
     };
     const run = design.runs.create(meta);
     design.runs.stream(run, req, res);
@@ -15318,7 +14963,7 @@ export async function startServer({
     validation: validationDeps,
     finalize: finalizeDeps,
     handoff: handoffDeps,
-    chat: { startChatRun },
+    chat: { startChatRun, submitToolResultToRun },
     agents: agentDeps,
     critique: critiqueDeps,
     lifecycle: { isDaemonShuttingDown: () => daemonShuttingDown },
@@ -15343,7 +14988,7 @@ export async function startServer({
     design,
     http: httpDeps,
     paths: pathDeps,
-    chat: { startChatRun },
+    chat: { startChatRun, submitToolResultToRun },
     agents: agentDeps,
     critique: critiqueDeps,
     validation: validationDeps,

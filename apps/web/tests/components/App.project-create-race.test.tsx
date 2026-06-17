@@ -58,9 +58,6 @@ vi.mock('../../src/components/EntryView', () => ({
     projects: Project[];
   }) => (
     <main>
-      {window.location.pathname === '/' ? (
-        <div data-testid="entry-home-surface" />
-      ) : null}
       <button
         type="button"
         onClick={() =>
@@ -670,12 +667,11 @@ describe('App project creation routing', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Back to projects' }));
 
     await waitFor(() => {
-      expect(screen.getByTestId('entry-home-surface')).toBeTruthy();
       expect(screen.getByTestId('entry-project-project-new').textContent).toContain(
         'Fresh project',
       );
     });
-    expect(window.location.pathname).toBe('/');
+    expect(window.location.pathname).toBe('/projects');
     expect(screen.queryByTestId('entry-project-project-existing')).toBeNull();
   });
 
